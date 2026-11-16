@@ -1554,9 +1554,9 @@ LIGHT_BASE = 96      # размер заготовки светового пят
 LIGHT_CORE = 0.45    # доля радиуса с ровным светом (она почти вся под кнопкой)
 
 
-def _light_disc(color):
-    """Круглое мягкое пятно света: ярко в центре, к краю плавно в ноль. Считается один раз на цвет."""
-    key = ("disc", color)
+def _light_disc(color, peak=240, core=LIGHT_CORE):
+    """Круглое мягкое пятно света: ровно до core радиуса, дальше плавно в ноль. Считается один раз."""
+    key = ("disc", color, peak, core)
     disc = _lights.get(key)
     if disc is None:
         n = LIGHT_BASE
@@ -1564,25 +1564,31 @@ def _light_disc(color):
         steps = 48
         for i in range(steps):              # от края к центру: каждый круг меньше и непрозрачнее
             t = 1 - i / steps                # 1 — край, 0 — центр
-            u = max(0.0, (t - LIGHT_CORE) / (1 - LIGHT_CORE))   # за кнопкой — ровный свет, дальше плавно гаснет
-            a = int(240 * (1 - u * u * (3 - 2 * u)))
+            u = max(0.0, (t - core) / (1 - core))
+            a = int(peak * (1 - u * u * (3 - 2 * u)))
             pygame.draw.circle(disc, color + (a,), (n // 2, n // 2), max(1, int(n / 2 * t)))
         _lights[key] = disc
     return disc
 
 
-def blit_backlight(surf, x, y, size, color=(255, 244, 200)):
-    """Подсветка «сзади»: мягкое пятно света диаметром size с центром (x, y). Рисуется ДО кнопки.
-    Размер округляется до 4 px — готовые пятна берутся из кэша, кадр не тормозит."""
+def blit_light(surf, x, y, size, color=(255, 244, 200), peak=240, core=LIGHT_CORE):
+    """Мягкое пятно света диаметром size с центром (x, y). Размер округляется до 4 px, яркость peak —
+    до 16 ступеней: готовые пятна берутся из кэша, мерцание огня и подсветка кнопок не тормозят."""
     size = max(8, int(round(size / 4)) * 4)
-    key = (color, size)
+    peak = max(16, min(255, int(peak) // 16 * 16))
+    key = (color, size, peak, core)
     img = _lights.get(key)
     if img is None:
-        img = pygame.transform.smoothscale(_light_disc(color), (size, size))
-        if len(_lights) > 200:
+        img = pygame.transform.smoothscale(_light_disc(color, peak, core), (size, size))
+        if len(_lights) > 300:
             _lights.clear()
         _lights[key] = img
     surf.blit(img, (int(round(x)) - size // 2, int(round(y)) - size // 2))
+
+
+def blit_backlight(surf, x, y, size, color=(255, 244, 200)):
+    """Подсветка «сзади» кнопки: рисуется ДО кнопки (3.4.1)."""
+    blit_light(surf, x, y, size, color)
 
 
 def draw_hover_ring(surf, rect, radius=10, color=(255, 248, 210)):

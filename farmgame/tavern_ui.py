@@ -20,7 +20,9 @@ import pygame
 
 from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR
 from .art import (OUT, WHITE, GOLD, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
-                  draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite)
+                  draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite,
+                  blit_tf, blit_light)
+from .particles import soft_dot
 from . import tavern as tv
 from . import hd
 
@@ -68,7 +70,18 @@ def _layout_procedural():
         board_sign=list(BOARD_SIGN), casino_door=list(CASINO_DOOR), casino_sign=list(CASINO_SIGN),
         talkers=[[x, BALCONY_FLOOR - 72] for x, _l, _f in BALCONY_PEOPLE],
         occluders=[],
+        music=dict(MUSIC_TIMING),
+        fx=dict(fire=[256, 424], candles=[[342, 460], [598, 460], [360, 250], [560, 250]],
+                steam=[[778, 592], [180, 506]], motes=[400, 30, 860, 120], barman_mug=None),
     )
+
+
+# 3.5: темп музыки таверны — по нему бард качается и пускает ноты в такт.
+#   bpm — долей в минуту; offset — через сколько секунд от начала трека первая доля (+ задержка звука);
+#   loop — длина трека в секундах (pygame не сбрасывает время музыки на повторе).
+# Сменил музыку — поправь эти числа в assets/backgrounds/tavern.json: "music": {"bpm": ..., "offset": ..., "loop": ...}
+MUSIC_TIMING = dict(bpm=86.68, offset=0.03, loop=56.31)    # под assets/music/tavern.ogg (джига 6/8, доля = ♩.)
+NOTE_COLORS = [(255, 235, 150), (255, 200, 120), (190, 230, 255), (255, 190, 210)]
 
 
 # Под фон assets/backgrounds/tavern.* (зал из Gemini: стойка по диагонали справа, сцена в центре).
@@ -83,6 +96,10 @@ CUSTOM_LAYOUT = dict(
     talkers=[[557, 56], [603, 58], [766, 46], [88, 408], [282, 440]],   # над головами нарисованных гостей
     # что стоит ПЕРЕД персонажами: эти куски фона рисуются поверх них (точки многоугольника)
     occluders=[[[604, 362], [662, 365], [796, 404], [796, 526], [698, 528], [604, 440]]],   # стойка
+    # 3.5: живой зал — где на фоне огонь, свечи, что парит (хлеб, кружки), где пылинки в свете окон, кружка бармена
+    music=dict(MUSIC_TIMING),
+    fx=dict(fire=[219, 444], candles=[[205, 335], [359, 393], [564, 393]],
+            steam=[[870, 572], [960, 561], [210, 483]], motes=[330, 36, 720, 128], barman_mug=[731, 372]),
 )
 
 
@@ -481,7 +498,7 @@ class TavernUI:
         self.tv_bubble = None          # [x, y, text, life]
         self.tv_talk = None            # [индекс гостя на балконе, текст, life]
         self.tv_talk_timer = 2.0
-        self.tv_notes = []             # ноты от барда: [x, y, life, vx]
+        self.tv_notes = []             # ноты от барда: [x, y, life, vx, цвет]
         self.tv_note_timer = 0.0
         self.barman_line = 0
         self.tavern_greeted = False
@@ -492,6 +509,15 @@ class TavernUI:
         self.tavern_debug = False      # режим разработчика: показать разметку зала
         self.tavern_check_seen = False
         self.board_bg = None
+        # 3.5: живой зал
+        self.tv_solo = 0.0             # бард играет соло (секунд осталось)
+        self.tv_half = None            # номер последней полудоли, на которой бард пускал ноту
+        self.tv_embers = []            # искры камина: [x, y, vx, vy, life, max_life]
+        self.tv_ember_t = 0.0
+        self.tv_steam = []             # пар: [x, y, t, life, фаза, сила]
+        self.tv_steam_t = 0.0
+        self.tv_twinkle_t = 3.0
+        self.tv_motes = None
 
     def quest_blocked(self):
         """Задания, которые сейчас не выполнить: их не выдаём."""
@@ -615,11 +641,105 @@ class TavernUI:
         self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, 4.5]
 
     def poke_bard(self):
+        """Клик по барду — соло: 8 долей ноты летят на каждую полудолю, бард качается сильнее."""
         d = self.tl["bard"]
         self.tv_bubble = [d["x"], d["y"] - 135 * d["k"], random.choice(tv.BARD_LINES), 3.5]
-        for _ in range(6):
-            self.tv_notes.append([d["x"] + random.uniform(-30, 30), d["y"] - 70 * d["k"] + random.uniform(-10, 10), 2.0,
-                                  random.uniform(-40, 40)])
+        self.tv_solo = 8 * 60.0 / self.tl["music"]["bpm"]
+        for _ in range(3):
+            self.tv_notes.append([d["x"] + 34 * d["k"] + random.uniform(-10, 10), d["y"] - 72 * d["k"] + random.uniform(-8, 8),
+                                  2.0, random.uniform(0, 45), random.choice(NOTE_COLORS)])
+        for _ in range(3):
+            self.fx.twinkle(d["x"] + random.uniform(-45, 45), d["y"] - random.uniform(40, 120) * d["k"], 7, life=0.6)
+
+    # ---------- живой зал (3.5) ----------
+    def tv_beat(self):
+        """Сколько долей музыки таверны прошло (дробное число): по времени самой музыки, а если звука нет —
+        по часам игры. Целая часть — номер доли, дробная — где мы внутри доли."""
+        m = self.tl["music"]
+        pos = self.music.position() if self.audio_scene == "tavern" else None
+        if pos is None:
+            pos = self.t_real
+        elif m.get("loop", 0) > 0:
+            pos %= m["loop"]
+        return (pos - m.get("offset", 0.0)) * m["bpm"] / 60.0
+
+    def tick_tavern_life(self, rdt):
+        """Ноты в такт, искры камина, пар, блик на кружке бармена."""
+        d = self.tl["bard"]
+        self.tv_solo = max(0.0, self.tv_solo - rdt)
+        half = math.floor(self.tv_beat() * 2)
+        if self.tv_half is None or abs(half - self.tv_half) > 8:
+            self.tv_half = half            # первый кадр или повтор трека — без залпа нот
+        elif half != self.tv_half:
+            self.tv_half = half
+            if self.tv_solo > 0 or half % 2 == 0:
+                # ноты вылетают у грифа лютни (справа от головы барда) и плывут вверх-вправо
+                self.tv_notes.append([d["x"] + 34 * d["k"] + random.uniform(-6, 6), d["y"] - 72 * d["k"],
+                                      2.2, random.uniform(5, 35), NOTE_COLORS[half % len(NOTE_COLORS)]])
+        fx = self.tl["fx"]
+        if fx.get("fire"):
+            fx0, fy0 = fx["fire"]
+            self.tv_ember_t -= rdt
+            while self.tv_ember_t <= 0:
+                self.tv_ember_t += random.uniform(0.07, 0.2)
+                life = random.uniform(0.7, 1.4)
+                self.tv_embers.append([fx0 + random.uniform(-12, 12), fy0 - 6, random.uniform(-7, 7),
+                                       random.uniform(-50, -26), life, life])
+        for e in self.tv_embers:
+            e[0] += e[2] * rdt + math.sin(self.t_real * 7 + e[5] * 9) * 0.35
+            e[1] += e[3] * rdt
+            e[4] -= rdt
+        self.tv_embers = [e for e in self.tv_embers if e[4] > 0][-60:]
+        self.tv_steam_t -= rdt
+        if self.tv_steam_t <= 0 and fx.get("steam"):
+            self.tv_steam_t = random.uniform(0.25, 0.45)
+            n = random.randrange(len(fx["steam"]))
+            sx, sy = fx["steam"][n]
+            self.tv_steam.append([sx + random.uniform(-5, 5), sy, 0.0, random.uniform(2.2, 3.2),
+                                  random.uniform(0, 6.3), 1.0 if n == 0 else 0.7])
+        for p in self.tv_steam:
+            p[2] += rdt
+        self.tv_steam = [p for p in self.tv_steam if p[2] < p[3]][-40:]
+        self.tv_twinkle_t -= rdt
+        if self.tv_twinkle_t <= 0:
+            self.tv_twinkle_t = random.uniform(3.5, 7.0)
+            if fx.get("barman_mug"):
+                mx, my = fx["barman_mug"]
+                self.fx.twinkle(mx + random.uniform(-4, 4), my + random.uniform(-3, 3), 7, life=0.55)
+
+    def draw_tavern_life(self, s, tt):
+        """Свет и воздух зала (под персонажами): пылинки в свете окон, огонь камина, свечи, пар."""
+        fx = self.tl["fx"]
+        if fx.get("motes"):
+            x0, y0, x1, y1 = fx["motes"]
+            if self.tv_motes is None:
+                rnd = random.Random(7)
+                self.tv_motes = [(rnd.uniform(x0, x1), rnd.uniform(y0, y1), rnd.uniform(0, 6.3)) for _ in range(18)]
+            for mx, my, ph in self.tv_motes:
+                x = mx + 10 * math.sin(tt * 0.13 + ph)
+                y = my + 7 * math.sin(tt * 0.17 + ph * 1.7)
+                a = 30 + 70 * (0.5 + 0.5 * math.sin(tt * 0.9 + ph * 3))
+                img = soft_dot(1.6, (255, 246, 215), a)
+                s.blit(img, (int(x) - 2, int(y) - 2))
+        if fx.get("fire"):
+            fx0, fy0 = fx["fire"]
+            fl = 0.5 * math.sin(tt * 7.3) + 0.3 * math.sin(tt * 12.1 + 1) + 0.2 * math.sin(tt * 3.1)
+            blit_light(s, fx0, fy0 - 16, 130 + 16 * fl, (255, 160, 60), 64 + 22 * fl, 0.0)
+            for x, y, _vx, _vy, life, life0 in self.tv_embers:
+                k = life / life0
+                col = (255, int(90 + 90 * k), int(20 + 40 * k))
+                s.blit(soft_dot(3.5, (255, 110, 30), 170 * k), (int(x) - 5, int(y) - 5))
+                pygame.draw.circle(s, col, (int(x), int(y)), 2 if k > 0.5 else 1)
+        for n, (cx, cy) in enumerate(fx.get("candles") or []):
+            fl = 0.6 * math.sin(tt * 8.7 + n * 2.1) + 0.4 * math.sin(tt * 13.3 + n)
+            blit_light(s, cx, cy, 40 + 6 * fl, (255, 205, 120), 92 + 26 * fl, 0.0)
+        for x, y, t, life, ph, power in self.tv_steam:
+            k = t / life
+            r = 2.5 + 5.5 * k
+            a = 60 * power * math.sin(math.pi * k)
+            img = soft_dot(r, (250, 248, 240), a)
+            px = x + math.sin(ph + t * 1.7) * 4 * k
+            s.blit(img, (int(px - r) - 1, int(y - 30 * k - r) - 1))
 
     def poke_casino(self):
         self.toast("Игорный зал пока закрыт — скоро откроется!", 2.5)
@@ -654,11 +774,7 @@ class TavernUI:
         if self.tv_talk_timer <= 0 and self.tl["talkers"]:
             self.tv_talk_timer = random.uniform(2.5, 5.0)
             self.tv_talk = [random.randrange(len(self.tl["talkers"])), random.choice(BALCONY_LINES), 2.2]
-        self.tv_note_timer -= rdt
-        if self.tv_note_timer <= 0:
-            self.tv_note_timer = random.uniform(0.5, 0.9)
-            d = self.tl["bard"]
-            self.tv_notes.append([d["x"] + random.uniform(-25, 25), d["y"] - 70 * d["k"], 2.2, random.uniform(-25, 25)])
+        self.tick_tavern_life(rdt)
         for n in self.tv_notes:
             n[0] += n[3] * rdt + math.sin(self.t_real * 3 + n[2]) * 0.4
             n[1] -= 40 * rdt
@@ -669,6 +785,7 @@ class TavernUI:
     def draw_tavern_view(self):
         s, tt = self.screen, self.t_real
         s.blit(self.tavern_bg, (0, 0))
+        self.draw_tavern_life(s, tt)
         if not self.tavern_custom:
             # огонь в камине
             for i in range(5):
@@ -688,7 +805,9 @@ class TavernUI:
         L = self.tl
         b = L["barman"]
         wipe = math.sin(tt * 3)
-        if not blit_sprite(s, "characters/barman", b["x"], b["waist"] + 2 + math.sin(tt * 1.5) * 1, b["sprite_scale"], "midbottom"):
+        # 3.5: протирает кружку — чуть поворачивается и ходит из стороны в сторону (низ закрыт стойкой)
+        if not blit_tf(s, "characters/barman", b["x"] + 1.3 * math.sin(tt * 3.2), b["waist"] + 2 + math.sin(tt * 1.5),
+                       b["sprite_scale"], angle=1.5 * math.sin(tt * 3.2 + 0.6)):
             look = dict(top=(200, 210, 225), apron=True, hair=(70, 50, 40), style="bald", mustache=True)
             talking = self.tv_bubble is not None and self.tv_bubble[0] == b["x"]
             hands = draw_person(s, b["x"], b["waist"], b["k"], look, tt, talking, upper=True,
@@ -705,16 +824,21 @@ class TavernUI:
             s.blit(img, pos)
         # бард на сцене
         d = L["bard"]
-        strum = (math.sin(tt * 9) + 1) / 2
-        bob = abs(math.sin(tt * 4.5)) * 2
+        beat = self.tv_beat()
+        hit = max(0.0, 1.0 - (beat % 1.0) * 3.5)         # 1 — ровно на доле, быстро спадает
+        solo = self.tv_solo > 0
+        strum = hit
+        bob = 2.5 * hit * (1.6 if solo else 1.0)
         bx, by, k = d["x"], d["y"], d["k"]
-        if not blit_sprite(s, "characters/bard", bx, by - bob, d["sprite_scale"], "midbottom"):
+        sway = math.sin(beat * math.pi) * (5.0 if solo else 2.5)   # туда-сюда за две доли
+        if not blit_tf(s, "characters/bard", bx, by, d["sprite_scale"], sx=1 + 0.02 * hit,
+                       sy=1 - 0.035 * hit * (1.5 if solo else 1.0), angle=sway):
             look = dict(top=(60, 140, 90), legs=(150, 60, 60), hair=(170, 110, 60), style="bard")
             talking = self.tv_bubble is not None and self.tv_bubble[0] == bx
             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
-        for x, y, life, _vx in self.tv_notes:
-            draw_note(s, x, y)
+        for x, y, life, _vx, col in self.tv_notes:
+            draw_note(s, x, y, color=col)
         self.zone(L["barman_zone"], self.say_barman)
         self.zone(L["bard_zone"], self.poke_bard)
         # стрелка к доске заданий
@@ -761,8 +885,27 @@ class TavernUI:
             p = L[key]
             y = p["waist"] if key == "barman" else p["y"]
             pygame.draw.line(s, (255, 0, 255), (p["x"] - 12, int(y)), (p["x"] + 12, int(y)), 2)
-        draw_text(s, "красное — перед персонажами, жёлтое — облачка, малиновое — пояс бармена / ноги барда", 13,
-                  (W // 2, 628), (255, 230, 120))
+        fx = L["fx"]
+        if fx.get("fire"):
+            pygame.draw.circle(s, (255, 140, 0), [int(v) for v in fx["fire"]], 7, 2)
+        for pt in fx.get("candles") or []:
+            pygame.draw.circle(s, (255, 200, 0), [int(v) for v in pt], 5, 2)
+        for pt in fx.get("steam") or []:
+            pygame.draw.circle(s, WHITE, [int(v) for v in pt], 5, 2)
+        if fx.get("barman_mug"):
+            pygame.draw.circle(s, (120, 255, 255), [int(v) for v in fx["barman_mug"]], 5, 2)
+        if fx.get("motes"):
+            x0, y0, x1, y1 = fx["motes"]
+            pygame.draw.rect(s, (255, 246, 215), (x0, y0, x1 - x0, y1 - y0), 1)
+        # метроном: кружок вспыхивает на каждой доле — сверь с музыкой и поправь bpm/offset в tavern.json
+        m, beat = L["music"], self.tv_beat()
+        flash = max(0.0, 1.0 - (beat % 1.0) * 4)
+        pygame.draw.circle(s, OUT, (W // 2, 26), 16)
+        pygame.draw.circle(s, (255, int(120 + 120 * flash), 60) if flash > 0 else (90, 70, 60), (W // 2, 26), 13)
+        draw_text(s, f"{m['bpm']:g} BPM, сдвиг {m.get('offset', 0):g} с, доля {int(beat) % 100}", 13, (W // 2, 54),
+                  (255, 230, 120))
+        draw_text_fit(s, "красное — перед персонажами, жёлтое — облачка, малиновое — пояс бармена / ноги барда; "
+                         "оранжевое — огонь, свечи, белое — пар", 12, (W // 2 + 40, 628), W - 140, (255, 230, 120))
 
     # ---------- экран: доска ----------
     def draw_board_view(self):

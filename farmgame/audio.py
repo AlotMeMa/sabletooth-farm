@@ -77,6 +77,17 @@ class Music:
             print(f"Не удалось включить музыку {path}: {e}")
             self.current = None
 
+    def position(self):
+        """Сколько секунд играет текущая музыка (с момента включения, повторы не сбрасывают) или None.
+        Таверна по этому времени держит бард в такт (3.5)."""
+        if not self.ok or self.current is None:
+            return None
+        try:
+            ms = pygame.mixer.music.get_pos()
+        except Exception:
+            return None
+        return ms / 1000.0 if ms is not None and ms >= 0 else None
+
     def apply_volume(self):
         if self.ok:
             try:

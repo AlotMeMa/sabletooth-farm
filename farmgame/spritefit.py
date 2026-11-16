@@ -43,6 +43,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/sheet": ("icons/", ICON_SHEET_ORDER),
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER),
 }
+UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110)}   # наибольший размер (3.4)
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
 
@@ -142,6 +143,12 @@ def _fit_spec_base(name):
         if last.startswith("cart"):
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
         return None
+    if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):
+        # 3.4: окна и кнопки — фон убрать, поля обрезать, пропорции картинки сохранить (игра режет её на 9/3 части)
+        size = UI_TRIM.get(last, (300, 100))
+        return _spec(size, (0, 0) + size, "trim")
+    if folder == "ui" and last == "slider_knob":
+        return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("btn_"):
         return _spec(*_box(64, 64, 2, 2, 2, 2), "center")
     if folder == "ui" and last == "logo":              # экран загрузки: название игры
@@ -463,6 +470,15 @@ def fit_single(img, spec):
     cw, ch = spec["canvas"]
     if spec["align"] == "full":
         return pygame.transform.smoothscale(img, (cw, ch))
+    if spec["align"] == "trim":       # без холста: обрезанный рисунок, вписанный в cw×ch с его пропорциями
+        px = _prepare(img, _work(max(cw, ch)))
+        bb = px.bbox()
+        if bb is None:
+            return None
+        piece = px.surface(bb)
+        w, h = piece.get_size()
+        k = min(cw / w, ch / h)
+        return pygame.transform.smoothscale(piece, (max(1, int(round(w * k))), max(1, int(round(h * k)))))
     px = _prepare(img, _work(max(cw, ch)))
     bb = px.bbox()
     if bb is None:

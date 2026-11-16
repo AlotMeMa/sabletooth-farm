@@ -400,8 +400,16 @@ def face(surf, x, y, s):
         pygame.draw.circle(surf, (255, 140, 150), (P(x + 7 * s), P(y + 2 * s)), max(1, P(1.6 * s)))
 
 
-def rounded(surf, color, rect, radius=10, border=3, border_color=OUT):
+def rounded(surf, color, rect, radius=10, border=3, border_color=OUT, skin="auto"):
+    """Скруглённый прямоугольник. Цвет старой кнопки/карточки (см. skin.AUTO) — рисуется оформлением
+    «дерево + пергамент» (картинка из assets/ui/ или то же кодом); skin=None — всегда просто цветом."""
     rect = pygame.Rect(rect)
+    if skin:
+        from . import skin as _skin
+        name = _skin.AUTO.get(tuple(color[:3])) if skin == "auto" else skin
+        if name and border:
+            _skin.draw(surf, name, rect)
+            return
     pygame.draw.rect(surf, color, rect, border_radius=radius)
     if border:
         pygame.draw.rect(surf, border_color, rect, border, border_radius=radius)
@@ -1179,7 +1187,7 @@ def draw_truck(s, x, y, color, cargo=False, bob=0.0):
     dark = tuple(max(0, c - 50) for c in color)
     ellipse(s, (120, 150, 90), x, y + 2 + bob, 190, 18, ow=0)  # тень
     # кузов
-    rounded(s, color, (P(x - 30), P(y - 72), 110, 56), 6, 3)
+    rounded(s, color, (P(x - 30), P(y - 72), 110, 56), 6, 3, skin=None)
     pygame.draw.rect(s, dark, (P(x - 26), P(y - 30), 102, 8))
     draw_text(s, "ФЕРМА", 14, (x + 25, y - 50), WHITE)
     if cargo:

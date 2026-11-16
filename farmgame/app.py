@@ -23,6 +23,7 @@ from .art import *  # noqa: F401,F403
 from .tavern import Tavern
 from .tavern_ui import TavernUI
 from .particles import Particles, draw_shadow
+from . import skin
 
 
 LOADING_SPRITES = ("backgrounds/loading", "ui/logo", "ui/loading_ring", "ui/loading_center")
@@ -1445,12 +1446,12 @@ class App(TavernUI):
         r = pygame.Rect(0, 0, w, h)
         r.center = (W // 2, H // 2)
         self.panel_rect = r
-        pygame.draw.rect(s, (40, 30, 30), r.move(5, 6), border_radius=14)
-        rounded(s, PANEL, r, 14, 4)
-        head = pygame.Rect(r.x, r.y, r.w, 54)
-        pygame.draw.rect(s, (80, 140, 225), head, border_top_left_radius=14, border_top_right_radius=14)
-        pygame.draw.rect(s, OUT, head, 4, border_top_left_radius=14, border_top_right_radius=14)
-        draw_text(s, title, 24, head.center)
+        skin.draw(s, "panel", r)                       # 3.4: деревянная рамка + пергамент
+        tw = render_text(title, 24, WHITE, OUT).get_width()
+        head = pygame.Rect(0, 0, min(r.w - 110, max(230, tw + 96)), 50)
+        head.midtop = (r.centerx, r.y - 10)           # табличка висит на верхней доске рамки
+        skin.draw(s, "panel_header", head)
+        draw_text(s, title, 24, (head.centerx, head.centery - 2))
         x = pygame.Rect(r.right - 30, r.y - 14, 44, 44)
         self.icon_button(x, "close", lambda rr: draw_text(s, "X", 20, rr.center), self.close_modal)
         return r
@@ -1463,8 +1464,8 @@ class App(TavernUI):
         rect = pygame.Rect(rect)
         grow = self.btn_anim(rect, enabled and (self.modal is None or self._in_modal)) if enabled else 0.0
         look = rect.inflate(int(round(6 * grow)), int(round(4 * grow)))
-        rounded(self.screen, color if enabled else BTN_GREY, look, 10, 3)
-        draw_text(self.screen, label, size, (rect.centerx, rect.centery + (1 if grow < 0 else 0)))
+        skin.draw(self.screen, skin.button_skin(color) if enabled else "button_grey", look)
+        draw_text(self.screen, label, size, (rect.centerx, rect.centery - 1 + (1 if grow < 0 else 0)))
         if enabled:
             self.zone_btn(rect, cb)
 
@@ -2190,7 +2191,7 @@ class App(TavernUI):
             "Их можно в любой момент переставить: снять с грядки и отправить на мельницу.",
         ]
         for n, t in enumerate(tips):
-            draw_text(s, t, 13, (r.centerx, r.y + 250 + n * 26), soft, outline=None)
+            draw_text_fit(s, t, 13, (r.centerx, r.y + 250 + n * 26), r.w - 50, soft, outline=None)
 
     def do_hire_peasant(self):
         f = self.farm
@@ -2235,10 +2236,10 @@ class App(TavernUI):
         after = f.home_leaves + p
         draw_text(s, f"Множитель дохода: {fmt_mult(f.home_leaves)}  ->  {fmt_mult(after)}   (+2% за каждую)",
                   17, (r.centerx, y + 104), brown, outline=None)
-        draw_text(s, f"Ещё ${fmt(f.money_for_next_leaf())} — и будет ещё +1. Чем дольше копишь, тем больше!",
-                  13, (r.centerx, y + 130), (140, 110, 95), outline=None)
-        draw_text(s, f"Грядки, здания и работники обнулятся. {CUR['title']} и дерево остаются (до переезда).",
-                  13, (r.centerx, y + 150), (190, 80, 70), outline=None)
+        draw_text_fit(s, f"Ещё ${fmt(f.money_for_next_leaf())} — и будет ещё +1. Чем дольше копишь, тем больше!",
+                      13, (r.centerx, y + 130), r.w - 50, (140, 110, 95), outline=None)
+        draw_text_fit(s, f"Грядки, здания и работники обнулятся. {CUR['title']} и дерево остаются (до переезда).",
+                      13, (r.centerx, y + 150), r.w - 50, (190, 80, 70), outline=None)
         self.button((r.centerx - 230, r.bottom - 66, 250, 50), "Продать ферму!", self.sell_farm, BTN_GREEN, p > 0, 20)
         self.button((r.centerx + 40, r.bottom - 66, 190, 50), "Ещё покоплю", self.close_modal, BTN_BLUE, True, 18)
 
@@ -2378,7 +2379,7 @@ class App(TavernUI):
             self.button((x + w - half, y + 140, half, 46), label, self.reset_everything, (230, 90, 80), True, 17)
         self.button((r.centerx - 165, r.bottom - 62, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
         self.button((r.centerx + 15, r.bottom - 62, 180, 46), "Выйти из игры", self.quit_game, (150, 110, 100), True, 17)
-        draw_text(s, f"версия {GAME_VERSION}", 13, (r.x + 18, r.bottom - 14), soft, anchor="midleft", outline=None)
+        draw_text(s, f"версия {GAME_VERSION}", 12, (r.x + 26, r.y + 56), soft, anchor="midleft", outline=None)
 
     def set_option(self, name, value):
         setattr(self, name, value)
@@ -2396,10 +2397,8 @@ class App(TavernUI):
         draw_text(s, f"{title}: {note}", 17, (x, y), brown, anchor="midleft", outline=None)
         bar = pygame.Rect(x + 12, y + 18, w - 24, 22)
         frac = 0.0 if m.muted else vol
-        draw_bar(s, bar, frac, BTN_GREY if m.muted else (110, 200, 150))
-        kx = bar.x + bar.w * frac
-        pygame.draw.circle(s, OUT, (P(kx), bar.centery), 15)
-        pygame.draw.circle(s, (205, 200, 196) if m.muted else WHITE, (P(kx), bar.centery), 12)
+        draw_bar(s, bar, frac, BTN_GREY if m.muted else (120, 196, 96))
+        skin.draw_knob(s, bar.x + bar.w * frac, bar.centery, m.muted)
         if m.ok:
             self.zone(bar.inflate(28, 24), lambda b=bar: self.start_volume_drag(b, which))
 

@@ -197,6 +197,18 @@ def spec_list():
         lambda s: art.draw_cursor_template(s))
     add("ui/cursor_hover", (40, 40), "кончик стрелки = левый верхний угол (0, 0)", "курсор над кнопкой (необязательно)", 0,
         lambda s: art.draw_cursor_template(s, True))
+    # 3.4: окна и кнопки «дерево + пергамент» — игра растягивает их, углы остаются как нарисованы
+    add("ui/panel", (520, 400), "растягивается (9 частей), углы не тянутся", "окно: деревянная рамка, внутри пергамент", 0,
+        lambda s: _skin().draw_panel_fallback(s, pygame.Rect(4, 4, 510, 390)))
+    add("ui/panel_header", (440, 110), "растягивается по ширине (края не тянутся)", "табличка заголовка окна", 0,
+        lambda s: _skin().draw_header_fallback(s, pygame.Rect(10, 25, 420, 60)))
+    add("ui/card", (420, 140), "растягивается (9 частей)", "карточка-строка в окне (товар, улучшение)", 0,
+        lambda s: _skin().draw_card_fallback(s, pygame.Rect(6, 6, 408, 128)))
+    for col in ("green", "blue", "orange", "red", "grey"):
+        add(f"ui/button_{col}", (300, 100), "растягивается по ширине (края не тянутся)", f"кнопка ({col})", 0,
+            lambda s, c=col: _skin().draw_button_fallback(s, pygame.Rect(6, 10, 288, 80), _skin().BUTTON_COLORS[c]))
+    add("ui/slider_knob", (48, 48), "центр", "ручка ползунка громкости", 0,
+        lambda s: _skin().draw_knob(s, 24, 24))
     add("icons/coin", (40, 40), "центр", "монета", 0, lambda s: art.draw_coin(s, 20, 20, 17))
     add("icons/coin_silver", (40, 40), "центр", "серебряная монета (доход/с)", 0,
         lambda s: art.draw_coin(s, 20, 20, 17, (200, 215, 240)))
@@ -244,6 +256,11 @@ def spec_table_markdown():
     for name, size, anchor, desc, _f, _d in spec_list():
         rows.append(f"| `{name}.png` | {size[0]}×{size[1]} | {anchor} | {desc} |")
     return "\n".join(rows)
+
+
+def _skin():
+    from . import skin
+    return skin
 
 
 def known_names():

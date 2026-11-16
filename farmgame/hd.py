@@ -259,15 +259,26 @@ def _tr_flip(surf, fx, fy):
     return _orig["flip"](surf, fx, fy)
 
 
+OFFSET = [0, 0]      # 3.10: где в окне начинается картинка игры (полный экран с полями по краям)
+
+
 def _mouse_get_pos():
     x, y = _orig["get_pos"]()
     k = K[0]
-    return int(x / k), int(y / k)
+    return int((x - OFFSET[0]) / k), int((y - OFFSET[1]) / k)
 
 
 def to_logical_pos(pos):
     k = K[0]
-    return int(pos[0] / k), int(pos[1] / k)
+    return int((pos[0] - OFFSET[0]) / k), int((pos[1] - OFFSET[1]) / k)
+
+
+def set_offset(ox, oy):
+    """Картинка игры сдвинута в окне на (ox, oy) настоящих пикселей: мышь пересчитывается с учётом сдвига."""
+    OFFSET[0], OFFSET[1] = int(ox), int(oy)
+    if "get_pos" not in _orig:          # без HD мышь не подменялась — подменяем сейчас
+        _orig["get_pos"] = pygame.mouse.get_pos
+        pygame.mouse.get_pos = _mouse_get_pos
 
 
 class plain_scale:

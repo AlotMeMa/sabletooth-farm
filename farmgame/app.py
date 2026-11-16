@@ -27,6 +27,7 @@ from .tutorial import Tutorial
 from .tutorial_ui import TutorialUI
 from .particles import Particles, draw_shadow
 from . import skin
+from . import screenfit
 
 
 LOADING_SPRITES = ("backgrounds/loading", "ui/logo", "ui/loading_ring", "ui/loading_center")
@@ -88,6 +89,8 @@ class App(TavernUI, MillUI, TutorialUI):
         pygame.init()
         self.open_window(forced)
         self.fullscreen = False
+        self.edge_fill = True         # 3.10: в полном экране по краям — размытый фон вместо чёрных полос
+        self.wide = None              # окно в пропорциях экрана: dict(display, frame, offset, ...) — см. enter_wide
         pygame.display.set_caption(f"Весёлая ферма {GAME_VERSION}")
         self.clock = pygame.time.Clock()
         self.farm = Farm()
@@ -201,8 +204,8 @@ class App(TavernUI, MillUI, TutorialUI):
         self.toast("Чёткость поменяется после перезапуска игры", 4)
 
     def lpos(self, pos):
-        """Координаты мыши из события — в координаты игры (1000x640)."""
-        return hd.to_logical_pos(pos) if self.hd_k != 1 else pos
+        """Координаты мыши из события — в координаты игры (1000x640): с учётом HD и полей полного экрана."""
+        return hd.to_logical_pos(pos) if (self.hd_k != 1 or self.wide) else pos
 
     # ------------------------------------------------------------ загрузка картинок
     def preload_sprites(self):
@@ -262,7 +265,7 @@ class App(TavernUI, MillUI, TutorialUI):
         data["version"] = SAVE_VERSION
         data["options"] = {"fullscreen": self.fullscreen, "music_volume": self.music.volume, "music_muted": self.music.muted,
                            "sfx_volume": self.sfx.volume, "hd": self.hd_mode, "fps_limit": self.fps_limit,
-                           "show_fps": self.show_fps, "tips": self.show_tips}
+                           "show_fps": self.show_fps, "tips": self.show_tips, "edge_fill": self.edge_fill}
         data["tavern"] = self.tavern.to_dict()
         data["tutorial"] = self.tut.to_dict()
         savefile.write(cfg.SAVE_FILE, data)     # через временный файл + запасная копия раз в 5 минут
@@ -280,6 +283,7 @@ class App(TavernUI, MillUI, TutorialUI):
             def vol(key, cur):
                 v = opts.get(key, cur)
                 return max(0.0, min(1.0, float(v))) if isinstance(v, (int, float)) and v == v else cur
+            self.edge_fill = bool(opts.get("edge_fill", True))
             if opts.get("fullscreen") and not self.fullscreen:
                 self.toggle_fullscreen()
             self.music.volume = vol("music_volume", self.music.volume)
@@ -2172,10 +2176,107 @@ class App(TavernUI, MillUI, TutorialUI):
 
     def toggle_fullscreen(self):
         try:
-            pygame.display.toggle_fullscreen()
+            if self.fullscreen and self.wide:
+                self.leave_wide()
+            elif not self.fullscreen and self.edge_fill and self.enter_wide():
+                pass
+            else:
+                pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
         except pygame.error as e:
             self.toast(f"Не получилось переключить экран: {e}", 3)
+
+    # ---------- 3.10: полный экран без чёрных полос ----------
+    def set_canvas(self, real):
+        """Игра рисует в real (окно или картинка-кадр в полном экране)."""
+        self.screen = hd.HiSurf(real, self.hd_k, (W, H)) if self.hd_k != 1 else real
+
+    def enter_wide(self):
+        """Полный экран в пропорциях монитора: игра посередине, по краям — её размытое продолжение.
+        False — не вышло или не нужно (пропорции совпадают): тогда обычный полный экран с полосами."""
+        try:
+            sizes = pygame.display.get_desktop_sizes()
+            geo = screenfit.wide_geometry(self.canvas, sizes[0]) if sizes else None
+        except Exception:
+            geo = None
+        if geo is None:
+            return False
+        (ww, wh), (ox, oy) = geo
+        try:
+            display = pygame.display.set_mode((ww, wh), pygame.SCALED | pygame.FULLSCREEN)
+            frame = pygame.Surface(self.canvas).convert()
+        except pygame.error as e:
+            print("Полный экран с полями не открылся:", e)
+            self.restore_window()
+            return False
+        self.wide = dict(display=display, frame=frame, offset=(ox, oy), size=(ww, wh), edges=None, t=-1.0)
+        self.set_canvas(frame)
+        hd.set_offset(ox, oy)
+        self.shade_fade = None
+        return True
+
+    def restore_window(self):
+        real = pygame.display.set_mode(self.canvas, pygame.SCALED | pygame.RESIZABLE)
+        self.set_canvas(real)
+        hd.set_offset(0, 0)
+        self.wide = None
+
+    def leave_wide(self):
+        self.restore_window()
+
+    def set_edge_fill(self, on):
+        """Переключить края полного экрана (размытый фон / чёрные полосы); в полном экране — сразу."""
+        was_full = self.fullscreen
+        if was_full:
+            self.toggle_fullscreen()
+        self.edge_fill = on
+        if was_full:
+            self.toggle_fullscreen()
+        self.save()
+
+    def build_edges(self):
+        """Поля по краям: зеркальный край картинки, сильно размытый и чуть затемнённый."""
+        wd, frame = self.wide, self.wide["frame"]
+        (ww, wh), (ox, oy) = wd["size"], wd["offset"]
+        cw, ch = frame.get_size()
+        edges = []
+        if ox > 0:     # полосы берутся вдвое шире поля и сжимаются: мелкие детали (плашки, кнопки) растворяются
+            sw = min(cw // 3, ox * 2)
+            parts = (((0, 0, sw, ch), (0, oy)), ((cw - sw, 0, sw, ch), (ox + cw, oy)))
+            size = (ox, ch)
+        else:
+            sh = min(ch // 3, oy * 2)
+            parts = (((0, 0, cw, sh), (ox, 0)), ((0, ch - sh, cw, sh), (ox, oy + ch)))
+            size = (cw, oy)
+        for rect, pos in parts:
+            strip = frame.subsurface(pygame.Rect(rect))
+            small = pygame.transform.smoothscale(strip, (max(2, size[0] // 24), max(2, size[1] // 24)))
+            big = pygame.transform.smoothscale(small, size)
+            big = pygame.transform.flip(big, ox > 0, oy > 0)        # зеркально: у края игры — тот же цвет
+            shade = pygame.Surface(size, pygame.SRCALPHA)
+            shade.fill((25, 18, 12, 110))
+            big.blit(shade, (0, 0))
+            edges.append((big, pos))
+        wd["edges"] = edges
+
+    def present_wide(self):
+        """Собрать кадр полного экрана: поля (обновляются 5 раз в секунду) + картинка игры посередине."""
+        wd = self.wide
+        if wd is None:
+            return
+        if wd["edges"] is None or self.t_real - wd["t"] >= 0.2 or self.t_real < wd["t"]:
+            wd["t"] = self.t_real
+            try:
+                self.build_edges()
+            except Exception as e:          # поля — украшение: не вышло — просто тёмные края
+                print("Края экрана:", e)
+                wd["edges"] = []
+        disp = wd["display"]
+        if not wd["edges"]:
+            disp.fill((20, 16, 12))
+        for img, pos in wd["edges"]:
+            disp.blit(img, pos)
+        disp.blit(wd["frame"], wd["offset"])
 
     SETTINGS_TABS = (("sound", "Звук"), ("screen", "Экран"), ("game", "Игра"))
 
@@ -2200,8 +2301,12 @@ class App(TavernUI, MillUI, TutorialUI):
             self.button((x, y + 138, w, 46), ("Включить звук" if m.muted else "Выключить звук") + "   (M)",
                         self.toggle_music, BTN_GREEN if m.muted else (230, 110, 100), m.ok, 18)
         elif tab == "screen":
-            self.button((x, y, w, 46), f"Экран: {'во весь экран' if self.fullscreen else 'в окне'}   (F11)",
-                        self.toggle_fullscreen, (150, 120, 220), True, 18)
+            half = (w - 10) // 2
+            self.button((x, y, half, 46), f"{'Во весь экран' if self.fullscreen else 'В окне'}  (F11)",
+                        self.toggle_fullscreen, (150, 120, 220), True, 17)
+            self.button((x + w - half, y, half, 46), "Края: " + ("размытый фон" if self.edge_fill else "полосы"),
+                        lambda: self.set_edge_fill(not self.edge_fill), (150, 120, 220), True, 15)
+            self.tip(pygame.Rect(x + w - half, y, half, 46), "Полный экран: по бокам размытое продолжение картинки или чёрные полосы")
             active = "auto" if self.hd_k != 1 else "off"
             label = "Чёткость: HD" if self.hd_mode == "auto" else "Чёткость: обычная"
             self.button((x, y + 56, w, 46), label + ("*" if self.hd_mode != active else ""), self.toggle_hd,
@@ -2681,6 +2786,7 @@ class App(TavernUI, MillUI, TutorialUI):
             self.track_mouse()
             self.draw()
             self.update_cursor()
+            self.present_wide()
             pygame.display.flip()
 
 

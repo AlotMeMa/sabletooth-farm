@@ -22,6 +22,7 @@ from .audio import Music, Sfx
 from .art import *  # noqa: F401,F403
 from .tavern import Tavern
 from .tavern_ui import TavernUI
+from .mill_ui import MillUI
 from .particles import Particles, draw_shadow
 from . import skin
 
@@ -73,7 +74,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI):
+class App(TavernUI, MillUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -154,6 +155,7 @@ class App(TavernUI):
         self.show_fps = False
         self.show_tips = True
         self.init_tavern()
+        self.init_mill()
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -927,6 +929,7 @@ class App(TavernUI):
         f = self.farm
         f.update(dt)
         self.tavern_tick(dt)
+        self.mill_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -1754,173 +1757,6 @@ class App(TavernUI):
         rounded(bg, (170, 220, 245), (W // 2 - 50, 20, 100, 80), 4, 4)
         pygame.draw.line(bg, OUT, (W // 2, 20), (W // 2, 100), 3)
         return bg
-
-    def mill_rect(self, b):
-        return pygame.Rect(40 + b * 480, 160, 440, 386)
-
-    def do_build(self, b):
-        f = self.farm
-        was = f.m_levels[b]
-        price = f.mill_building_cost(b)
-        if f.buy_mill_building(b):
-            self.quest("build")
-            self.sfx.play("buy")
-            name = ("Мельница", "Пекарня")[b]
-            self.toast(f"{name}: " + ("построена!" if was == 0 else f"уровень {f.m_levels[b]} (+1 место)"), 2)
-        else:
-            self.toast(f"Не хватает денег: нужно ${fmt(price)}", 2)
-
-    def do_workers(self, b, delta):
-        f = self.farm
-        if not f.set_mill_workers(b, delta):
-            if delta > 0 and f.m_workers[b] >= f.m_levels[b]:
-                self.toast("Нет мест: улучши здание", 2)
-            elif delta > 0:
-                self.toast("Нет свободных крестьян: найми или сними с грядки", 2.5)
-
-    def do_fill(self):
-        took = self.farm.fill_hopper()
-        r = self.mill_rect(0)
-        if took > 0:
-            self.quest("feed")
-            self.sfx.play("feed")
-            self.floater(r.centerx, r.y + 150, "зерно +$" + fmt(took), (240, 220, 150))
-        else:
-            self.toast("Зерна на грядках нет или закрома полны", 2)
-
-    def do_sell_flour(self):
-        amt = self.farm.sell_flour()
-        if amt:
-            self.sfx.play("product")
-            r = self.mill_rect(0)
-            self.floater(r.centerx, r.y + 150, "+$" + fmt(amt))
-
-    def do_collect_bread(self):
-        amt = self.farm.collect_bread()
-        if amt:
-            self.quest("bread")
-            self.sfx.play("product")
-            r = self.mill_rect(1)
-            self.floater(r.centerx, r.y + 70, "+$" + fmt(amt))
-            self.toast("Хлеб продан: +$" + fmt(amt), 2)
-
-    def draw_mill_card(self, b):
-        s, f = self.screen, self.farm
-        r = self.mill_rect(b)
-        brown, soft = (90, 70, 60), (140, 110, 95)
-        lvl = f.m_levels[b]
-        name = ("Мельница", "Пекарня")[b]
-        rounded(s, (238, 222, 192) if lvl else (205, 192, 172), r, 12, 3)
-        head = pygame.Rect(r.x, r.y, r.w, 34)
-        pygame.draw.rect(s, (150, 98, 62), head, border_top_left_radius=12, border_top_right_radius=12)
-        pygame.draw.rect(s, OUT, head, 3, border_top_left_radius=12, border_top_right_radius=12)
-        draw_text(s, name + (f"  ур. {lvl}" if lvl else ""), 17, head.center)
-        sub = ("Зерно (рожь, ячмень, полба) -> мука x1.5", f"Мука -> хлеб x{BREAD_RATIO:g}, партиями по {BAKE_TIME:g} с")[b]
-        draw_text(s, sub, 12, (r.centerx, r.y + 46), soft, outline=None)
-        cx, cy = r.x + 90, r.y + 120
-        working = lvl and f.m_workers[b] > 0 and (f.hopper > 0 if b == 0 else f.oven_load > 0)
-        if b == 0:   # жернов
-            blob(s, (175, 170, 165), [(cx, cy, 44)], 3)
-            pygame.draw.circle(s, (150, 145, 140), (cx, cy), 12)
-            ang = self.t * (3 if working else 0)
-            for i in range(6):
-                a = ang + i * math.pi / 3
-                pygame.draw.line(s, (140, 135, 130), (P(cx + math.cos(a) * 14), P(cy + math.sin(a) * 14)),
-                                 (P(cx + math.cos(a) * 40), P(cy + math.sin(a) * 40)), 2)
-        else:        # печь
-            poly(s, (190, 95, 70), [(cx - 50, cy + 40), (cx + 50, cy + 40), (cx + 50, cy - 5), (cx - 50, cy - 5)], 3)
-            ellipse(s, (190, 95, 70), cx, cy - 5, 100, 70)
-            ellipse(s, (60, 40, 35), cx, cy + 12, 46, 34)
-            if working:
-                fl = 6 + 4 * math.sin(self.t * 12)
-                ellipse(s, (255, 170, 60), cx, cy + 18, 30, 12 + fl, ow=0)
-                ellipse(s, (255, 230, 120), cx, cy + 20, 16, 6 + fl / 2, ow=0)
-        if not lvl:
-            shade = hd.Surface((180, 120), pygame.SRCALPHA)
-            shade.fill((205, 192, 172, 170))
-            s.blit(shade, (r.x + 10, r.y + 60))
-            msg = ("Сначала посади: " + CROPS[GRAIN[0]]["name"]) if b == 0 else "Сначала построй мельницу"
-            if f.mill_can_build(b):
-                msg = ("Мелет зерно в муку" if b == 0 else "Печёт хлеб из муки")
-            draw_text(s, msg, 15, (r.x + 300, r.y + 120), brown if f.mill_can_build(b) else (190, 80, 70), outline=None)
-            bt = pygame.Rect(r.x + 60, r.bottom - 70, r.w - 120, 50)
-            ok = f.mill_can_build(b) and f.money >= f.mill_building_cost(b)
-            rounded(s, BTN_GREEN if ok else BTN_GREY, bt, 10, 3)
-            draw_text(s, "Построить $" + fmt(f.mill_building_cost(b)), 18, bt.center)
-            if f.mill_can_build(b):
-                self.zone_btn(bt, lambda b=b: self.do_build(b))
-            return
-        tx = r.x + 190
-        speed = f.bake_rate() if b else f.mill_speed() * f.m_workers[0]
-        if b == 0:
-            cap = f.hopper_cap()
-            draw_text(s, f"Закрома: ${fmt(f.hopper)} / ${fmt(cap)}", 13, (tx, r.y + 72), brown, anchor="midleft", outline=None)
-            draw_bar(s, (tx, r.y + 84, r.w - 210, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
-            grain = sum(f.stash[i] for i in GRAIN)
-            draw_text(s, f"Зерно на грядках: ${fmt(grain)}", 12, (tx, r.y + 112), soft, anchor="midleft", outline=None)
-            share = min(100, round(speed / max(1e-9, f.grain_rate()) * 100))   # 3.6: какую часть зерна успевают смолоть
-            draw_text(s, f"Мелет: ${fmt(speed)}/с ({share}% зерна)" if speed else "Стоит: нет мельников", 13, (tx, r.y + 134),
-                      (60, 130, 50) if speed else (190, 80, 70), anchor="midleft", outline=None)
-            draw_text_fit(s, f"Мука: ${fmt(f.flour)}", 15, (tx, r.y + 160), r.right - 146 - tx, brown, anchor="midleft", outline=None)
-            self.button((r.right - 140, r.y + 145, 124, 30), "Продать муку", self.do_sell_flour, (235, 170, 70), f.flour > 0, 13)
-        else:
-            draw_text(s, f"Мука на мельнице: ${fmt(f.flour)}", 13, (tx, r.y + 66), brown, anchor="midleft", outline=None)
-            if not f.m_workers[1]:
-                msg, col = "Стоит: нет пекарей", (190, 80, 70)
-            elif f.oven_load > 0:
-                msg, col = f"Партия ${fmt(f.oven_load)} -> ${fmt(f.oven_load * BREAD_RATIO * (1 + 0.25 * f.up('baker')))}", (60, 130, 50)
-            elif f.flour > 0:
-                msg, col = f"Копит муку на партию: {min(99, int(f.flour / max(1e-9, f.bake_rate() * BAKE_TIME) * 100))}%", (150, 120, 60)
-            else:
-                msg, col = "Ждёт муку", (190, 80, 70)
-            draw_text(s, msg, 13, (tx, r.y + 84), col, anchor="midleft", outline=None)
-            draw_bar(s, (tx, r.y + 94, r.w - 210, 12), f.oven_prog / BAKE_TIME if f.oven_load > 0 else 0, (240, 150, 70))
-            hb = pygame.Rect(tx, r.y + 112, r.w - 210, 62)
-            rounded(s, (255, 240, 200) if f.bread > 0 else (230, 220, 200), hb, 10, 2)
-            for i in range(3):
-                ellipse(s, (215, 150, 80), hb.x + 30 + i * 22, hb.centery + 4 - (i % 2) * 6, 34, 20)
-                pygame.draw.line(s, (170, 110, 50), (hb.x + 22 + i * 22, hb.centery - (i % 2) * 6), (hb.x + 36 + i * 22, hb.centery + 2 - (i % 2) * 6), 2)
-            draw_text_fit(s, f"Хлеб: ${fmt(f.bread)}", 16, (hb.x + 104, hb.centery - 8), hb.right - hb.x - 112, (150, 95, 40),
-                          anchor="midleft", outline=None)
-            draw_text_fit(s, "нажми, чтобы продать" if f.bread > 0 else "пока пусто", 11, (hb.x + 104, hb.centery + 14),
-                          hb.right - hb.x - 112, soft, anchor="midleft", outline=None)
-            if f.bread > 0:
-                self.zone_btn(hb, self.do_collect_bread)
-        # работники
-        wy = r.y + 196
-        draw_text(s, f"Работники: {f.m_workers[b]} / {lvl}", 16, (r.x + 30, wy + 18), brown, anchor="midleft", outline=None)
-        for k in range(lvl):
-            if k < f.m_workers[b]:
-                draw_peasant_head(s, r.x + 210 + k * 26, wy + 18, 1.1)
-            else:
-                pygame.draw.circle(s, (205, 195, 180), (r.x + 210 + k * 26, wy + 18), 9)
-        self.button((r.right - 110, wy, 44, 36), "-", lambda b=b: self.do_workers(b, -1), BTN_BLUE, f.m_workers[b] > 0, 20)
-        self.button((r.right - 58, wy, 44, 36), "+", lambda b=b: self.do_workers(b, +1), BTN_GREEN, True, 20)
-        # кнопки
-        if b == 0:
-            self.button((r.x + 20, r.y + 250, r.w - 40, 42), "Засыпать зерно с грядок", self.do_fill, BTN_GREEN, True, 17)
-        else:
-            draw_text(s, f"Свободных крестьян: {f.free_peasants()}", 14, (r.centerx, r.y + 270), soft, outline=None)
-        bu = pygame.Rect(r.x + 20, r.y + 304, r.w - 40, 42)
-        if lvl >= MILL_MAX_LVL:
-            rounded(s, (250, 212, 90), bu, 9, 2)
-            draw_text(s, "Макс. уровень", 16, bu.center, brown, outline=None)
-        else:
-            price = f.mill_building_cost(b)
-            rounded(s, BTN_BLUE if f.money >= price else BTN_GREY, bu, 9, 3)
-            draw_text(s, f"Ур. {lvl + 1} (+1 место): ${fmt(price)}", 16, bu.center)
-            self.zone_btn(bu, lambda b=b: self.do_build(b), 9)
-
-    def draw_mill_view(self):
-        s = self.screen
-        s.blit(self.mill_bg, (0, 0))
-        plate = pygame.Rect(W // 2 + 70, 26, 220, 44)
-        rounded(s, PANEL, plate, 8, 3)
-        draw_text(s, "МЕЛЬНИЦА", 22, plate.center, (90, 70, 60), outline=None)
-        for b in (0, 1):
-            self.draw_mill_card(b)
-        for x, y, text, life, color in self.floaters:
-            draw_text(s, text, 18, (x, y), color)
 
     # ------------------------------------------------------------ разбойники
     def bandit_delay(self):

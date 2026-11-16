@@ -638,20 +638,35 @@ def make_glow(img, color, radius=4):
     return _make_glow(img, color, radius)
 
 
+GLOW_SOFT = 3      # 3.3.1: ореол считается в 3 раза крупнее и сглаживается — без «лесенки» по краю
+
+
 def _make_glow(img, color, radius):
+    """Силуэт с мягкой прозрачностью края (а не «есть пиксель / нет»), раздутый на radius
+    в увеличенном в GLOW_SOFT раз виде, уменьшается обратно со сглаживанием, и край ещё раз смягчается."""
     px = Pix(img)
     w, h = px.w, px.h
     b = px.buf
     sil = bytearray(w * h * 4)
     r, g, bl = color
     for p in range(w * h):
-        if b[p * 4 + 3] > 40:
+        a = b[p * 4 + 3]
+        if a:
             i = p * 4
-            sil[i], sil[i + 1], sil[i + 2], sil[i + 3] = r, g, bl, 255
+            sil[i], sil[i + 1], sil[i + 2], sil[i + 3] = r, g, bl, min(255, a * 2)
     sil_s = _frombytes(sil, (w, h))
-    out = pygame.Surface((w + 2 * radius, h + 2 * radius), pygame.SRCALPHA)
-    for dx in range(-radius, radius + 1):
-        for dy in range(-radius, radius + 1):
-            if dx * dx + dy * dy <= radius * radius:
-                out.blit(sil_s, (radius + dx, radius + dy))
-    return out
+    pad = radius + 2                               # +2: место под мягкий край
+    s = GLOW_SOFT
+    big = pygame.transform.smoothscale(sil_s, (w * s, h * s))
+    rr = radius * s
+    out = pygame.Surface(((w + 2 * pad) * s, (h + 2 * pad) * s), pygame.SRCALPHA)
+    out.fill((r, g, bl, 0))
+    step = max(1, s // 2)                          # раздуваем по кругу: шаг в полпикселя исходной картинки
+    for dx in range(-rr, rr + 1, step):
+        for dy in range(-rr, rr + 1, step):
+            if dx * dx + dy * dy <= rr * rr:
+                out.blit(big, (pad * s + dx, pad * s + dy))
+    ow, oh = w + 2 * pad, h + 2 * pad
+    out = pygame.transform.smoothscale(out, (ow, oh))
+    soft = pygame.transform.smoothscale(out, (max(1, ow // 2), max(1, oh // 2)))   # лёгкое размытие края
+    return pygame.transform.smoothscale(soft, (ow, oh))

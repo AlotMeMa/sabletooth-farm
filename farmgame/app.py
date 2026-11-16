@@ -25,6 +25,7 @@ from .tavern_ui import TavernUI
 from .mill_ui import MillUI
 from .tutorial import Tutorial
 from .tutorial_ui import TutorialUI
+from .casino_ui import CasinoUI
 from .particles import Particles, draw_shadow
 from . import skin
 from . import screenfit
@@ -77,7 +78,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, MillUI, TutorialUI):
+class App(TavernUI, MillUI, TutorialUI, CasinoUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -162,6 +163,7 @@ class App(TavernUI, MillUI, TutorialUI):
         self.init_tavern()
         self.init_mill()
         self.init_tutorial()
+        self.init_casino()
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -914,7 +916,7 @@ class App(TavernUI, MillUI, TutorialUI):
                 self.mode = "normal"
             elif self.view in ("barn", "tavern"):
                 self.view = "field"
-            elif self.view == "board":
+            elif self.view in ("board", "casino"):
                 self.view = "tavern"
         elif key == pygame.K_F11:
             self.toggle_fullscreen()
@@ -943,6 +945,7 @@ class App(TavernUI, MillUI, TutorialUI):
         self.tavern_tick(dt)
         self.mill_tick(dt)
         self.tut_tick(dt)
+        self.casino_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -1257,7 +1260,7 @@ class App(TavernUI, MillUI, TutorialUI):
 
     def draw_hud(self):
         s, f = self.screen, self.farm
-        board = self.view == "board"     # на доске заданий плашки денег закрыли бы записки
+        board = self.view in ("board", "casino")     # на доске заданий плашки денег закрыли бы записки
         # плашки подстраиваются под длину текста
         def pill(y, h, text, size, icon):
             img = render_text(text, size, WHITE, OUT)
@@ -2505,6 +2508,7 @@ class App(TavernUI, MillUI, TutorialUI):
             ("Разбойник", bandit), ("Мельница и пекарня ур.3", mill),
             ("Таверна: все задания готовы", quests_done), ("Таверна: новый день и неделя", new_day),
             ("Таверна: показать разметку" + (" (вкл)" if self.tavern_debug else ""), tavern_debug),
+            ("Казино (заготовка)", self.open_casino),
         ]
 
     def draw_dev(self):
@@ -2514,7 +2518,7 @@ class App(TavernUI, MillUI, TutorialUI):
                   (r.centerx, r.y + 70), (140, 110, 95), outline=None)
         for n, (label, cb) in enumerate(self.dev_actions()):
             col, row = n % 2, n // 2
-            self.button((r.x + 30 + col * 300, r.y + 86 + row * 48, 280, 42), label, cb, (230, 110, 110), True, 15)
+            self.button((r.x + 30 + col * 300, r.y + 86 + row * 46, 280, 40), label, cb, (230, 110, 110), True, 15)
 
     def draw_offline(self):
         s = self.screen
@@ -2697,8 +2701,9 @@ class App(TavernUI, MillUI, TutorialUI):
     def draw_scene(self):
         self.zones = []
         s, f = self.screen, self.farm
-        if self.view in ("barn", "tavern", "board"):
-            {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view}[self.view]()
+        if self.view in ("barn", "tavern", "board", "casino"):
+            {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view,
+             "casino": self.draw_casino_view}[self.view]()
             self.draw_hud()
             self.draw_toasts()
             self.fx.draw(s)

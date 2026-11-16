@@ -18,7 +18,7 @@ import random
 
 import pygame
 
-from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR, SONGS
+from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR, SONGS, DEV
 from .art import (OUT, WHITE, GOLD, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
                   draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite,
                   blit_tf, blit_light, extended_down)
@@ -562,7 +562,7 @@ class TavernUI:
 
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
-        want = "tavern" if self.view in ("tavern", "board") else None
+        want = "tavern" if self.view in ("tavern", "board", "casino") else None
         if want != self.audio_scene:
             self.audio_scene = want
             self.music.play_for(self.farm_info()["id"], want)
@@ -817,6 +817,9 @@ class TavernUI:
             s.blit(img, (int(px - r) - 1, int(y - 30 * k - r) - 1))
 
     def poke_casino(self):
+        if DEV:                         # 3.10: заготовка рулетки — пока только для разработчика
+            self.open_casino()
+            return
         self.toast("Игорный зал пока закрыт — скоро откроется!", 2.5)
         self.say_barman("Туда пока нельзя: там ещё расставляют столы для костей.")
 

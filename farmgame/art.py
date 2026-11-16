@@ -136,6 +136,47 @@ def blit_sprite(surf, name, x, y, scale=1.0, anchor="midbottom", flip=False, ang
     return True
 
 
+def blit_tf(surf, names, x, y, scale=1.0, flip=False, sx=1.0, sy=1.0, angle=0.0, pivot="midbottom", alpha=None):
+    """Спрайт «как живой» (3.3): сплющить/вытянуть (sx, sy), наклонить на angle градусов (+ — против часовой)
+    вокруг середины низа (pivot="midbottom": лапы стоят на месте) или центра (pivot="center"), сделать
+    полупрозрачным (alpha 0..255). (x, y) — точка pivot. names — имя или список (берётся первый, что есть).
+    Возвращает False, если ни одной картинки нет (тогда рисуем кодом)."""
+    for name in ([names] if isinstance(names, str) else names):
+        img = sprite(name)
+        if img is None:
+            continue
+        kx = round(scale * sx / SCALE_STEP) * SCALE_STEP or SCALE_STEP
+        ky = round(scale * sy / SCALE_STEP) * SCALE_STEP or SCALE_STEP
+        key = ("tf", name, round(kx, 3), round(ky, 3), flip)
+        out = _sprite_scaled.get(key)
+        if out is None:
+            out = img
+            if flip:
+                out = pygame.transform.flip(out, True, False)
+            if abs(kx - 1.0) > 1e-3 or abs(ky - 1.0) > 1e-3:
+                out = pygame.transform.smoothscale(out, (max(1, int(out.get_width() * kx + 0.5)),
+                                                         max(1, int(out.get_height() * ky + 0.5))))
+            if len(_sprite_scaled) > 3000:
+                _sprite_scaled.clear()
+            _sprite_scaled[key] = out
+        h2 = out.get_height() / 2
+        rot = out
+        if abs(angle) > 0.05:
+            rot = pygame.transform.rotate(out, angle)
+        if alpha is not None and alpha < 255:
+            if rot is out:
+                rot = out.copy()          # картинка из кэша — её прозрачность не трогаем
+            hd.real(rot).set_alpha(max(0, int(alpha)))     # только число: set_alpha(None) делает картинку сплошной
+        if pivot == "midbottom":
+            a = math.radians(angle)
+            cx, cy = x - h2 * math.sin(a), y - h2 * math.cos(a)
+        else:
+            cx, cy = x, y
+        surf.blit(rot, rot.get_rect(center=(int(round(cx)), int(round(cy)))))
+        return True
+    return False
+
+
 def blit_any(surf, names, *args, **kwargs):
     """Пробует несколько имён по очереди (например, сначала зимний вариант, потом обычный)."""
     for name in names:
@@ -828,10 +869,14 @@ def draw_peasant_head(s, x, y, k=1.0):
     pygame.draw.circle(s, OUT, (P(x + 3 * k), P(y + 1 * k)), max(1, P(1.4 * k)))
 
 
-def draw_bandit(s, x, y, d, t=0.0, sack=0.0, running=False):
-    """Разбойник в капюшоне с мешком. (x, y) — точка у ног, d — куда смотрит."""
-    _hop = abs(math.sin(t * 14)) * 4 if running else 0
-    if blit_any(s, (["creatures/bandit_sack"] if sack > 0 else []) + ["creatures/bandit"], x, y - _hop, 1, flip=d < 0):
+def draw_bandit(s, x, y, d, t=0.0, sack=0.0, running=False, pose=None):
+    """Разбойник в капюшоне с мешком. (x, y) — точка у ног, d — куда смотрит.
+    pose — (подскок, sx, sy, наклон) из App.bandit_pose (3.3); без него — старое покачивание."""
+    if pose is None:
+        pose = (abs(math.sin(t * 14)) * 4 if running else 0, 1.0, 1.0, 0.0)
+    hop, sx, sy, ang = pose
+    if blit_tf(s, (["creatures/bandit_sack"] if sack > 0 else []) + ["creatures/bandit"], x, y - hop, 1,
+               flip=d < 0, sx=sx, sy=sy, angle=ang):
         return
     def X(dx):
         return x + dx * d
@@ -874,9 +919,11 @@ def draw_barn(s):
         poly(s, (248, 252, 255), [(160, 5), (225, 40), (325, 112), (300, 112), (215, 55), (170, 20)], 2)
 
 
-def draw_squirrel(s, x, y, d, hop=0.0, golden=False, t=0.0):
-    """Белка. (x, y) — точка на земле, d = 1 смотрит вправо, -1 влево."""
-    if blit_sprite(s, "creatures/squirrel_golden" if golden else "creatures/squirrel", x, y - hop, 1, flip=d < 0):
+def draw_squirrel(s, x, y, d, hop=0.0, golden=False, t=0.0, sx=1.0, sy=1.0, angle=0.0, alpha=None, pivot="midbottom"):
+    """Белка. (x, y) — точка на земле, d = 1 смотрит вправо, -1 влево.
+    sx, sy, angle — сплющить/вытянуть и наклонить (3.3: прыжки дугами, кувырок при поимке)."""
+    if blit_tf(s, "creatures/squirrel_golden" if golden else "creatures/squirrel", x, y - hop, 1, flip=d < 0,
+               sx=sx, sy=sy, angle=angle, alpha=alpha, pivot=pivot):
         return
     def X(dx):
         return x + dx * d
@@ -909,9 +956,11 @@ def draw_squirrel(s, x, y, d, hop=0.0, golden=False, t=0.0):
             poly(s, (255, 250, 180), [(sx, sy - r * 1.6), (sx + r * 0.5, sy), (sx, sy + r * 1.6), (sx - r * 0.5, sy)], 1)
 
 
-def draw_crow(s, x, y, d, t=0.0, flying=False, peck=0.0, k=1.4):
-    """Ворона. (x, y) — точка под лапами, d = 1 смотрит вправо, k — масштаб."""
-    if blit_sprite(s, "creatures/crow_fly" if flying else "creatures/crow", x, y, k / 1.4, flip=d < 0):
+def draw_crow(s, x, y, d, t=0.0, flying=False, peck=0.0, k=1.4, wings_up=True, sx=1.0, sy=1.0, angle=0.0):
+    """Ворона. (x, y) — точка под лапами, d = 1 смотрит вправо, k — масштаб.
+    В полёте (3.3) крылья машут: wings_up — картинка crow_fly (крылья вверх), иначе crow (сложены)."""
+    name = "creatures/crow_fly" if flying and wings_up else "creatures/crow"
+    if blit_tf(s, [name, "creatures/crow"], x, y, k / 1.4, flip=d < 0, sx=sx, sy=sy, angle=angle):
         return
     def X(dx):
         return x + dx * k * d
@@ -960,10 +1009,56 @@ def _scarf(s, x, y, k, color, w=20, tail=1):
 ANIMAL_SPRITE_K = 0.85   # картинки зверей чуть меньше холста: в загоне под ними подпись и забор
 
 
+def animal_pose(key, t, active):
+    """Как двигается зверь в загоне (3.3) -> (подскок, sx, sy, наклон°). Картинки смотрят вправо:
+    наклон вперёд — по часовой, то есть отрицательный угол. Голодный зверь стоит тихо и чуть «сник»."""
+    if not active:
+        return 0.0, 1.0, 0.985, 0.0
+    if key == "chicken":             # клюёт зёрнышки: каждые 1.8 с — два быстрых клевка, между ними оглядывается
+        c = t % 1.8
+        peck = max(0.0, math.sin(c / 0.32 * math.pi)) if c < 0.64 else 0.0
+        look = 2.5 * math.sin(t * 2.3) if c >= 0.64 else 0.0
+        hop = 2.0 * max(0.0, math.sin((c - 1.1) / 0.3 * math.pi)) if 1.1 <= c < 1.4 else 0.0
+        return hop, 1.0, 1.0 - 0.03 * peck, -16 * peck + look
+    if key == "cow":                 # жуёт: медленно дышит, раз в 5 с наклоняется к сену
+        c = t % 5.0
+        graze = math.sin((c - 3.2) / 1.6 * math.pi) if 3.2 <= c < 4.8 else 0.0
+        chew = 0.012 * math.sin(t * 7)       # челюсть: мелкая частая «жвачка»
+        return 0.0, 1.0 - chew * 0.5, 1.0 + 0.012 * math.sin(t * 1.8) + chew, -4.5 * graze + 0.8 * math.sin(t * 0.9)
+    if key == "pig":                 # довольно пританцовывает: подпрыгивает и виляет
+        c = t % 2.6
+        hop = 5.0 * math.sin(c / 0.42 * math.pi) if c < 0.42 else 0.0
+        land = max(0.0, 1 - abs(c - 0.48) / 0.1) if 0.38 < c < 0.58 else 0.0
+        return hop, 1.0 + 0.06 * land, 1.0 - 0.07 * land + 0.015 * math.sin(t * 3), 2.2 * math.sin(t * 6.3)
+    if key == "bees":                # улей «дышит» — внутри кипит работа
+        return 0.0, 1.0 - 0.008 * math.sin(t * 4), 1.0 + 0.012 * math.sin(t * 4), 0.0
+    return abs(math.sin(t * 6)) * 2, 1.0, 1.0, 0.0
+
+
+def draw_bees(s, x, y, k, t, n):
+    """Пчёлки летают вокруг улья петлями: жёлтое брюшко с полоской, крылышки машут. (x, y) — низ улья."""
+    for i in range(n):
+        a = t * (1.6 + i * 0.37) + i * 2.4
+        bx = x + math.sin(a) * (52 + 10 * (i % 2)) * k
+        by = y - 52 * k + math.sin(a * 2 + i) * 22 * k - 8 * math.sin(t * 9 + i) * 0.4
+        d = 1 if math.cos(a) > 0 else -1                   # летит туда, куда смотрит
+        flap = abs(math.sin(t * 40 + i))
+        wing = (235, 245, 255)
+        pygame.draw.ellipse(s, wing, (P(bx - 4 * k), P(by - (5 + 3 * flap) * k), max(2, P(5 * k)), max(2, P((4 + 3 * flap) * k))))
+        pygame.draw.ellipse(s, OUT, (P(bx - 5 * k), P(by - 3 * k), max(3, P(10 * k)), max(2, P(7 * k))))
+        pygame.draw.ellipse(s, (250, 205, 50), (P(bx - 4 * k), P(by - 2 * k), max(2, P(8 * k)), max(2, P(5 * k))))
+        pygame.draw.line(s, OUT, (P(bx + d * 0.5 * k), P(by - 2 * k)), (P(bx + d * 0.5 * k), P(by + 2 * k)), max(1, P(1.5 * k)))
+        pygame.draw.circle(s, OUT, (P(bx + d * 5 * k), P(by)), max(1, P(2 * k)))
+
+
 def _animal_sprite(s, key, x, y, k, t, active, winter):
-    bob = abs(math.sin(t * 6)) * 2 * k if active else 0
+    hop, sx, sy, ang = animal_pose(key, t, active)
     names = ([f"animals/{key}_winter"] if winter else []) + [f"animals/{key}"]
-    return blit_any(s, names, x, y - bob, k / 1.15 * ANIMAL_SPRITE_K)
+    if not blit_tf(s, names, x, y - hop * k, k / 1.15 * ANIMAL_SPRITE_K, sx=sx, sy=sy, angle=ang):
+        return False
+    if key == "bees":
+        draw_bees(s, x, y, k, t, 4 if active else 1)
+    return True
 
 
 def draw_chicken(s, x, y, k=1.0, t=0.0, active=True, winter=False):
@@ -1406,9 +1501,10 @@ def draw_cloud_body(s, x, y, raining):
 VEHICLE_OFFSET = {"truck": -5, "cart": -30}   # где середина низа картинки относительно точки (x, y) машины
 
 
-def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0):
+def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0.0, sy=1.0):
+    """Машина (телега) смотрит влево. angle — наклон (+ — нос вниз), sy — осела на рессорах (3.3)."""
     names = ([f"vehicles/{vehicle}_{tier}_cargo"] if cargo else []) + [f"vehicles/{vehicle}_{tier}", f"vehicles/{vehicle}"]
-    if blit_any(s, names, x + VEHICLE_OFFSET[vehicle], y + 4 - bob):
+    if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle], y + 4 - bob, 1, sy=sy, angle=angle):
         return
     (draw_cart if vehicle == "cart" else draw_truck)(s, x, y, color, cargo, bob)
 

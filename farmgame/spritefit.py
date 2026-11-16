@@ -22,7 +22,7 @@ import pygame
 
 from .config import BASE_DIR, W, H
 
-CACHE_VERSION = "fit3"
+CACHE_VERSION = "fit4"   # 3.3: убираются линии-рамки и вытянутые просветы — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
@@ -32,6 +32,9 @@ CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
 CURSOR_HOVER_SIZE = 32   # курсор над кнопкой, px
 HOLE_TOL = 34    # «дырка» внутри рисунка — пиксели почти точно цвета фона
 HOLE_MAX_WHITE = 0.004   # на белом фоне убираем только просветы меньше 0.4% картинки
+HOLE_SLIM = 3.0          # ...и вытянутые просветы (длина ≥ 3 ширин, например между стеблями) — до 4 таких лимитов
+LINE_TOL = 100           # линии-рамки на фоне (нейросеть рисует стадии «по клеткам»): бледные, тонкие, через полкартинки
+LINE_MIN = 0.4
 
 ICON_SHEET_ORDER = ["coin", "coin_silver", "leaf", "seal", "peasant", "egg", "milk", "truffle", "honey"]
 # лист кнопок 3×3 (assets/ui/buttons.png), порядок по строкам:
@@ -277,6 +280,7 @@ class Pix:
                 stack.append(p - w)
             if p < (h - 1) * w:
                 stack.append(p + w)
+        self._remove_rule_lines(is_bg, dist)
         # просветы цвета фона внутри рисунка
         hole_limit = w * h if chroma else int(w * h * HOLE_MAX_WHITE)
         seen = bytearray(w * h)
@@ -294,6 +298,16 @@ class Pix:
                     if q >= 0 and not seen[q] and not is_bg[q] and dist(q * 4) < HOLE_TOL:
                         seen[q] = 1
                         stack.append(q)
+            if len(comp) > hole_limit and not chroma and len(comp) <= hole_limit * 4:
+                # большой белый просвет оставляем (это часть рисунка: дверь, бок курицы),
+                # но вытянутый — это щель между стеблями или досками (лён: белая полоса между стеблями)
+                xs = [p % w for p in comp]
+                ys = [p // w for p in comp]
+                bw, bh = max(xs) - min(xs) + 1, max(ys) - min(ys) + 1
+                if max(bw, bh) >= HOLE_SLIM * min(bw, bh):
+                    for p in comp:
+                        is_bg[p] = 1
+                    continue
             if len(comp) <= hole_limit:
                 for p in comp:
                     is_bg[p] = 1
@@ -323,6 +337,39 @@ class Pix:
                     b[i + k] = max(0, min(255, int(c + (b[i + k] - c) / a)))
                 b[i + 3] = int(b[i + 3] * a)
             ring = nxt
+
+    def _remove_rule_lines(self, is_bg, dist):
+        """Бледные прямые линии через всю картинку (рамки между стадиями, которые рисует нейросеть).
+        Пиксель линии: не фон, но бледный (ближе LINE_TOL к фону), а в 3 пикселях слева и справа
+        (для строк — сверху и снизу) уже фон. Если таких в столбце (строке) больше LINE_MIN высоты —
+        это линия, её пиксели становятся фоном. Стебли не трогаются: у них тёмный контур."""
+        w, h = self.w, self.h
+
+        def thin_x(p):
+            x = p % w
+            return x >= 3 and x < w - 3 and is_bg[p - 3] and is_bg[p + 3]
+
+        def thin_y(p):
+            return p >= 3 * w and p < (h - 3) * w and is_bg[p - 3 * w] and is_bg[p + 3 * w]
+
+        found = []
+        for x in range(w):
+            pts = [y * w + x for y in range(h) if not is_bg[y * w + x]]
+            if len(pts) < h * LINE_MIN:
+                continue
+            line = [p for p in pts if dist(p * 4) < LINE_TOL and thin_x(p)]
+            if len(line) >= h * LINE_MIN:
+                found += line
+        for y in range(h):
+            pts = [y * w + x for x in range(w) if not is_bg[y * w + x]]
+            if len(pts) < w * LINE_MIN:
+                continue
+            line = [p for p in pts if dist(p * 4) < LINE_TOL and thin_y(p)]
+            if len(line) >= w * LINE_MIN:
+                found += line
+        for p in found:
+            is_bg[p] = 1
+        return len(found)
 
     def bbox(self, rect=None):
         """Границы непрозрачного рисунка внутри rect (x0, y0, x1, y1) или None."""

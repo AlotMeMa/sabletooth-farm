@@ -10,8 +10,54 @@ import random
 import pygame
 
 from . import anim
+from . import hd
 
 MAX_PARTICLES = 300
+_soft = {}          # мягкие кружки/тени с прозрачностью: (вид, размеры, цвет, прозрачность) -> картинка
+
+
+def soft_dot(r, color, alpha):
+    """Мягкий полупрозрачный кружок радиуса r (пыль, пар). pygame.draw не смешивает прозрачность,
+    поэтому кружок рисуется в отдельную картинку и кладётся поверх. Картинки кэшируются."""
+    r = max(1, int(round(r)))
+    alpha = max(0, min(255, int(alpha) // 16 * 16))
+    key = ("dot", r, color, alpha)
+    img = _soft.get(key)
+    if img is None:
+        img = hd.Surface((2 * r + 2, 2 * r + 2), pygame.SRCALPHA)
+        img.fill((0, 0, 0, 0))
+        pygame.draw.circle(img, color + (alpha // 2,), (r + 1, r + 1), r)
+        pygame.draw.circle(img, color + (alpha,), (r + 1, r + 1), max(1, int(r * 0.7)))
+        if len(_soft) > 600:
+            _soft.clear()
+        _soft[key] = img
+    return img
+
+
+def soft_shadow(w, h, alpha=70, color=(40, 50, 25)):
+    """Мягкая тень-овал под существом или машиной (три кольца — край растушёван)."""
+    w, h = max(4, int(round(w / 2)) * 2), max(2, int(round(h / 2)) * 2)
+    alpha = max(0, min(255, int(alpha) // 8 * 8))
+    key = ("shadow", w, h, alpha, color)
+    img = _soft.get(key)
+    if img is None:
+        img = hd.Surface((w, h), pygame.SRCALPHA)
+        img.fill((0, 0, 0, 0))
+        for k, a in ((1.0, 0.35), (0.8, 0.65), (0.6, 1.0)):
+            rw, rh = max(2, int(w * k)), max(1, int(h * k))
+            pygame.draw.ellipse(img, color + (int(alpha * a),), ((w - rw) // 2, (h - rh) // 2, rw, rh))
+        if len(_soft) > 600:
+            _soft.clear()
+        _soft[key] = img
+    return img
+
+
+def draw_shadow(surf, x, y, w, h, alpha=70):
+    """Тень с центром в (x, y)."""
+    if w < 2 or h < 1 or alpha <= 0:
+        return
+    img = soft_shadow(w, h, alpha)
+    surf.blit(img, (int(round(x - img.get_width() / 2)), int(round(y - img.get_height() / 2))))
 
 
 class Particles:
@@ -68,6 +114,34 @@ class Particles:
             self._add(dict(kind="spark", x=x, y=y, vx=side * random.uniform(15, 35), vy=-random.uniform(50, 90),
                            g=420.0, t=0.0, life=0.22, r=1.2, color=color))
 
+    def dust(self, x, y, n=3, color=(214, 196, 150), size=(4, 7), spread=10, up=12, life=(0.35, 0.55), alpha=150,
+             drift=0.0):
+        """Облачко пыли у земли (прыжок белки, шаг разбойника, колёса). drift — сдвиг вбок (против движения)."""
+        if len(self.items) > MAX_PARTICLES - 30:
+            return
+        for _ in range(n):
+            r = random.uniform(*size)
+            self._add(dict(kind="puff", x=x + random.uniform(-spread, spread), y=y - random.uniform(0, 3),
+                           vx=drift + random.uniform(-12, 12), vy=-random.uniform(up * 0.5, up), t=0.0,
+                           life=random.uniform(*life), r0=r * 0.6, r1=r * 1.5, color=color, alpha=alpha))
+
+    def feathers(self, x, y, n=5, color=(68, 68, 86), vein=(135, 135, 155)):
+        """Перья кружатся и плавно падают (ворону прогнали)."""
+        for _ in range(n):
+            self._add(dict(kind="feather", x=x + random.uniform(-14, 14), y=y + random.uniform(-14, 8), x0=0.0,
+                           vy=random.uniform(22, 38), vx=random.uniform(-40, 40), ph=random.uniform(0, 6.3),
+                           sw=random.uniform(10, 18), t=0.0, life=random.uniform(1.4, 2.0),
+                           ln=random.uniform(15, 20), color=color, vein=vein))
+
+    def drop(self, x, y, draw, ground, vx=0.0, vy=-160.0, life=1.0, size=1.0):
+        """Предмет падает с подскоком (монетка выпала из мешка) и тает. ground — где земля."""
+        self._add(dict(kind="drop", x=x, y=y, vx=vx, vy=vy, g=900.0, ground=ground, t=0.0, life=life,
+                       draw=draw, size=size, bounced=False))
+
+    def twinkle(self, x, y, r=6, color=(255, 245, 170), life=0.5):
+        """Звёздочка-блик: вспыхивает и гаснет (золотая белка)."""
+        self._add(dict(kind="twinkle", x=x, y=y, r=r, t=0.0, life=life, color=color))
+
     # ---------------------------------------------------------- кадр
     def update(self, dt):
         alive = []
@@ -78,9 +152,35 @@ class Particles:
                     if p["arrive"]:
                         p["arrive"]()
                     continue
-            elif p["kind"] == "ring":
+            elif p["kind"] in ("ring", "twinkle"):
                 if p["t"] >= p["life"]:
                     continue
+            elif p["kind"] == "puff":
+                if p["t"] >= p["life"]:
+                    continue
+                p["x"] += p["vx"] * dt
+                p["y"] += p["vy"] * dt
+                p["vx"] *= max(0.0, 1 - 3 * dt)
+                p["vy"] *= max(0.0, 1 - 2 * dt)
+            elif p["kind"] == "feather":
+                if p["t"] >= p["life"]:
+                    continue
+                p["y"] += p["vy"] * dt
+                p["x0"] += p["vx"] * dt
+                p["vx"] *= max(0.0, 1 - 1.5 * dt)
+            elif p["kind"] == "drop":
+                if p["t"] >= p["life"]:
+                    continue
+                p["vy"] += p["g"] * dt
+                p["x"] += p["vx"] * dt
+                p["y"] += p["vy"] * dt
+                if p["y"] >= p["ground"] and p["vy"] > 0:
+                    p["y"] = p["ground"]
+                    if p["bounced"]:
+                        p["vy"], p["vx"] = 0.0, p["vx"] * 0.5
+                        p["g"] = 0.0
+                    else:
+                        p["vy"], p["vx"], p["bounced"] = -p["vy"] * 0.35, p["vx"] * 0.6, True
             else:
                 if p["t"] >= p["life"]:
                     continue
@@ -105,8 +205,49 @@ class Particles:
                 rect = pygame.Rect(0, 0, max(2, int(r * 2)), max(2, int(r * 2 * p["flat"])))
                 rect.center = (int(round(p["x"])), int(round(p["y"])))
                 pygame.draw.ellipse(surf, p["color"], rect, w)
+            elif p["kind"] == "puff":
+                k = p["t"] / p["life"]
+                r = p["r0"] + (p["r1"] - p["r0"]) * anim.ease_out_cubic(k)
+                img = soft_dot(r, p["color"], p["alpha"] * (1 - k))
+                surf.blit(img, (int(round(p["x"] - img.get_width() / 2)), int(round(p["y"] - img.get_height() / 2))))
+            elif p["kind"] == "feather":
+                self._draw_feather(surf, p)
+            elif p["kind"] == "drop":
+                k = p["t"] / p["life"]
+                fade = 1.0 if k < 0.7 else max(0.0, 1 - (k - 0.7) / 0.3)
+                if fade > 0.05:
+                    p["draw"](surf, p["x"], p["y"], p["size"] * (0.4 + 0.6 * fade))
+            elif p["kind"] == "twinkle":
+                k = p["t"] / p["life"]
+                r = p["r"] * math.sin(math.pi * k)
+                if r >= 1:
+                    x, y, c = p["x"], p["y"], p["color"]
+                    pts = [(x, y - r * 1.7), (x + r * 0.4, y - r * 0.4), (x + r * 1.7, y), (x + r * 0.4, y + r * 0.4),
+                           (x, y + r * 1.7), (x - r * 0.4, y + r * 0.4), (x - r * 1.7, y), (x - r * 0.4, y - r * 0.4)]
+                    pygame.draw.polygon(surf, c, [(int(round(a)), int(round(b))) for a, b in pts])
             else:
                 k = p["t"] / p["life"]
                 r = max(1, int(round(p["r"] * (1 - k * 0.6))))
                 c = p["color"]
                 pygame.draw.circle(surf, c, (int(round(p["x"])), int(round(p["y"]))), r)
+
+    @staticmethod
+    def _draw_feather(surf, p):
+        """Перо: вытянутый ромб с тёмным контуром, раскачивается как маятник и кружится."""
+        k = p["t"] / p["life"]
+        sway = math.sin(p["t"] * 3.2 + p["ph"])
+        x = p["x"] + p["x0"] + sway * p["sw"]
+        y = p["y"] + abs(sway) * 3                       # на краях размаха перо чуть приподнимается
+        ang = math.radians(90 + sway * 50 + p["t"] * 40)
+        ln = p["ln"] * (1.0 if k < 0.8 else max(0.0, 1 - (k - 0.8) / 0.2))
+        if ln < 2:
+            return
+        dx, dy = math.cos(ang), math.sin(ang)
+        nx, ny = -dy, dx
+        wd = ln * 0.17
+        pts = [(x - dx * ln / 2, y - dy * ln / 2), (x + nx * wd, y + ny * wd), (x + dx * ln / 2, y + dy * ln / 2),
+               (x - nx * wd, y - ny * wd)]
+        pts = [(int(round(a)), int(round(b))) for a, b in pts]
+        pygame.draw.polygon(surf, p["color"], pts)
+        pygame.draw.polygon(surf, (30, 30, 40), pts, 1)
+        pygame.draw.line(surf, p["vein"], pts[0], pts[2], 1)

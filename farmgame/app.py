@@ -1362,7 +1362,7 @@ class App(TavernUI):
                              tip="Переезд на новую ферму: всё с нуля, но доход x2 и трофей")
 
     def icon_button(self, rect, name, fallback, cb, label=None, badge=False, active=False, tip=None):
-        """Кнопка с картинкой. Есть assets/ui/btn_<name>.png — рисуется она (с ореолом при наведении),
+        """Кнопка с картинкой. Есть assets/ui/btn_<name>.png — рисуется она (со светом сзади при наведении),
         нет — синяя плашка и значок, нарисованный кодом (fallback(rect)).
         Под курсором кнопка чуть приподнимается, при нажатии — проседает."""
         s = self.screen
@@ -1372,9 +1372,10 @@ class App(TavernUI):
         if has_sprite(sprite_name):
             scale = (rect.h + 10) / 64 * (1 + 0.07 * grow)
             hovered = (self.modal is None or name == "close") and rect.collidepoint(self.mouse)
-            if hovered or active:
-                blit_glow(s, sprite_name, rect.centerx, rect.centery, scale,
-                          (255, 248, 210) if hovered else (255, 205, 80), 4)
+            if hovered or active:      # 3.4.1: свет «из-за кнопки» вместо обводки (и без тормозов)
+                pulse = 0.0 if hovered else 0.06 * math.sin(self.t_real * 3)
+                blit_backlight(s, rect.centerx, rect.centery, rect.h * ((2.15 if hovered else 1.9) + 0.1 * grow + pulse),
+                               (255, 232, 140) if hovered else (255, 196, 70))
             blit_sprite(s, sprite_name, rect.centerx, rect.centery, scale, "center")
             self.zone_btn(rect, cb, glow="sprite")
         else:

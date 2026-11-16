@@ -1,0 +1,320 @@
+# -*- coding: utf-8 -*-
+"""Экспорт шаблонов спрайтов: текущая графика, нарисованная кодом, сохраняется в PNG
+ровно того размера и с той точкой привязки, которые ждёт игра.
+
+Запуск:  python farm_idle.py --export-templates
+Результат: папка assets_templates/ рядом с игрой. Нарисуй поверх (или вместо) в том же
+размере и положи файл с тем же именем в assets/ — игра подхватит его сама.
+"""
+import os
+
+import pygame
+
+from . import config as cfg
+from .config import FARMS, ANIMALS, TRUCK_TIERS, W, H
+from . import art
+from . import hd
+from . import tavern_ui as tu
+
+
+def _surface(size):
+    return pygame.Surface(size, pygame.SRCALPHA)
+
+
+def _interior(kind):
+    """Фон сарая или мельницы изнутри, нарисованный кодом (без загонов и кнопок)."""
+    from .app import App
+    return App.build_barn_background(None) if kind == "barn" else App.build_mill_background(None)
+
+
+def _tavern_scene():
+    """Зал таверны без людей: фон + передний слой (стойка, перила, столы)."""
+    bg, fg, _custom = tu.build_tavern_scene()
+    surf = _surface((W, H))
+    surf.blit(bg, (0, 0))
+    if fg is not None:
+        surf.blit(fg, (0, 0))
+    return surf
+
+
+def _draw_barman(s):
+    look = dict(top=(200, 210, 225), apron=True, hair=(70, 50, 40), style="bald", mustache=True)
+    hands = tu.draw_person(s, 75, 150, 1.15, look, upper=True, arms=(0.9, 0.9))
+    tu.draw_mug(s, hands[0][0] + 4, hands[0][1] - 6, 0.8)
+
+
+def _draw_bard(s):
+    look = dict(top=(60, 140, 90), legs=(150, 60, 60), hair=(170, 110, 60), style="bard")
+    tu.draw_person(s, 65, 178, 1.15, look, arms=(1.35, 0.7))
+    tu.draw_lute(s, 69, 132, 1.15, 0)
+
+
+def _layout_tavern(kind):
+    if kind == "tavern":
+        surf = _tavern_scene()
+        boxes = [((14, 10, 230, 200), "плашки денег"), ((W - 200, 10, 190, 56), "жетоны, настройки"),
+                 ((16, 558, 136, 60), "«На поле»"), (tu.BOARD_SIGN, "стрелка к доске"),
+                 (tu.CASINO_DOOR.union(tu.CASINO_SIGN), "дверь казино"),
+                 (tu.BARMAN_ZONE, "БАРМЕН (игра)"), (tu.BARD_ZONE, "БАРД (игра)"),
+                 ((W // 2 - 260, 548, 520, 76), "сообщения")]
+        note = f"Стойка: верх на y={tu.COUNTER_TOP}. Сцена: центр {tu.STAGE_C}. Барда и бармена НЕ рисовать — их ставит игра"
+    else:
+        surf = _surface((W, H))
+        surf.blit(tu.build_board_background(), (0, 0))
+        boxes = [((14, 10, 160, 44), "жетоны"), ((W // 2 - 190, 6, 380, 58), "табличка"), ((W - 64, 10, 54, 54), ""),
+                 ((16, 558, 172, 60), "«В таверну»")]
+        boxes += [(r, f"записка {n + 1}") for n, r in enumerate(tu.NOTE_RECTS)]
+        boxes.append((tu.WEEKLY_RECT, "задание недели"))
+        note = "Записки и свиток рисует игра. Нужна пустая пробковая доска во весь экран"
+    return _shade_boxes(surf, boxes, note, 230 if kind == "tavern" else 600)
+
+
+def _shade_boxes(surf, boxes, note, note_y):
+    shade = pygame.Surface((W, H), pygame.SRCALPHA)
+    for rect, label in boxes:
+        pygame.draw.rect(shade, (255, 255, 255, 110), rect, border_radius=10)
+        pygame.draw.rect(shade, (200, 40, 40, 255), rect, 3, border_radius=10)
+    surf.blit(shade, (0, 0))
+    for rect, label in boxes:
+        if label:
+            r = pygame.Rect(rect)
+            art.draw_text(surf, label, 15, r.center, (200, 40, 40), outline=(255, 255, 255))
+    art.draw_text(surf, note, 14, (W // 2, note_y), (200, 40, 40), outline=(255, 255, 255))
+    return surf
+
+
+def _layout_guide(kind):
+    """Карта раскладки: фон + полупрозрачные прямоугольники там, где поверх будет интерфейс.
+    Нужна, чтобы при рисовании своего фона знать, какие места закроются карточками."""
+    if kind in ("tavern", "quest_board"):
+        return _layout_tavern(kind)
+    surf = _interior(kind)
+    boxes = [((14, 10, 190, 170), "плашки денег"), ((W - 64, 10, 54, 54), ""), ((16, 558, 136, 60), "кнопка «На поле»")]
+    if kind == "barn":
+        w, gap = 228, 12
+        x0 = (W - (4 * w + 3 * gap)) // 2
+        boxes += [((x0 + a * (w + gap), 160, w, 386), "загон") for a in range(4)]
+        boxes.append(((W // 2 + 70, 26, 200, 44), "табличка"))
+    else:
+        boxes += [((40 + b * 480, 160, 440, 386), ("мельница", "пекарня")[b]) for b in range(2)]
+        boxes.append(((W // 2 + 70, 26, 220, 44), "табличка"))
+    shade = pygame.Surface((W, H), pygame.SRCALPHA)
+    for rect, label in boxes:
+        pygame.draw.rect(shade, (255, 255, 255, 120), rect, border_radius=10)
+        pygame.draw.rect(shade, (200, 40, 40, 255), rect, 3, border_radius=10)
+    surf.blit(shade, (0, 0))
+    for rect, label in boxes:
+        if label:
+            r = pygame.Rect(rect)
+            art.draw_text(surf, label, 16, r.center, (200, 40, 40), outline=(255, 255, 255))
+    art.draw_text(surf, "Красное закроет интерфейс. Видно будет полосы сверху (y 0-160) и снизу (y 546-640)", 14,
+                  (W // 2, 150), (200, 40, 40), outline=(255, 255, 255))
+    return surf
+
+
+def spec_list():
+    """Список (имя, размер, где точка привязки, описание, функция рисования)."""
+    specs = []
+    add = lambda *a: specs.append(a)
+
+    for idx, fm in enumerate(FARMS):
+        fid = fm["id"]
+        for k, key in enumerate(fm["plants"]):
+            for stage, kk in art.CROP_STAGE_K.items():
+                add(f"crops/{fid}/{key}_{stage}", (110, 120), "низ по центру (55, 116) = основание стебля",
+                    f"{fm['names'][k]}, стадия {stage}/3", idx,
+                    lambda s, f=art.PLANT_FUNCS[key], kk=kk: f(s, 55, 116, kk))
+        add(f"tiles/{fid}/soil", (184, 104), "центр (92, 52) = центр клетки +5 px вниз", "грядка", idx,
+            lambda s: art.draw_soil_tile(s, 92, 47, False))
+        add(f"tiles/{fid}/soil_locked", (184, 104), "центр (92, 52)", "закрытая грядка", idx,
+            lambda s: art.draw_soil_tile(s, 92, 47, True))
+        add(f"backgrounds/{fid}", (W, H), "весь экран", "фон поля целиком (с амбаром/мельницей и задним забором)", idx,
+            lambda s: s.blit(art.build_field_background(), (0, 0)))
+        add(f"props/{fid}/fence_strip", (640, 128), "низ = земля; кусок анфас — игра повторит и наклонит",
+            "кусок переднего забора (проще, чем fence_front)", idx,
+            lambda s: art.draw_fence(s, (8, 124), (632, 124), (0, 0)))
+        add(f"props/{fid}/fence_front", (W, H), "весь экран, прозрачный", "передний забор (рисуется поверх грядок)", idx,
+            lambda s: art.draw_front_fence_layer(s))
+        add(f"props/{fid}/tree", (130, 150), "низ по центру (65, 148)", "дерево (большое — x52, малое — x40)", idx,
+            lambda s: art.draw_tree(s, 65, 127, 52))
+        add(f"props/{fid}/bush", (80, 64), "низ по центру (40, 64)", "куст", idx,
+            lambda s: art.draw_bush(s, 40, 43, 30))
+    add("buildings/barn", (340, 230), "левый верх, ставится в (60, 18)", "амбар (лето)", 0, lambda s: art.draw_barn(s))
+    add("buildings/winter/barn", (340, 230), "левый верх", "амбар в снегу (зима)", 2, lambda s: art.draw_barn(s))
+    add("buildings/windmill", (340, 230), "левый верх, ставится в (60, 18)", "мельница без лопастей", 1,
+        lambda s: art.draw_windmill(s))
+    add("buildings/windmill_blades", (180, 180), "центр = ось (250, 73 на экране)", "лопасти, игра их вращает", 1,
+        lambda s: art.draw_mill_blades(s, 90, 90, 0.3))
+    add("props/castle", (220, 200), "низ по центру (110, 198)", "замок на холме", 1, lambda s: art.draw_castle(s, 110, 168))
+    add("props/sun", (130, 130), "центр", "солнце", 0, lambda s: art.draw_sun_body(s, 65, 65, 0))
+    add("props/cloud", (150, 100), "центр", "тучка", 0, lambda s: art.draw_cloud_body(s, 75, 45, False))
+    add("props/cloud_rain", (150, 100), "центр", "тучка во время дождя", 0, lambda s: art.draw_cloud_body(s, 75, 45, True))
+    keys = ["chicken", "cow", "pig", "bees"]
+    for a, key in enumerate(keys):
+        for winter in (False, True):
+            add(f"animals/{key}" + ("_winter" if winter else ""), (160, 130), "низ по центру (80, 126)",
+                ANIMALS[a]["name"] + (" (зимний наряд)" if winter else ""), 0,
+                lambda s, a=a, w=winter: art.ANIMAL_DRAW[a](s, 80, 126, 1.15, 0, False, w))
+    add("creatures/squirrel", (90, 80), "низ по центру (45, 78), смотрит вправо", "белка", 0,
+        lambda s: art.draw_squirrel(s, 45, 78, 1))
+    add("creatures/squirrel_golden", (90, 80), "низ по центру (45, 78), смотрит вправо", "золотая белка", 0,
+        lambda s: art.draw_squirrel(s, 45, 78, 1, golden=True))
+    add("creatures/crow", (90, 90), "низ по центру (45, 88), смотрит вправо", "ворона сидит", 0,
+        lambda s: art.draw_crow(s, 45, 88, 1))
+    add("creatures/crow_fly", (90, 90), "низ по центру (45, 88), смотрит вправо", "ворона летит", 0,
+        lambda s: art.draw_crow(s, 45, 88, 1, 0.05, True))
+    add("creatures/bandit", (80, 90), "низ по центру (40, 88), смотрит вправо", "разбойник", 1,
+        lambda s: art.draw_bandit(s, 40, 88, 1))
+    add("creatures/bandit_sack", (80, 90), "низ по центру (40, 88), смотрит вправо", "разбойник с мешком", 1,
+        lambda s: art.draw_bandit(s, 40, 88, 1, 0, 5000))
+    for tier in range(3):
+        color = TRUCK_TIERS[tier][1]
+        add(f"vehicles/truck_{tier}", (240, 124), "низ по центру (120, 124), едет влево", f"грузовик скупщика, уровень {tier + 1}", 0,
+            lambda s, c=color: art.draw_truck(s, 125, 120, c))
+        add(f"vehicles/cart_{tier}", (270, 124), "низ по центру (135, 124), едет влево", f"телега сборщика, уровень {tier + 1}", 1,
+            lambda s, c=color: art.draw_cart(s, 165, 120, c))
+    add("backgrounds/barn_inside", (W, H), "весь экран", "сарай изнутри (фон под загонами)", 0,
+        lambda s: s.blit(_interior("barn"), (0, 0)))
+    add("backgrounds/mill_inside", (W, H), "весь экран", "мельница изнутри (фон под карточками)", 1,
+        lambda s: s.blit(_interior("mill"), (0, 0)))
+    add("backgrounds/tavern", (W, H), "весь экран", "зал таверны: стойка справа, сцена в центре, балкон с гостями сверху "
+        "(без барда и бармена)", 1, lambda s: s.blit(_tavern_scene(), (0, 0)))
+    add("backgrounds/quest_board", (W, H), "весь экран", "доска заданий: пустая пробковая доска", 1,
+        lambda s: s.blit(tu.build_board_background(), (0, 0)))
+    add("characters/barman", (150, 150), "низ по центру (75, 150) = край стойки", "бармен по пояс", 1, _draw_barman)
+    add("characters/bard", (130, 180), "низ по центру (65, 178) = пол сцены", "бард с лютней", 1, _draw_bard)
+    add("icons/token", (40, 40), "центр", "жетон таверны", 1,
+        lambda s: tu.draw_token(s, 20, 20, 1.0))
+    add("backgrounds/loading", (W, H), "весь экран", "фон экрана загрузки (необязательно)", 0,
+        lambda s: s.fill((120, 160, 90)))
+    add("ui/logo", (600, 200), "центр, стоит в (500, 150)", "логотип: название игры", 0,
+        lambda s: art.draw_text(s, "Весёлая ферма", 46, (300, 100)))
+    add("ui/loading_ring", (200, 200), "центр = ось вращения", "колесо экрана загрузки (игра его крутит)", 0,
+        lambda s: art.draw_loading_wheel(s, 100, 100, 96, 0.0))
+    add("ui/loading_center", (120, 120), "центр = центр колеса", "талисман в центре колеса (не крутится)", 0,
+        lambda s: art.draw_peasant_head(s, 60, 60, 4.0))
+    add("ui/cursor", (32, 32), "кончик стрелки = левый верхний угол (0, 0)", "курсор мыши", 0,
+        lambda s: art.draw_cursor_template(s))
+    add("ui/cursor_hover", (40, 40), "кончик стрелки = левый верхний угол (0, 0)", "курсор над кнопкой (необязательно)", 0,
+        lambda s: art.draw_cursor_template(s, True))
+    add("icons/coin", (40, 40), "центр", "монета", 0, lambda s: art.draw_coin(s, 20, 20, 17))
+    add("icons/coin_silver", (40, 40), "центр", "серебряная монета (доход/с)", 0,
+        lambda s: art.draw_coin(s, 20, 20, 17, (200, 215, 240)))
+    add("icons/leaf", (40, 40), "центр", "лист (валюта лета)", 0, lambda s: art.draw_leaf_icon(s, 20, 20))
+    add("icons/seal", (40, 40), "центр", "печать (валюта средневековья)", 1, lambda s: art.draw_seal_icon(s, 20, 20))
+    add("icons/peasant", (26, 26), "центр", "крестьянин", 1, lambda s: art.draw_peasant_head(s, 13, 13))
+    for a, key in enumerate(("egg", "milk", "truffle", "honey")):
+        add(f"icons/{key}", (30, 30), "центр", ANIMALS[a]["product"], 0, lambda s, a=a: art.draw_product(s, a, 15, 15))
+    return specs
+
+
+def export_templates(out_dir=None):
+    out_dir = out_dir or os.path.join(cfg.BASE_DIR, "assets_templates")
+    art.USE_SPRITES[0] = False          # рисуем только кодом
+    count = 0
+    plain = hd.plain_scale()            # шаблоны — всегда в обычном размере, даже из игры в HD
+    plain.__enter__()
+    try:
+        for name, size, anchor, desc, farm_idx, draw in spec_list():
+            art.apply_farm(farm_idx)
+            surf = _surface(size)
+            draw(surf)
+            path = os.path.join(out_dir, *name.split("/")) + ".png"
+            os.makedirs(os.path.dirname(path), exist_ok=True)
+            pygame.image.save(surf, path)
+            count += 1
+        # карты раскладки для фонов сарая и мельницы (что закроет интерфейс)
+        guide_dir = os.path.join(out_dir, "_layout")
+        os.makedirs(guide_dir, exist_ok=True)
+        for kind in ("barn", "mill"):
+            pygame.image.save(_layout_guide(kind), os.path.join(guide_dir, f"{kind}_inside_layout.png"))
+            count += 1
+        for kind in ("tavern", "quest_board"):
+            pygame.image.save(_layout_guide(kind), os.path.join(guide_dir, f"{kind}_layout.png"))
+            count += 1
+    finally:
+        plain.__exit__(None, None, None)
+        art.USE_SPRITES[0] = True
+        art.apply_farm(0)
+    return out_dir, count
+
+
+def spec_table_markdown():
+    rows = ["| Файл (assets/…png) | Размер | Точка привязки | Что это |", "|---|---|---|---|"]
+    for name, size, anchor, desc, _f, _d in spec_list():
+        rows.append(f"| `{name}.png` | {size[0]}×{size[1]} | {anchor} | {desc} |")
+    return "\n".join(rows)
+
+
+def known_names():
+    names = {spec[0] for spec in spec_list()}
+    names |= {"icons/sheet", "ui/buttons"}
+    from .spritefit import BUTTON_SHEET_ORDER
+    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_tavern"}   # кнопки: отдельными файлами или листом ui/buttons
+    # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
+    for n in list(names):
+        parts = n.split("/")
+        if len(parts) == 3 and parts[1] in {fm["id"] for fm in FARMS}:
+            names.add(parts[0] + "/" + parts[2])
+    # растение одной картинкой без стадии: crops/summer/potato
+    for fm in FARMS:
+        for key in fm["plants"]:
+            names.add(f"crops/{fm['id']}/{key}")
+    return names
+
+
+# картинки, которые раньше были в игре, а теперь не нужны
+LEGACY = {
+    "props/chapel": "часовни больше нет (теперь кнопка «Праздник урожая») — файл можно удалить",
+    "props/chapel_ringing": "часовни больше нет (теперь кнопка «Праздник урожая») — файл можно удалить",
+}
+
+
+def check_assets():
+    """Проверяет папку assets/: какие картинки игра узнала, какие нет (и что, похоже, имелось в виду).
+    Возвращает (узнанные, [(файл, подсказка или None)])."""
+    import difflib
+    from .art import IMAGE_EXTS
+    from .audio import AUDIO_EXTS, MUSIC_NAMES, SFX_NAMES
+    known = known_names()
+    found, unknown = [], []
+    if not os.path.isdir(cfg.ASSET_DIR):
+        return found, unknown
+    for root, _dirs, files in os.walk(cfg.ASSET_DIR):
+        for fn in files:
+            rel = os.path.relpath(os.path.join(root, fn), cfg.ASSET_DIR).replace(os.sep, "/")
+            stem, ext = os.path.splitext(rel)
+            if ext.lower() in (".md", ".txt") or fn.startswith("."):
+                continue
+            if ext.lower() in (".ttf", ".otf"):
+                if stem.lower().startswith("fonts/"):
+                    found.append(stem.lower())
+                else:
+                    unknown.append((rel, "шрифты клади в assets/fonts/"))
+                continue
+            if ext.lower() in AUDIO_EXTS:
+                if stem.lower() in {"music/" + n for n in MUSIC_NAMES} | {"sfx/" + n for n in SFX_NAMES}:
+                    found.append(stem.lower())
+                elif stem.lower().startswith("sfx/"):
+                    unknown.append((rel, "такого звука нет; имена: " + ", ".join(SFX_NAMES)))
+                elif os.path.basename(stem).lower() in SFX_NAMES:
+                    unknown.append((rel, f"это звук, а не музыка — перенеси в assets/sfx/{fn}"))
+                else:
+                    unknown.append((rel, "музыку клади в assets/music/ с именем main, summer, medieval, winter или tavern"))
+                continue
+            if ext.lower() not in IMAGE_EXTS:
+                unknown.append((rel, "нужен формат PNG (можно JPG)"))
+                continue
+            # частая ошибка Windows: medieval.png.png
+            inner_stem, inner_ext = os.path.splitext(stem)
+            if inner_ext.lower() in IMAGE_EXTS:
+                unknown.append((rel, f"двойное расширение — переименуй в {inner_stem}{ext}"))
+                continue
+            if stem.lower() in LEGACY:
+                unknown.append((rel, LEGACY[stem.lower()]))
+            elif stem.lower() in known:
+                found.append(stem.lower())
+            else:
+                close = difflib.get_close_matches(stem.lower(), sorted(known), n=1, cutoff=0.6)
+                unknown.append((rel, f"может, имелось в виду assets/{close[0]}.png" if close else None))
+    return found, unknown

@@ -1,0 +1,9 @@
+# git: что не хранить в истории
+__pycache__/
+*.pyc
+.sprite_cache/
+_backup/
+farm_save*.json
+*.tmp
+crash.log
+/*.zip

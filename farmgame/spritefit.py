@@ -1,0 +1,610 @@
+# -*- coding: utf-8 -*-
+"""Автоподгонка картинок из assets/ под размер, который ждёт игра.
+
+Картинку из нейросети (большую, на однотонном фоне) можно класть как есть:
+  1) однотонный фон (маджента, белый — любой ровный цвет по углам) убирается заливкой от краёв,
+     поэтому белая курица на маджента-фоне или белые стены на белом фоне внутри контура не пострадают;
+  2) пустые поля обрезаются;
+  3) рисунок вписывается в холст из шаблона с сохранением пропорций и ставится «ногами» на свою точку.
+
+Особые случаи:
+  crops/<ферма>/<культура>.png — полоска из 3 стадий роста (широкая картинка) режется на 3 спрайта;
+  icons/sheet.png — лист иконок 3×3 режется на 9 иконок (порядок как в промпте).
+
+Картинку ровно нужного размера и уже с прозрачностью игра не трогает — ручная работа важнее.
+Готовый результат кладётся в .sprite_cache/ рядом с игрой, чтобы не считать его при каждом запуске.
+"""
+import hashlib
+import os
+import re
+
+import pygame
+
+from .config import BASE_DIR, W, H
+
+CACHE_VERSION = "fit3"
+CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
+
+BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
+EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
+MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
+CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
+CURSOR_HOVER_SIZE = 32   # курсор над кнопкой, px
+HOLE_TOL = 34    # «дырка» внутри рисунка — пиксели почти точно цвета фона
+HOLE_MAX_WHITE = 0.004   # на белом фоне убираем только просветы меньше 0.4% картинки
+
+ICON_SHEET_ORDER = ["coin", "coin_silver", "leaf", "seal", "peasant", "egg", "milk", "truffle", "honey"]
+# лист кнопок 3×3 (assets/ui/buttons.png), порядок по строкам:
+BUTTON_SHEET_ORDER = ["shop", "upgrade", "tree", "barn", "mill", "move", "settings", "field", "close"]
+SHEETS = {   # имя листа -> (папка/префикс картинок, порядок)
+    "icons/sheet": ("icons/", ICON_SHEET_ORDER),
+    "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER),
+}
+STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
+
+
+# ----------------------------------------------------------------------
+#                    куда и как вписывать каждую картинку
+# ----------------------------------------------------------------------
+def _spec(canvas, box, align="bottom", hfrac=1.0):
+    return {"canvas": canvas, "box": box, "align": align, "hfrac": hfrac}
+
+
+def _box(w, h, l, t, r, b):
+    """Холст w×h, внутри него поле для рисунка с отступами слева/сверху/справа/снизу."""
+    return (w, h), (l, t, w - r, h - b)
+
+
+FIT_SCALE = [1.0]   # HD-режим: всё подгоняется в столько раз крупнее (см. hd.py)
+
+
+def _work(n):
+    """Рабочий размер исходника для подгонки холста размером n: в 4 раза больше обычного размера
+    (в HD — не меньше чем в 2 раза больше настоящего). Так в HD подгонка не становится в разы дольше."""
+    return int(n * max(2.0, 4.0 / FIT_SCALE[0]))
+
+
+def _upscale(img, k=None):
+    """Картинку «обычного» размера — в k раз крупнее (для HD)."""
+    k = FIT_SCALE[0] if k is None else k
+    if k == 1:
+        return img
+    w, h = img.get_size()
+    return pygame.transform.smoothscale(img, (max(1, int(round(w * k))), max(1, int(round(h * k)))))
+
+
+def fit_spec(name):
+    """Как подгонять картинку с этим именем (в HD — крупнее в FIT_SCALE раз). None — не трогать вообще."""
+    spec = _fit_spec_base(name)
+    k = FIT_SCALE[0]
+    if spec is None or k == 1:
+        return spec
+    (cw, ch), (x0, y0, x1, y1) = spec["canvas"], spec["box"]
+    r = lambda v: int(round(v * k))
+    return dict(spec, canvas=(r(cw), r(ch)), box=(r(x0), r(y0), r(x1), r(y1)))
+
+
+def _fit_spec_base(name):
+    """Как подгонять картинку с этим именем в обычном размере (координаты 1000x640)."""
+    n = name.lower()
+    parts = n.split("/")
+    folder, last = parts[0], parts[-1]
+    if folder == "backgrounds" or last == "fence_front":
+        return _spec((W, H), (0, 0, W, H), "full")
+    if folder == "crops":
+        m = re.match(r"^(.*)_([123])$", last)
+        c, b = _box(110, 120, 3, 2, 3, 4)
+        return _spec(c, b, "bottom", STAGE_HEIGHT[int(m.group(2))] if m else 1.0)
+    if folder == "tiles":
+        return _spec(*_box(184, 104, 9, 5, 9, 5), "center")
+    if folder == "props" and last == "fence_strip":
+        # прямой кусок забора анфас: игра сама повторит его по длине и наклонит вдоль края поля
+        return _spec((640, 128), (0, 0, 640, 128), "bottom")
+    if folder == "props":
+        table = {"tree": _box(130, 150, 2, 2, 2, 2), "bush": _box(80, 64, 1, 2, 1, 0),
+                 "castle": _box(220, 200, 2, 2, 2, 2), "chapel": _box(100, 140, 2, 2, 2, 2),
+                 "chapel_ringing": _box(100, 140, 2, 2, 2, 2)}
+        if last in table:
+            return _spec(*table[last], "bottom")
+        if last == "sun":
+            return _spec(*_box(130, 130, 3, 3, 3, 3), "center")
+        if last.startswith("cloud"):
+            return _spec(*_box(150, 100, 3, 3, 3, 3), "center")
+        return None
+    if folder == "buildings":
+        if last == "windmill_blades":
+            return _spec(*_box(180, 180, 2, 2, 2, 2), "center")
+        if last == "windmill":
+            return _spec((340, 230), (110, 8, 270, 205), "bottom")
+        if last == "barn":
+            return _spec(*_box(340, 230, 15, 5, 15, 15), "bottom")
+        return None
+    if folder == "animals":
+        return _spec(*_box(160, 130, 8, 4, 8, 4), "bottom")
+    if folder == "creatures":
+        for key, size in (("squirrel", (90, 80)), ("crow", (90, 90)), ("bandit", (80, 90))):
+            if last.startswith(key):
+                return _spec(*_box(size[0], size[1], 2, 2, 2, 2), "bottom")
+        return None
+    if folder == "characters":
+        # жители таверны: бармен — по пояс (низ картинки = край стойки), бард — в полный рост (низ = сцена)
+        if last == "barman":
+            return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
+        if last == "bard":
+            return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        return None
+    if folder == "vehicles":
+        if last.startswith("truck"):
+            return _spec(*_box(240, 124, 4, 2, 4, 0), "bottom")
+        if last.startswith("cart"):
+            return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
+        return None
+    if folder == "ui" and last.startswith("btn_"):
+        return _spec(*_box(64, 64, 2, 2, 2, 2), "center")
+    if folder == "ui" and last == "logo":              # экран загрузки: название игры
+        return _spec(*_box(600, 200, 4, 4, 4, 4), "center")
+    if folder == "ui" and last == "loading_ring":      # колесо, игра его вращает (центр картинки = ось)
+        return _spec(*_box(200, 200, 2, 2, 2, 2), "center")
+    if folder == "ui" and last == "loading_center":    # талисман в центре колеса, не вращается
+        return _spec(*_box(120, 120, 2, 2, 2, 2), "center")
+    if folder == "ui" and last == "cursor":
+        # курсор: рисунок прижимается к левому верхнему углу — там кончик стрелки (точка клика)
+        return _spec((32, 32), (0, 0, CURSOR_SIZE, CURSOR_SIZE), "topleft")
+    if folder == "ui" and last == "cursor_hover":
+        return _spec((40, 40), (0, 0, CURSOR_HOVER_SIZE, CURSOR_HOVER_SIZE), "topleft")
+    if folder == "icons":
+        if last == "peasant":
+            s = 26
+        elif last in ("egg", "milk", "truffle", "honey"):
+            s = 30
+        elif last == "sheet":
+            return None
+        else:
+            s = 40
+        return _spec(*_box(s, s, 1, 1, 1, 1), "center")
+    return None
+
+
+# ----------------------------------------------------------------------
+#                       пиксели (без numpy)
+# ----------------------------------------------------------------------
+def _tobytes(surf):
+    f = getattr(pygame.image, "tobytes", None) or pygame.image.tostring
+    return bytearray(f(surf, "RGBA"))
+
+
+def _frombytes(buf, size):
+    f = getattr(pygame.image, "frombytes", None) or pygame.image.fromstring
+    surf = f(bytes(buf), size, "RGBA")
+    try:
+        surf = surf.convert_alpha()
+    except pygame.error:
+        pass
+    return surf
+
+
+class Pix:
+    """RGBA-картинка как bytearray: быстро читать и писать без get_at/set_at."""
+
+    def __init__(self, surf):
+        self.w, self.h = surf.get_size()
+        self.buf = _tobytes(surf)
+
+    def surface(self, rect=None):
+        if rect is None:
+            return _frombytes(self.buf, (self.w, self.h))
+        x0, y0, x1, y1 = rect
+        out = bytearray()
+        for y in range(y0, y1):
+            i = (y * self.w + x0) * 4
+            out += self.buf[i:i + (x1 - x0) * 4]
+        return _frombytes(out, (x1 - x0, y1 - y0))
+
+    def alpha(self, x, y):
+        return self.buf[(y * self.w + x) * 4 + 3]
+
+    def has_transparency(self):
+        b, w, h = self.buf, self.w, self.h
+        for x, y in ((0, 0), (w - 1, 0), (0, h - 1), (w - 1, h - 1)):
+            if b[(y * w + x) * 4 + 3] < 250:
+                return True
+        return False
+
+    def background_color(self):
+        """Цвет ровного фона по краям или None, если края пёстрые."""
+        b, w, h = self.buf, self.w, self.h
+        pts = []
+        for t in range(9):
+            fx = t / 8
+            for x, y in ((int(fx * (w - 1)), 0), (int(fx * (w - 1)), h - 1),
+                         (0, int(fx * (h - 1))), (w - 1, int(fx * (h - 1)))):
+                i = (y * w + x) * 4
+                pts.append((b[i], b[i + 1], b[i + 2]))
+        pts.sort(key=sum)
+        mid = pts[len(pts) // 2]
+        close = [p for p in pts if max(abs(p[0] - mid[0]), abs(p[1] - mid[1]), abs(p[2] - mid[2])) < BG_TOL]
+        if len(close) < len(pts) * 0.7:
+            return None
+        return tuple(sum(p[k] for p in close) // len(close) for k in range(3))
+
+    def remove_background(self, bg):
+        """Убирает фон:
+        1) заливка от краёв картинки — по цвету фона, а на цветном фоне (маджента) ещё и по его теням;
+        2) «дырки» цвета фона внутри рисунка (просветы между листьями, между досками кузова):
+           на цветном фоне убираются все, на белом — только мелкие (крупное белое внутри контура —
+           это часть рисунка: курица, дверь амбара);
+        3) мягкий полупрозрачный край без цветного ореола."""
+        b, w, h = self.buf, self.w, self.h
+        br, bgc, bb = bg
+        chroma = max(bg) - min(bg) > 120          # цветной фон (маджента, зелёный), а не белый/серый
+
+        def dist(i):
+            return max(abs(b[i] - br), abs(b[i + 1] - bgc), abs(b[i + 2] - bb))
+
+        def bg_like(i):
+            if dist(i) < BG_TOL:
+                return True
+            if chroma:   # тень на цветном фоне: тот же оттенок, только темнее
+                r, g, bl = b[i], b[i + 1], b[i + 2]
+                cr, cg, cb = br / 255.0, bgc / 255.0, bb / 255.0
+                lum = max(r, g, bl)
+                if lum < 50:
+                    return False
+                # насколько пиксель похож на «фон, умноженный на яркость»
+                k = lum / 255.0
+                return max(abs(r - cr * 255 * k), abs(g - cg * 255 * k), abs(bl - cb * 255 * k)) < 40
+            return False
+
+        is_bg = bytearray(w * h)
+        stack = []
+        for x in range(w):
+            stack.append(x)
+            stack.append((h - 1) * w + x)
+        for y in range(h):
+            stack.append(y * w)
+            stack.append(y * w + w - 1)
+        while stack:
+            p = stack.pop()
+            if is_bg[p] or not bg_like(p * 4):
+                continue
+            is_bg[p] = 1
+            x = p % w
+            if x > 0:
+                stack.append(p - 1)
+            if x < w - 1:
+                stack.append(p + 1)
+            if p >= w:
+                stack.append(p - w)
+            if p < (h - 1) * w:
+                stack.append(p + w)
+        # просветы цвета фона внутри рисунка
+        hole_limit = w * h if chroma else int(w * h * HOLE_MAX_WHITE)
+        seen = bytearray(w * h)
+        for start in range(w * h):
+            if is_bg[start] or seen[start] or dist(start * 4) >= HOLE_TOL:
+                continue
+            comp, stack = [], [start]
+            seen[start] = 1
+            while stack:
+                p = stack.pop()
+                comp.append(p)
+                x = p % w
+                for q in ((p - 1) if x > 0 else -1, (p + 1) if x < w - 1 else -1,
+                          p - w if p >= w else -1, p + w if p < (h - 1) * w else -1):
+                    if q >= 0 and not seen[q] and not is_bg[q] and dist(q * 4) < HOLE_TOL:
+                        seen[q] = 1
+                        stack.append(q)
+            if len(comp) <= hole_limit:
+                for p in comp:
+                    is_bg[p] = 1
+        for p in range(w * h):
+            if is_bg[p]:
+                b[p * 4 + 3] = 0
+        # край: 2 кольца пикселей вокруг фона. Похожие на фон делаем полупрозрачными
+        # и «отмываем» их цвет от фона — так не остаётся розового/белого ореола вокруг контура.
+        ring = is_bg
+        for tol in EDGE_TOLS:
+            span = tol - BG_TOL
+            nxt = bytearray(w * h)
+            for p in range(w * h):
+                if is_bg[p] or (ring is not is_bg and ring[p]):
+                    continue
+                x = p % w
+                if not ((x > 0 and ring[p - 1]) or (x < w - 1 and ring[p + 1])
+                        or (p >= w and ring[p - w]) or (p < (h - 1) * w and ring[p + w])):
+                    continue
+                nxt[p] = 1
+                i = p * 4
+                d = dist(i)
+                if d >= tol:
+                    continue
+                a = max(0.08, (d - BG_TOL) / span)
+                for k, c in ((0, br), (1, bgc), (2, bb)):
+                    b[i + k] = max(0, min(255, int(c + (b[i + k] - c) / a)))
+                b[i + 3] = int(b[i + 3] * a)
+            ring = nxt
+
+    def bbox(self, rect=None):
+        """Границы непрозрачного рисунка внутри rect (x0, y0, x1, y1) или None."""
+        x0, y0, x1, y1 = rect or (0, 0, self.w, self.h)
+        b, w = self.buf, self.w
+        rows = [y for y in range(y0, y1) if any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for x in range(x0, x1))]
+        if not rows:
+            return None
+        cols = [x for x in range(x0, x1)
+                if any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for y in range(rows[0], rows[-1] + 1))]
+        return cols[0], rows[0], cols[-1] + 1, rows[-1] + 1
+
+    def occupancy(self, axis, rect):
+        """Для каждого столбца (axis='x') или строки ('y') внутри rect: есть ли там рисунок."""
+        x0, y0, x1, y1 = rect
+        b, w = self.buf, self.w
+        if axis == "x":
+            return [any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for y in range(y0, y1)) for x in range(x0, x1)]
+        return [any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for x in range(x0, x1)) for y in range(y0, y1)]
+
+
+def split_by_gaps(occ, n):
+    """Делит линию на n кусков по самым широким пустым промежуткам (иначе — поровну)."""
+    filled = [i for i, v in enumerate(occ) if v]
+    if not filled:
+        return [(i * len(occ) // n, (i + 1) * len(occ) // n) for i in range(n)]
+    start, end = filled[0], filled[-1] + 1
+    gaps, i = [], start
+    while i < end:
+        if not occ[i]:
+            j = i
+            while j < end and not occ[j]:
+                j += 1
+            gaps.append((j - i, i, j))
+            i = j
+        else:
+            i += 1
+    if len(gaps) >= n - 1:
+        cuts = sorted(gaps, reverse=True)[:n - 1]
+        cuts.sort(key=lambda g: g[1])
+        bounds, prev = [], start
+        for _size, a, bnd in cuts:
+            bounds.append((prev, a))
+            prev = bnd
+        bounds.append((prev, end))
+        return bounds
+    step = (end - start) / n
+    return [(int(start + k * step), int(start + (k + 1) * step)) for k in range(n)]
+
+
+# ----------------------------------------------------------------------
+#                              подгонка
+# ----------------------------------------------------------------------
+def _prepare(img, work_max):
+    """Уменьшает огромную картинку до рабочего размера, убирает фон. -> Pix."""
+    w, h = img.get_size()
+    k = min(1.0, work_max / max(w, h))
+    if k < 1.0:
+        img = pygame.transform.smoothscale(img, (max(1, int(w * k)), max(1, int(h * k))))
+    px = Pix(img)
+    if not px.has_transparency():
+        bg = px.background_color()
+        if bg is not None:
+            px.remove_background(bg)
+    return px
+
+
+def _place(piece, spec, scale=None):
+    """Кладёт вырезанный кусок на холст из spec. scale=None — вписать в поле целиком."""
+    cw, ch = spec["canvas"]
+    x0, y0, x1, y1 = spec["box"]
+    bw, bh = x1 - x0, (y1 - y0) * spec["hfrac"]
+    pw, ph = piece.get_size()
+    if scale is None:
+        scale = min(bw / pw, bh / ph)
+    nw, nh = max(1, int(round(pw * scale))), max(1, int(round(ph * scale)))
+    piece = pygame.transform.smoothscale(piece, (nw, nh))
+    out = pygame.Surface((cw, ch), pygame.SRCALPHA)
+    cx = (x0 + x1) / 2
+    if spec["align"] == "topleft":
+        r = piece.get_rect(topleft=(x0, y0))
+    elif spec["align"] == "center":
+        r = piece.get_rect(center=(int(round(cx)), int(round((y0 + y1) / 2))))
+    else:
+        r = piece.get_rect(midbottom=(int(round(cx)), y1))
+    out.blit(piece, r)
+    return out
+
+
+def fit_single(img, spec):
+    cw, ch = spec["canvas"]
+    if spec["align"] == "full":
+        return pygame.transform.smoothscale(img, (cw, ch))
+    px = _prepare(img, _work(max(cw, ch)))
+    bb = px.bbox()
+    if bb is None:
+        return None
+    return _place(px.surface(bb), spec)
+
+
+def fit_strip(img, specs):
+    """Полоска из нескольких стадий одного растения: режем по промежуткам, масштаб общий."""
+    cw, ch = specs[0]["canvas"]
+    px = _prepare(img, _work(max(cw, ch) * len(specs)))
+    whole = px.bbox()
+    if whole is None:
+        return [None] * len(specs)
+    cols = split_by_gaps(px.occupancy("x", whole), len(specs))
+    pieces = []
+    for a, b in cols:
+        bb = px.bbox((whole[0] + a, whole[1], whole[0] + b, whole[3]))
+        pieces.append(bb)
+    real = [bb for bb in pieces if bb]
+    if not real:
+        return [None] * len(specs)
+    x0, y0, x1, y1 = specs[0]["box"]
+    scale = min(min((x1 - x0) / (bb[2] - bb[0]) for bb in real), min((y1 - y0) / (bb[3] - bb[1]) for bb in real))
+    full = dict(specs[0], hfrac=1.0)
+    return [(_place(px.surface(bb), full, scale) if bb else None) for bb in pieces]
+
+
+def fit_sheet(img, rows, cols, spec_for):
+    """Лист иконок rows×cols. spec_for(i) — spec для i-й иконки. -> список поверхностей."""
+    biggest = max(max(spec_for(i)["canvas"]) for i in range(rows * cols))
+    px = _prepare(img, _work(biggest * max(rows, cols)))
+    whole = px.bbox()
+    if whole is None:
+        return [None] * (rows * cols)
+    out = []
+    for ra, rb in split_by_gaps(px.occupancy("y", whole), rows):
+        band = (whole[0], whole[1] + ra, whole[2], whole[1] + rb)
+        for ca, cb in split_by_gaps(px.occupancy("x", band), cols):
+            bb = px.bbox((band[0] + ca, band[1], band[0] + cb, band[3]))
+            i = len(out)
+            out.append(_place(px.surface(bb), spec_for(i)) if bb else None)
+    return out
+
+
+# ----------------------------------------------------------------------
+#                 загрузка с подгонкой и кэшем на диске
+# ----------------------------------------------------------------------
+def _cache_path(name, src):
+    st = os.stat(src)
+    # в ключе и правила подгонки: поменялся размер в игре — картинка пересчитается сама
+    key = f"{CACHE_VERSION}|{name}|{fit_spec(name)}|{os.path.abspath(src)}|{st.st_mtime_ns}|{st.st_size}"
+    return os.path.join(CACHE_DIR, hashlib.md5(key.encode("utf-8")).hexdigest() + ".png")
+
+
+def _load(path):
+    img = pygame.image.load(path)
+    try:
+        img = img.convert_alpha()
+    except pygame.error:
+        pass
+    return img
+
+
+def _save_cache(path, surf):
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        pygame.image.save(surf, path)
+    except Exception as e:  # кэш — не обязательная вещь
+        print(f"Не удалось сохранить кэш спрайта: {e}")
+
+
+_strip_cache = {}
+
+
+def is_strip(img, path=None):
+    """Полоска из нескольких стадий растения? Смотрим не на пропорции (нейросеть может выдать
+    и 16:9, и 3:1), а на содержимое: после удаления фона в картинке 3 отдельных рисунка
+    с пустыми промежутками между ними."""
+    key = None
+    if path:
+        try:
+            st = os.stat(path)
+            key = (os.path.abspath(path), st.st_mtime_ns, st.st_size)
+        except OSError:
+            key = None
+        if key in _strip_cache:
+            return _strip_cache[key]
+    w, h = img.get_size()
+    result = False
+    if w >= 1.3 * h:                       # высокая/квадратная картинка — точно одно растение
+        px = _prepare(img, 360)            # грубо, но быстро: нужен только силуэт
+        bb = px.bbox()
+        if bb:
+            occ = px.occupancy("x", bb)
+            min_gap = max(2, int(len(occ) * 0.015))
+            gaps, run = 0, 0
+            for v in occ:
+                if not v:
+                    run += 1
+                else:
+                    if run >= min_gap:
+                        gaps += 1
+                    run = 0
+            result = gaps >= 2
+    if key:
+        _strip_cache[key] = result
+    return result
+
+
+def load_fitted(name, path, part=None):
+    """Загружает картинку path для спрайта name, подгоняя её под нужный размер.
+    part: None — обычный файл; ("strip", stage) — стадия из полоски; ("sheet", i, префикс, порядок) — из листа."""
+    spec = fit_spec(name)
+    if spec is None and part is None:
+        return _upscale(_load(path))     # правила нет — картинка как есть (в HD — крупнее)
+    cache = _cache_path(name, path)
+    if os.path.exists(cache):
+        try:
+            return _load(cache)
+        except Exception:
+            pass
+    img = _load(path)
+    cw, ch = spec["canvas"] if spec else (0, 0)
+    if part is None:
+        base = _fit_spec_base(name)["canvas"]
+        if img.get_size() in ((cw, ch), base):
+            if spec["align"] == "full" or Pix(img).has_transparency():
+                # ровно нужный размер и уже вырезано — не трогаем (в HD только увеличиваем целиком)
+                return img if img.get_size() == (cw, ch) else pygame.transform.smoothscale(img, (cw, ch))
+        if spec["align"] == "full" and name.endswith("fence_front"):
+            # передний забор во весь экран: нейросеть не даёт прозрачность — вырезаем однотонный фон
+            out = pygame.transform.smoothscale(img, (cw, ch))
+            px = Pix(out)
+            if not px.has_transparency():
+                bg = px.background_color()
+                if bg is not None:
+                    px.remove_background(bg)
+                    out = px.surface()
+        elif spec["align"] == "full":
+            return fit_single(img, spec)   # простое растяжение, кэш не нужен
+        else:
+            out = fit_single(img, spec)
+    elif part[0] == "strip":
+        base = name.rsplit("_", 1)[0]
+        specs = [fit_spec(f"{base}_3")] * 3
+        outs = fit_strip(img, specs)
+        for st, surf in enumerate(outs, 1):
+            if surf is not None and st != part[1]:
+                _save_cache(_cache_path(f"{base}_{st}", path), surf)
+        out = outs[part[1] - 1]
+    else:  # sheet: ("sheet", номер, префикс, порядок)
+        _kind, idx, prefix, order = part
+        outs = fit_sheet(img, 3, 3, lambda i: fit_spec(prefix + order[i]))
+        for i, surf in enumerate(outs):
+            if surf is not None and i != idx:
+                _save_cache(_cache_path(prefix + order[i], path), surf)
+        out = outs[idx]
+    if out is None:
+        return None
+    w0, h0 = img.get_size()
+    print(f"Подогнала картинку {name}: {w0}×{h0} → {out.get_width()}×{out.get_height()}")
+    _save_cache(cache, out)
+    return out
+
+
+def make_glow(img, color, radius=4):
+    """Светлый ореол по силуэту картинки (для подсветки кнопки под курсором).
+    Возвращает поверхность больше исходной на radius с каждой стороны."""
+    from . import hd
+    if isinstance(img, hd.HiSurf):      # HD: ореол считаем по настоящим пикселям, толщину — тоже в k раз больше
+        return hd.HiSurf(_make_glow(img.surf, color, max(1, int(round(radius * img.k)))), img.k)
+    return _make_glow(img, color, radius)
+
+
+def _make_glow(img, color, radius):
+    px = Pix(img)
+    w, h = px.w, px.h
+    b = px.buf
+    sil = bytearray(w * h * 4)
+    r, g, bl = color
+    for p in range(w * h):
+        if b[p * 4 + 3] > 40:
+            i = p * 4
+            sil[i], sil[i + 1], sil[i + 2], sil[i + 3] = r, g, bl, 255
+    sil_s = _frombytes(sil, (w, h))
+    out = pygame.Surface((w + 2 * radius, h + 2 * radius), pygame.SRCALPHA)
+    for dx in range(-radius, radius + 1):
+        for dy in range(-radius, radius + 1):
+            if dx * dx + dy * dy <= radius * radius:
+                out.blit(sil_s, (radius + dx, radius + dy))
+    return out

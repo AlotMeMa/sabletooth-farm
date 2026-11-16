@@ -27,6 +27,8 @@ class Farm:
         self.rain_cd = 0.0
         self.sun_cd = SUN_COOLDOWN / 3
         self.boost_left = 0.0        # награда таверны: доход x2, секунд осталось
+        self.song = 0                # 3.8: заказанная песня барда (id из SONGS, 0 — нет) и сколько ей ещё играть
+        self.song_left = 0.0
         self.reset_run()
 
     def reset_run(self):
@@ -141,7 +143,16 @@ class Farm:
         c = CROPS[i]
         return (c["income"] * self.levels[i] * safe_pow(3, self.fert[i]) * self.overflow_mult(i)
                 * self.leaf_mult * 2 ** self.up("fertile") * FARM_BONUS ** self.farm_index
-                * (2 if self.boost_left > 0 else 1))
+                * (2 if self.boost_left > 0 else 1) * self.song_effect("income"))
+
+    def song_effect(self, key):
+        """Множитель от играющей песни барда (income / squirrel / golden); без песни — 1."""
+        if self.song_left <= 0 or not self.song:
+            return 1.0
+        for sg in SONGS:
+            if sg["id"] == self.song:
+                return sg.get(key, 1.0)
+        return 1.0
 
     def growth_speed(self):
         return _rain_speed(self.up("rain_power")) if self.rain_left > 0 else 1.0
@@ -485,6 +496,10 @@ class Farm:
             self.rain_cd = max(0.0, self.rain_cd - dt)
         self.sun_cd = max(0.0, self.sun_cd - dt)
         self.boost_left = max(0.0, self.boost_left - dt)
+        if self.song_left > 0:
+            self.song_left = max(0.0, self.song_left - dt)
+            if self.song_left <= 0:
+                self.song = 0
         self._run_animals(dt, automation)
         self._run_mill(dt, automation)
 
@@ -640,7 +655,7 @@ class Farm:
 
     # ---------- сохранение ----------
     FIELDS = ["leaves", "leaves_earned", "tree", "farm_index", "home_leaves", "prestiges", "total_earned", "rain_left", "rain_cd", "sun_cd",
-              "boost_left",
+              "boost_left", "song", "song_left",
               "money", "run_earned", "levels", "fert", "farmers", "progress", "ready", "stash",
               "a_levels", "a_feed", "a_prog", "a_store", "a_keeper",
               "peasants", "m_levels", "m_workers", "hopper", "flour", "bread", "oven_load", "oven_prog"]

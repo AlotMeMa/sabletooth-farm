@@ -496,7 +496,7 @@ class App(TavernUI, MillUI):
 
     # ------------------------------------------------------------ белка
     def squirrel_delay(self):
-        return random.uniform(SQUIRREL_MIN, SQUIRREL_MAX) * 0.9 ** self.farm.up("sq_often")
+        return random.uniform(SQUIRREL_MIN, SQUIRREL_MAX) * 0.9 ** self.farm.up("sq_often") / self.farm.song_effect("squirrel")
 
     def crow_delay(self):
         return random.uniform(CROW_MIN, CROW_MAX) * 1.5 ** self.farm.up("scarecrow")
@@ -504,7 +504,7 @@ class App(TavernUI, MillUI):
     def spawn_squirrel(self, golden=None):
         d = random.choice((1, -1))
         if golden is None:
-            golden = random.random() < GOLDEN_CHANCE + 0.04 * self.farm.up("golden")
+            golden = random.random() < (GOLDEN_CHANCE + 0.04 * self.farm.up("golden")) * self.farm.song_effect("golden")
         self.squirrel = dict(x=-60.0 if d == 1 else W + 60.0, y=random.uniform(478, 506), d=d, golden=golden,
                              phase="run", timer=0.0, stop=random.uniform(260, 740), vy=0.0, life=0.0, hop_i=0)
         self.sfx.play("squirrel")
@@ -1273,7 +1273,11 @@ class App(TavernUI, MillUI):
             self.zone_btn(pr, lambda: (self.open_modal("shop"), setattr(self, "shop_tab", "farm")), 16)
             self.tip(pr, "Свободные крестьяне. Щёлкни — нанять ещё")
         if not board:
-            self.draw_boost_pill(180 if self.farm_info()["peasants"] else 142)
+            y = 180 if self.farm_info()["peasants"] else 142
+            self.draw_boost_pill(y)
+            if self.farm.boost_left > 0:
+                y += 38
+            self.draw_song_pill(y)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)
@@ -2438,7 +2442,7 @@ class App(TavernUI, MillUI):
     def modal_drawers(self):
         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
-                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev}
+                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs}
 
     def draw_modal_layer(self, name, prog, opening):
         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно

@@ -1370,7 +1370,7 @@ class App(TavernUI):
         sprite_name = f"ui/btn_{name}"
         grow = self.btn_anim(rect, self.modal is None or name == "close" or self._in_modal)
         if has_sprite(sprite_name):
-            scale = (rect.h + 10) / 64 * (1 + 0.07 * grow)
+            scale = (rect.h + 10) / spritefit.BTN_CANVAS * (1 + 0.07 * grow)
             hovered = (self.modal is None or name == "close") and rect.collidepoint(self.mouse)
             if hovered or active:      # 3.4.1: свет «из-за кнопки» вместо обводки (и без тормозов)
                 pulse = 0.0 if hovered else 0.06 * math.sin(self.t_real * 3)

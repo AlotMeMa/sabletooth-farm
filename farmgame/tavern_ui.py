@@ -8,7 +8,7 @@
     assets/characters/barman.png        — бармен по пояс, низ картинки = край стойки (150x150);
     assets/characters/bard.png          — бард в полный рост, низ = сцена (130x180);
     assets/icons/token.png              — жетон таверны (40x40);
-    assets/ui/btn_tavern.png            — кнопка «Таверна» (64x64).
+    assets/ui/btn_tavern.png            — кнопка «Таверна» (квадрат).
 Музыка — assets/music/tavern.ogg, гул голосов — assets/sfx/crowd.ogg (без файла — встроенный).
 """
 import json

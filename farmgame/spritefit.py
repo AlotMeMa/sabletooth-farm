@@ -22,9 +22,11 @@ import pygame
 
 from .config import BASE_DIR, W, H
 
-CACHE_VERSION = "fit4"   # 3.3: убираются линии-рамки и вытянутые просветы — картинки пересчитаются
+CACHE_VERSION = "fit5"   # 3.4.2: тёмный контур у края больше не принимается за тень — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
+SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
+                                       # (по «слабому» каналу фона — строже)
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
 EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
 MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
@@ -43,6 +45,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/sheet": ("icons/", ICON_SHEET_ORDER),
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER),
 }
+BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110)}   # наибольший размер (3.4)
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
@@ -150,7 +153,7 @@ def _fit_spec_base(name):
     if folder == "ui" and last == "slider_knob":
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("btn_"):
-        return _spec(*_box(64, 64, 2, 2, 2, 2), "center")
+        return _spec(*_box(BTN_CANVAS, BTN_CANVAS, 4, 4, 4, 4), "center")
     if folder == "ui" and last == "logo":              # экран загрузки: название игры
         return _spec(*_box(600, 200, 4, 4, 4, 4), "center")
     if folder == "ui" and last == "loading_ring":      # колесо, игра его вращает (центр картинки = ось)
@@ -262,7 +265,18 @@ class Pix:
                     return False
                 # насколько пиксель похож на «фон, умноженный на яркость»
                 k = lum / 255.0
-                return max(abs(r - cr * 255 * k), abs(g - cg * 255 * k), abs(bl - cb * 255 * k)) < 40
+                if max(abs(r - cr * 255 * k), abs(g - cg * 255 * k), abs(bl - cb * 255 * k)) >= 40:
+                    return False
+                # 3.4.2: и оттенок тот же. Иначе тёмно-коричневый контур рисунка, который касается фона,
+                # принимался за тень (тёмные цвета все «близко» к тёмной мадженте) и съедался.
+                # Главное — канал, которого в фоне почти нет (у мадженты — зелёный): в тени он тоже около нуля,
+                # а в коричневом контуре заметен.
+                top = max(cr, cg, cb)
+                for v, c in ((r, cr), (g, cg), (bl, cb)):
+                    lim = SHADOW_HUE_LOW if c / top < 0.3 else SHADOW_HUE
+                    if abs(v / lum - c / top) >= lim:
+                        return False
+                return True
             return False
 
         is_bg = bytearray(w * h)

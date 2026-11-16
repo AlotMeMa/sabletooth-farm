@@ -71,7 +71,7 @@ BARMAN_LINES = [
     "Добро пожаловать в «Хмельной колос»! Доска заданий — слева, на стене.",
     "Задания на доске меняются каждую ночь. Не проспи!",
     "Видишь большой свиток на доске? Это задание недели. Награда — королевская.",
-    "Жетоны таверны пока береги. Скоро для них найдётся дело.",
+    "Жетоны таверны отдай барду — нажми на него и закажи песню. Песня приносит удачу!",
     "Говорят, за дверью справа скоро откроют игорный зал...",
     "Бард сегодня в ударе. Ещё кружечку?",
 ]
@@ -293,6 +293,23 @@ class Tavern:
                               minutes=_int(o.get("minutes"), 0), tokens=_int(o.get("tokens"), 0),
                               prestige=_int(o.get("prestige"), 0), boost=_int(o.get("boost"), 0))
                          for o in d["owed"] if isinstance(o, dict)]
+
+
+def order_song(tavern, farm, song_id):
+    """3.8: заказать песню барду за жетоны. Возвращает (получилось, причина отказа).
+    Песня даёт эффект на song minutes минут (см. config.SONGS); пока играет одна — другую не заказать."""
+    from .config import SONGS
+    song = next((sg for sg in SONGS if sg["id"] == song_id), None)
+    if song is None:
+        return False, "Такой песни бард не знает"
+    if farm.song_left > 0 and farm.song:
+        return False, "Бард ещё играет прошлый заказ"
+    if tavern.tokens < song["cost"]:
+        return False, f"Нужно жетонов: {song['cost']}"
+    tavern.tokens -= song["cost"]
+    farm.song = song["id"]
+    farm.song_left = song["minutes"] * 60.0
+    return True, ""
 
 
 def _int(v, default=0):

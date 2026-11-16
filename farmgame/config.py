@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.6"   # версия игры: видна в «Настройках», по ней ориентируется update.py
+GAME_VERSION = "3.11"   # версия игры: видна в «Настройках», по ней ориентируется update.py
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -54,6 +54,18 @@ SQUIRREL_MIN, SQUIRREL_MAX = 120.0, 300.0
 SQUIRREL_SHARE, SQUIRREL_SECONDS, SQUIRREL_REWARD_MIN = 0.40, 300.0, 50.0
 SQUIRREL_SPEED, SQUIRREL_SIT = 170.0, 1.6
 GOLDEN_CHANCE, GOLDEN_MULT = 0.10, 5          # золотая белка: шанс и множитель награды
+
+# 3.8: песни барда — заказываются в таверне за жетоны, играют song minutes минут (идут и в офлайне, как буст x2).
+# Одновременно играет одна песня. income — множитель дохода грядок, squirrel — белки чаще во столько раз,
+# golden — шанс золотой белки во столько раз.
+SONGS = [
+    dict(id=1, name="Весёлая плясовая", cost=5, minutes=15, income=1.25, squirrel=1.0, golden=1.0,
+         effect="доход грядок +25%", line="Эх, раз, ещё раз! Ноги сами в пляс!"),
+    dict(id=2, name="Баллада о золотой белке", cost=10, minutes=15, income=1.0, squirrel=2.0, golden=3.0,
+         effect="белки вдвое чаще, золотые — втрое", line="Слушайте, люди, сказ о белке золотой..."),
+    dict(id=3, name="Гимн урожаю", cost=20, minutes=30, income=1.5, squirrel=1.0, golden=1.0,
+         effect="доход грядок +50%", line="Славься, поле, славься, хлеб! Королю и нам на век!"),
+]
 GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше
 # Ворона: реже белки, останавливает грядку, пока её не прогонят (только пока игра открыта)
 CROW_MIN, CROW_MAX = 300.0, 600.0

@@ -22,8 +22,13 @@ from .audio import Music, Sfx
 from .art import *  # noqa: F401,F403
 from .tavern import Tavern
 from .tavern_ui import TavernUI
+from .mill_ui import MillUI
+from .tutorial import Tutorial
+from .tutorial_ui import TutorialUI
+from .casino_ui import CasinoUI
 from .particles import Particles, draw_shadow
 from . import skin
+from . import screenfit
 
 
 LOADING_SPRITES = ("backgrounds/loading", "ui/logo", "ui/loading_ring", "ui/loading_center")
@@ -73,7 +78,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI):
+class App(TavernUI, MillUI, TutorialUI, CasinoUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -85,6 +90,8 @@ class App(TavernUI):
         pygame.init()
         self.open_window(forced)
         self.fullscreen = False
+        self.edge_fill = True         # 3.10: в полном экране по краям — размытый фон вместо чёрных полос
+        self.wide = None              # окно в пропорциях экрана: dict(display, frame, offset, ...) — см. enter_wide
         pygame.display.set_caption(f"Весёлая ферма {GAME_VERSION}")
         self.clock = pygame.time.Clock()
         self.farm = Farm()
@@ -154,6 +161,9 @@ class App(TavernUI):
         self.show_fps = False
         self.show_tips = True
         self.init_tavern()
+        self.init_mill()
+        self.init_tutorial()
+        self.init_casino()
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -196,8 +206,8 @@ class App(TavernUI):
         self.toast("Чёткость поменяется после перезапуска игры", 4)
 
     def lpos(self, pos):
-        """Координаты мыши из события — в координаты игры (1000x640)."""
-        return hd.to_logical_pos(pos) if self.hd_k != 1 else pos
+        """Координаты мыши из события — в координаты игры (1000x640): с учётом HD и полей полного экрана."""
+        return hd.to_logical_pos(pos) if (self.hd_k != 1 or self.wide) else pos
 
     # ------------------------------------------------------------ загрузка картинок
     def preload_sprites(self):
@@ -257,8 +267,9 @@ class App(TavernUI):
         data["version"] = SAVE_VERSION
         data["options"] = {"fullscreen": self.fullscreen, "music_volume": self.music.volume, "music_muted": self.music.muted,
                            "sfx_volume": self.sfx.volume, "hd": self.hd_mode, "fps_limit": self.fps_limit,
-                           "show_fps": self.show_fps, "tips": self.show_tips}
+                           "show_fps": self.show_fps, "tips": self.show_tips, "edge_fill": self.edge_fill}
         data["tavern"] = self.tavern.to_dict()
+        data["tutorial"] = self.tut.to_dict()
         savefile.write(cfg.SAVE_FILE, data)     # через временный файл + запасная копия раз в 5 минут
 
     def apply_save(self, data):
@@ -267,12 +278,14 @@ class App(TavernUI):
         try:
             self.farm.from_dict(data)
             self.tavern.from_dict(data.get("tavern"))
+            self.tut = Tutorial.from_save(data.get("tutorial"))     # 3.9: старые сохранения — без обучения
             opts = data.get("options")
             opts = opts if isinstance(opts, dict) else {}
 
             def vol(key, cur):
                 v = opts.get(key, cur)
                 return max(0.0, min(1.0, float(v))) if isinstance(v, (int, float)) and v == v else cur
+            self.edge_fill = bool(opts.get("edge_fill", True))
             if opts.get("fullscreen") and not self.fullscreen:
                 self.toggle_fullscreen()
             self.music.volume = vol("music_volume", self.music.volume)
@@ -378,6 +391,7 @@ class App(TavernUI):
         was_locked = f.levels[k] == 0
         if f.buy(k, n):
             self.quest("buy_levels", n)
+            self.tut_event("plant" if was_locked else "buy_level")
             if f.speed_steps(k) > before:
                 self.quest("milestone", f.speed_steps(k) - before)
             cx, cy = crop_center(k)
@@ -494,7 +508,7 @@ class App(TavernUI):
 
     # ------------------------------------------------------------ белка
     def squirrel_delay(self):
-        return random.uniform(SQUIRREL_MIN, SQUIRREL_MAX) * 0.9 ** self.farm.up("sq_often")
+        return random.uniform(SQUIRREL_MIN, SQUIRREL_MAX) * 0.9 ** self.farm.up("sq_often") / self.farm.song_effect("squirrel")
 
     def crow_delay(self):
         return random.uniform(CROW_MIN, CROW_MAX) * 1.5 ** self.farm.up("scarecrow")
@@ -502,7 +516,7 @@ class App(TavernUI):
     def spawn_squirrel(self, golden=None):
         d = random.choice((1, -1))
         if golden is None:
-            golden = random.random() < GOLDEN_CHANCE + 0.04 * self.farm.up("golden")
+            golden = random.random() < (GOLDEN_CHANCE + 0.04 * self.farm.up("golden")) * self.farm.song_effect("golden")
         self.squirrel = dict(x=-60.0 if d == 1 else W + 60.0, y=random.uniform(478, 506), d=d, golden=golden,
                              phase="run", timer=0.0, stop=random.uniform(260, 740), vy=0.0, life=0.0, hop_i=0)
         self.sfx.play("squirrel")
@@ -753,6 +767,7 @@ class App(TavernUI):
         self.truck_state, self.truck_x = "away", W + 230.0
         self.confirm_reset = False
         self.modal = None
+        self.tut.restart()
         self.save()
         self.toast("Прогресс сброшен")
 
@@ -877,6 +892,7 @@ class App(TavernUI):
         self.confirm_reset = False
         if name == "shop":
             self.shop_page = 0
+            self.tut_event("shop")
 
     # ------------------------------------------------------------ input
     def on_click(self, pos):
@@ -900,7 +916,7 @@ class App(TavernUI):
                 self.mode = "normal"
             elif self.view in ("barn", "tavern"):
                 self.view = "field"
-            elif self.view == "board":
+            elif self.view in ("board", "casino"):
                 self.view = "tavern"
         elif key == pygame.K_F11:
             self.toggle_fullscreen()
@@ -927,6 +943,9 @@ class App(TavernUI):
         f = self.farm
         f.update(dt)
         self.tavern_tick(dt)
+        self.mill_tick(dt)
+        self.tut_tick(dt)
+        self.casino_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -1241,7 +1260,7 @@ class App(TavernUI):
 
     def draw_hud(self):
         s, f = self.screen, self.farm
-        board = self.view == "board"     # на доске заданий плашки денег закрыли бы записки
+        board = self.view in ("board", "casino")     # на доске заданий плашки денег закрыли бы записки
         # плашки подстраиваются под длину текста
         def pill(y, h, text, size, icon):
             img = render_text(text, size, WHITE, OUT)
@@ -1270,7 +1289,11 @@ class App(TavernUI):
             self.zone_btn(pr, lambda: (self.open_modal("shop"), setattr(self, "shop_tab", "farm")), 16)
             self.tip(pr, "Свободные крестьяне. Щёлкни — нанять ещё")
         if not board:
-            self.draw_boost_pill(180 if self.farm_info()["peasants"] else 142)
+            y = 180 if self.farm_info()["peasants"] else 142
+            self.draw_boost_pill(y)
+            if self.farm.boost_left > 0:
+                y += 38
+            self.draw_song_pill(y)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)
@@ -1435,6 +1458,8 @@ class App(TavernUI):
                 y = 602 - n * 38
             elif in_barn:
                 y = 126 - n * 38
+            elif self.tut_visible():               # 3.9: над окошком бармена (в прокачке — наверху: внизу таблички)
+                y = 100 + n * 40 if self.mode == "upgrade" else self.tut_box().y - 28 - n * 40
             else:
                 y = 512 - n * 40
             r = img.get_rect(center=(W // 2 - (60 if in_barn else 0), y))
@@ -1754,173 +1779,6 @@ class App(TavernUI):
         rounded(bg, (170, 220, 245), (W // 2 - 50, 20, 100, 80), 4, 4)
         pygame.draw.line(bg, OUT, (W // 2, 20), (W // 2, 100), 3)
         return bg
-
-    def mill_rect(self, b):
-        return pygame.Rect(40 + b * 480, 160, 440, 386)
-
-    def do_build(self, b):
-        f = self.farm
-        was = f.m_levels[b]
-        price = f.mill_building_cost(b)
-        if f.buy_mill_building(b):
-            self.quest("build")
-            self.sfx.play("buy")
-            name = ("Мельница", "Пекарня")[b]
-            self.toast(f"{name}: " + ("построена!" if was == 0 else f"уровень {f.m_levels[b]} (+1 место)"), 2)
-        else:
-            self.toast(f"Не хватает денег: нужно ${fmt(price)}", 2)
-
-    def do_workers(self, b, delta):
-        f = self.farm
-        if not f.set_mill_workers(b, delta):
-            if delta > 0 and f.m_workers[b] >= f.m_levels[b]:
-                self.toast("Нет мест: улучши здание", 2)
-            elif delta > 0:
-                self.toast("Нет свободных крестьян: найми или сними с грядки", 2.5)
-
-    def do_fill(self):
-        took = self.farm.fill_hopper()
-        r = self.mill_rect(0)
-        if took > 0:
-            self.quest("feed")
-            self.sfx.play("feed")
-            self.floater(r.centerx, r.y + 150, "зерно +$" + fmt(took), (240, 220, 150))
-        else:
-            self.toast("Зерна на грядках нет или закрома полны", 2)
-
-    def do_sell_flour(self):
-        amt = self.farm.sell_flour()
-        if amt:
-            self.sfx.play("product")
-            r = self.mill_rect(0)
-            self.floater(r.centerx, r.y + 150, "+$" + fmt(amt))
-
-    def do_collect_bread(self):
-        amt = self.farm.collect_bread()
-        if amt:
-            self.quest("bread")
-            self.sfx.play("product")
-            r = self.mill_rect(1)
-            self.floater(r.centerx, r.y + 70, "+$" + fmt(amt))
-            self.toast("Хлеб продан: +$" + fmt(amt), 2)
-
-    def draw_mill_card(self, b):
-        s, f = self.screen, self.farm
-        r = self.mill_rect(b)
-        brown, soft = (90, 70, 60), (140, 110, 95)
-        lvl = f.m_levels[b]
-        name = ("Мельница", "Пекарня")[b]
-        rounded(s, (238, 222, 192) if lvl else (205, 192, 172), r, 12, 3)
-        head = pygame.Rect(r.x, r.y, r.w, 34)
-        pygame.draw.rect(s, (150, 98, 62), head, border_top_left_radius=12, border_top_right_radius=12)
-        pygame.draw.rect(s, OUT, head, 3, border_top_left_radius=12, border_top_right_radius=12)
-        draw_text(s, name + (f"  ур. {lvl}" if lvl else ""), 17, head.center)
-        sub = ("Зерно (рожь, ячмень, полба) -> мука x1.5", f"Мука -> хлеб x{BREAD_RATIO:g}, партиями по {BAKE_TIME:g} с")[b]
-        draw_text(s, sub, 12, (r.centerx, r.y + 46), soft, outline=None)
-        cx, cy = r.x + 90, r.y + 120
-        working = lvl and f.m_workers[b] > 0 and (f.hopper > 0 if b == 0 else f.oven_load > 0)
-        if b == 0:   # жернов
-            blob(s, (175, 170, 165), [(cx, cy, 44)], 3)
-            pygame.draw.circle(s, (150, 145, 140), (cx, cy), 12)
-            ang = self.t * (3 if working else 0)
-            for i in range(6):
-                a = ang + i * math.pi / 3
-                pygame.draw.line(s, (140, 135, 130), (P(cx + math.cos(a) * 14), P(cy + math.sin(a) * 14)),
-                                 (P(cx + math.cos(a) * 40), P(cy + math.sin(a) * 40)), 2)
-        else:        # печь
-            poly(s, (190, 95, 70), [(cx - 50, cy + 40), (cx + 50, cy + 40), (cx + 50, cy - 5), (cx - 50, cy - 5)], 3)
-            ellipse(s, (190, 95, 70), cx, cy - 5, 100, 70)
-            ellipse(s, (60, 40, 35), cx, cy + 12, 46, 34)
-            if working:
-                fl = 6 + 4 * math.sin(self.t * 12)
-                ellipse(s, (255, 170, 60), cx, cy + 18, 30, 12 + fl, ow=0)
-                ellipse(s, (255, 230, 120), cx, cy + 20, 16, 6 + fl / 2, ow=0)
-        if not lvl:
-            shade = hd.Surface((180, 120), pygame.SRCALPHA)
-            shade.fill((205, 192, 172, 170))
-            s.blit(shade, (r.x + 10, r.y + 60))
-            msg = ("Сначала посади: " + CROPS[GRAIN[0]]["name"]) if b == 0 else "Сначала построй мельницу"
-            if f.mill_can_build(b):
-                msg = ("Мелет зерно в муку" if b == 0 else "Печёт хлеб из муки")
-            draw_text(s, msg, 15, (r.x + 300, r.y + 120), brown if f.mill_can_build(b) else (190, 80, 70), outline=None)
-            bt = pygame.Rect(r.x + 60, r.bottom - 70, r.w - 120, 50)
-            ok = f.mill_can_build(b) and f.money >= f.mill_building_cost(b)
-            rounded(s, BTN_GREEN if ok else BTN_GREY, bt, 10, 3)
-            draw_text(s, "Построить $" + fmt(f.mill_building_cost(b)), 18, bt.center)
-            if f.mill_can_build(b):
-                self.zone_btn(bt, lambda b=b: self.do_build(b))
-            return
-        tx = r.x + 190
-        speed = f.bake_rate() if b else f.mill_speed() * f.m_workers[0]
-        if b == 0:
-            cap = f.hopper_cap()
-            draw_text(s, f"Закрома: ${fmt(f.hopper)} / ${fmt(cap)}", 13, (tx, r.y + 72), brown, anchor="midleft", outline=None)
-            draw_bar(s, (tx, r.y + 84, r.w - 210, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
-            grain = sum(f.stash[i] for i in GRAIN)
-            draw_text(s, f"Зерно на грядках: ${fmt(grain)}", 12, (tx, r.y + 112), soft, anchor="midleft", outline=None)
-            share = min(100, round(speed / max(1e-9, f.grain_rate()) * 100))   # 3.6: какую часть зерна успевают смолоть
-            draw_text(s, f"Мелет: ${fmt(speed)}/с ({share}% зерна)" if speed else "Стоит: нет мельников", 13, (tx, r.y + 134),
-                      (60, 130, 50) if speed else (190, 80, 70), anchor="midleft", outline=None)
-            draw_text_fit(s, f"Мука: ${fmt(f.flour)}", 15, (tx, r.y + 160), r.right - 146 - tx, brown, anchor="midleft", outline=None)
-            self.button((r.right - 140, r.y + 145, 124, 30), "Продать муку", self.do_sell_flour, (235, 170, 70), f.flour > 0, 13)
-        else:
-            draw_text(s, f"Мука на мельнице: ${fmt(f.flour)}", 13, (tx, r.y + 66), brown, anchor="midleft", outline=None)
-            if not f.m_workers[1]:
-                msg, col = "Стоит: нет пекарей", (190, 80, 70)
-            elif f.oven_load > 0:
-                msg, col = f"Партия ${fmt(f.oven_load)} -> ${fmt(f.oven_load * BREAD_RATIO * (1 + 0.25 * f.up('baker')))}", (60, 130, 50)
-            elif f.flour > 0:
-                msg, col = f"Копит муку на партию: {min(99, int(f.flour / max(1e-9, f.bake_rate() * BAKE_TIME) * 100))}%", (150, 120, 60)
-            else:
-                msg, col = "Ждёт муку", (190, 80, 70)
-            draw_text(s, msg, 13, (tx, r.y + 84), col, anchor="midleft", outline=None)
-            draw_bar(s, (tx, r.y + 94, r.w - 210, 12), f.oven_prog / BAKE_TIME if f.oven_load > 0 else 0, (240, 150, 70))
-            hb = pygame.Rect(tx, r.y + 112, r.w - 210, 62)
-            rounded(s, (255, 240, 200) if f.bread > 0 else (230, 220, 200), hb, 10, 2)
-            for i in range(3):
-                ellipse(s, (215, 150, 80), hb.x + 30 + i * 22, hb.centery + 4 - (i % 2) * 6, 34, 20)
-                pygame.draw.line(s, (170, 110, 50), (hb.x + 22 + i * 22, hb.centery - (i % 2) * 6), (hb.x + 36 + i * 22, hb.centery + 2 - (i % 2) * 6), 2)
-            draw_text_fit(s, f"Хлеб: ${fmt(f.bread)}", 16, (hb.x + 104, hb.centery - 8), hb.right - hb.x - 112, (150, 95, 40),
-                          anchor="midleft", outline=None)
-            draw_text_fit(s, "нажми, чтобы продать" if f.bread > 0 else "пока пусто", 11, (hb.x + 104, hb.centery + 14),
-                          hb.right - hb.x - 112, soft, anchor="midleft", outline=None)
-            if f.bread > 0:
-                self.zone_btn(hb, self.do_collect_bread)
-        # работники
-        wy = r.y + 196
-        draw_text(s, f"Работники: {f.m_workers[b]} / {lvl}", 16, (r.x + 30, wy + 18), brown, anchor="midleft", outline=None)
-        for k in range(lvl):
-            if k < f.m_workers[b]:
-                draw_peasant_head(s, r.x + 210 + k * 26, wy + 18, 1.1)
-            else:
-                pygame.draw.circle(s, (205, 195, 180), (r.x + 210 + k * 26, wy + 18), 9)
-        self.button((r.right - 110, wy, 44, 36), "-", lambda b=b: self.do_workers(b, -1), BTN_BLUE, f.m_workers[b] > 0, 20)
-        self.button((r.right - 58, wy, 44, 36), "+", lambda b=b: self.do_workers(b, +1), BTN_GREEN, True, 20)
-        # кнопки
-        if b == 0:
-            self.button((r.x + 20, r.y + 250, r.w - 40, 42), "Засыпать зерно с грядок", self.do_fill, BTN_GREEN, True, 17)
-        else:
-            draw_text(s, f"Свободных крестьян: {f.free_peasants()}", 14, (r.centerx, r.y + 270), soft, outline=None)
-        bu = pygame.Rect(r.x + 20, r.y + 304, r.w - 40, 42)
-        if lvl >= MILL_MAX_LVL:
-            rounded(s, (250, 212, 90), bu, 9, 2)
-            draw_text(s, "Макс. уровень", 16, bu.center, brown, outline=None)
-        else:
-            price = f.mill_building_cost(b)
-            rounded(s, BTN_BLUE if f.money >= price else BTN_GREY, bu, 9, 3)
-            draw_text(s, f"Ур. {lvl + 1} (+1 место): ${fmt(price)}", 16, bu.center)
-            self.zone_btn(bu, lambda b=b: self.do_build(b), 9)
-
-    def draw_mill_view(self):
-        s = self.screen
-        s.blit(self.mill_bg, (0, 0))
-        plate = pygame.Rect(W // 2 + 70, 26, 220, 44)
-        rounded(s, PANEL, plate, 8, 3)
-        draw_text(s, "МЕЛЬНИЦА", 22, plate.center, (90, 70, 60), outline=None)
-        for b in (0, 1):
-            self.draw_mill_card(b)
-        for x, y, text, life, color in self.floaters:
-            draw_text(s, text, 18, (x, y), color)
 
     # ------------------------------------------------------------ разбойники
     def bandit_delay(self):
@@ -2321,10 +2179,107 @@ class App(TavernUI):
 
     def toggle_fullscreen(self):
         try:
-            pygame.display.toggle_fullscreen()
+            if self.fullscreen and self.wide:
+                self.leave_wide()
+            elif not self.fullscreen and self.edge_fill and self.enter_wide():
+                pass
+            else:
+                pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
         except pygame.error as e:
             self.toast(f"Не получилось переключить экран: {e}", 3)
+
+    # ---------- 3.10: полный экран без чёрных полос ----------
+    def set_canvas(self, real):
+        """Игра рисует в real (окно или картинка-кадр в полном экране)."""
+        self.screen = hd.HiSurf(real, self.hd_k, (W, H)) if self.hd_k != 1 else real
+
+    def enter_wide(self):
+        """Полный экран в пропорциях монитора: игра посередине, по краям — её размытое продолжение.
+        False — не вышло или не нужно (пропорции совпадают): тогда обычный полный экран с полосами."""
+        try:
+            sizes = pygame.display.get_desktop_sizes()
+            geo = screenfit.wide_geometry(self.canvas, sizes[0]) if sizes else None
+        except Exception:
+            geo = None
+        if geo is None:
+            return False
+        (ww, wh), (ox, oy) = geo
+        try:
+            display = pygame.display.set_mode((ww, wh), pygame.SCALED | pygame.FULLSCREEN)
+            frame = pygame.Surface(self.canvas).convert()
+        except pygame.error as e:
+            print("Полный экран с полями не открылся:", e)
+            self.restore_window()
+            return False
+        self.wide = dict(display=display, frame=frame, offset=(ox, oy), size=(ww, wh), edges=None, t=-1.0)
+        self.set_canvas(frame)
+        hd.set_offset(ox, oy)
+        self.shade_fade = None
+        return True
+
+    def restore_window(self):
+        real = pygame.display.set_mode(self.canvas, pygame.SCALED | pygame.RESIZABLE)
+        self.set_canvas(real)
+        hd.set_offset(0, 0)
+        self.wide = None
+
+    def leave_wide(self):
+        self.restore_window()
+
+    def set_edge_fill(self, on):
+        """Переключить края полного экрана (размытый фон / чёрные полосы); в полном экране — сразу."""
+        was_full = self.fullscreen
+        if was_full:
+            self.toggle_fullscreen()
+        self.edge_fill = on
+        if was_full:
+            self.toggle_fullscreen()
+        self.save()
+
+    def build_edges(self):
+        """Поля по краям: зеркальный край картинки, сильно размытый и чуть затемнённый."""
+        wd, frame = self.wide, self.wide["frame"]
+        (ww, wh), (ox, oy) = wd["size"], wd["offset"]
+        cw, ch = frame.get_size()
+        edges = []
+        if ox > 0:     # полосы берутся вдвое шире поля и сжимаются: мелкие детали (плашки, кнопки) растворяются
+            sw = min(cw // 3, ox * 2)
+            parts = (((0, 0, sw, ch), (0, oy)), ((cw - sw, 0, sw, ch), (ox + cw, oy)))
+            size = (ox, ch)
+        else:
+            sh = min(ch // 3, oy * 2)
+            parts = (((0, 0, cw, sh), (ox, 0)), ((0, ch - sh, cw, sh), (ox, oy + ch)))
+            size = (cw, oy)
+        for rect, pos in parts:
+            strip = frame.subsurface(pygame.Rect(rect))
+            small = pygame.transform.smoothscale(strip, (max(2, size[0] // 24), max(2, size[1] // 24)))
+            big = pygame.transform.smoothscale(small, size)
+            big = pygame.transform.flip(big, ox > 0, oy > 0)        # зеркально: у края игры — тот же цвет
+            shade = pygame.Surface(size, pygame.SRCALPHA)
+            shade.fill((25, 18, 12, 110))
+            big.blit(shade, (0, 0))
+            edges.append((big, pos))
+        wd["edges"] = edges
+
+    def present_wide(self):
+        """Собрать кадр полного экрана: поля (обновляются 5 раз в секунду) + картинка игры посередине."""
+        wd = self.wide
+        if wd is None:
+            return
+        if wd["edges"] is None or self.t_real - wd["t"] >= 0.2 or self.t_real < wd["t"]:
+            wd["t"] = self.t_real
+            try:
+                self.build_edges()
+            except Exception as e:          # поля — украшение: не вышло — просто тёмные края
+                print("Края экрана:", e)
+                wd["edges"] = []
+        disp = wd["display"]
+        if not wd["edges"]:
+            disp.fill((20, 16, 12))
+        for img, pos in wd["edges"]:
+            disp.blit(img, pos)
+        disp.blit(wd["frame"], wd["offset"])
 
     SETTINGS_TABS = (("sound", "Звук"), ("screen", "Экран"), ("game", "Игра"))
 
@@ -2349,8 +2304,12 @@ class App(TavernUI):
             self.button((x, y + 138, w, 46), ("Включить звук" if m.muted else "Выключить звук") + "   (M)",
                         self.toggle_music, BTN_GREEN if m.muted else (230, 110, 100), m.ok, 18)
         elif tab == "screen":
-            self.button((x, y, w, 46), f"Экран: {'во весь экран' if self.fullscreen else 'в окне'}   (F11)",
-                        self.toggle_fullscreen, (150, 120, 220), True, 18)
+            half = (w - 10) // 2
+            self.button((x, y, half, 46), f"{'Во весь экран' if self.fullscreen else 'В окне'}  (F11)",
+                        self.toggle_fullscreen, (150, 120, 220), True, 17)
+            self.button((x + w - half, y, half, 46), "Края: " + ("размытый фон" if self.edge_fill else "полосы"),
+                        lambda: self.set_edge_fill(not self.edge_fill), (150, 120, 220), True, 15)
+            self.tip(pygame.Rect(x + w - half, y, half, 46), "Полный экран: по бокам размытое продолжение картинки или чёрные полосы")
             active = "auto" if self.hd_k != 1 else "off"
             label = "Чёткость: HD" if self.hd_mode == "auto" else "Чёткость: обычная"
             self.button((x, y + 56, w, 46), label + ("*" if self.hd_mode != active else ""), self.toggle_hd,
@@ -2376,6 +2335,7 @@ class App(TavernUI):
                         BTN_GREEN if self.show_tips else BTN_GREY, True, 18)
             draw_text(s, "подсказка появится, если задержать курсор на кнопке", 13, (r.centerx, y + 116), soft,
                       outline=None)
+            self.button((x, y + 196, w, 46), "Обучение заново (бармен)", self.tut_restart, (150, 120, 220), True, 17)
             half = (w - 12) // 2
             self.button((x, y + 140, half, 46), "Сохранить", lambda: (self.save(), self.toast("Сохранено!")), BTN_BLUE)
             label = "Точно? Ещё раз!" if self.confirm_reset else "Сбросить всё"
@@ -2548,6 +2508,7 @@ class App(TavernUI):
             ("Разбойник", bandit), ("Мельница и пекарня ур.3", mill),
             ("Таверна: все задания готовы", quests_done), ("Таверна: новый день и неделя", new_day),
             ("Таверна: показать разметку" + (" (вкл)" if self.tavern_debug else ""), tavern_debug),
+            ("Казино (заготовка)", self.open_casino),
         ]
 
     def draw_dev(self):
@@ -2557,7 +2518,7 @@ class App(TavernUI):
                   (r.centerx, r.y + 70), (140, 110, 95), outline=None)
         for n, (label, cb) in enumerate(self.dev_actions()):
             col, row = n % 2, n // 2
-            self.button((r.x + 30 + col * 300, r.y + 86 + row * 48, 280, 42), label, cb, (230, 110, 110), True, 15)
+            self.button((r.x + 30 + col * 300, r.y + 86 + row * 46, 280, 40), label, cb, (230, 110, 110), True, 15)
 
     def draw_offline(self):
         s = self.screen
@@ -2602,7 +2563,7 @@ class App(TavernUI):
     def modal_drawers(self):
         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
-                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev}
+                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs}
 
     def draw_modal_layer(self, name, prog, opening):
         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно
@@ -2740,8 +2701,9 @@ class App(TavernUI):
     def draw_scene(self):
         self.zones = []
         s, f = self.screen, self.farm
-        if self.view in ("barn", "tavern", "board"):
-            {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view}[self.view]()
+        if self.view in ("barn", "tavern", "board", "casino"):
+            {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view,
+             "casino": self.draw_casino_view}[self.view]()
             self.draw_hud()
             self.draw_toasts()
             self.fx.draw(s)
@@ -2798,6 +2760,7 @@ class App(TavernUI):
         self.draw_crow_layer()
         self.draw_bandit_layer()
         self.fx.draw(s)
+        self.draw_tutorial()
         if self.modal:
             self.draw_modal()
         else:
@@ -2828,6 +2791,7 @@ class App(TavernUI):
             self.track_mouse()
             self.draw()
             self.update_cursor()
+            self.present_wide()
             pygame.display.flip()
 
 

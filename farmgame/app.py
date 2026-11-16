@@ -1815,7 +1815,7 @@ class App(TavernUI):
         pygame.draw.rect(s, (150, 98, 62), head, border_top_left_radius=12, border_top_right_radius=12)
         pygame.draw.rect(s, OUT, head, 3, border_top_left_radius=12, border_top_right_radius=12)
         draw_text(s, name + (f"  ур. {lvl}" if lvl else ""), 17, head.center)
-        sub = ("Зерно (рожь, ячмень, полба) -> мука x1.5", f"Мука -> хлеб x{BREAD_RATIO:g}: медленно, партиями по {BAKE_TIME:g} с")[b]
+        sub = ("Зерно (рожь, ячмень, полба) -> мука x1.5", f"Мука -> хлеб x{BREAD_RATIO:g}, партиями по {BAKE_TIME:g} с")[b]
         draw_text(s, sub, 12, (r.centerx, r.y + 46), soft, outline=None)
         cx, cy = r.x + 90, r.y + 120
         working = lvl and f.m_workers[b] > 0 and (f.hopper > 0 if b == 0 else f.oven_load > 0)
@@ -1858,9 +1858,10 @@ class App(TavernUI):
             draw_bar(s, (tx, r.y + 84, r.w - 210, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
             grain = sum(f.stash[i] for i in GRAIN)
             draw_text(s, f"Зерно на грядках: ${fmt(grain)}", 12, (tx, r.y + 112), soft, anchor="midleft", outline=None)
-            draw_text(s, f"Мелет: ${fmt(speed)}/с" if speed else "Стоит: нет мельников", 13, (tx, r.y + 134),
+            share = min(100, round(speed / max(1e-9, f.grain_rate()) * 100))   # 3.6: какую часть зерна успевают смолоть
+            draw_text(s, f"Мелет: ${fmt(speed)}/с ({share}% зерна)" if speed else "Стоит: нет мельников", 13, (tx, r.y + 134),
                       (60, 130, 50) if speed else (190, 80, 70), anchor="midleft", outline=None)
-            draw_text(s, f"Мука: ${fmt(f.flour)}", 15, (tx, r.y + 160), brown, anchor="midleft", outline=None)
+            draw_text_fit(s, f"Мука: ${fmt(f.flour)}", 15, (tx, r.y + 160), r.right - 146 - tx, brown, anchor="midleft", outline=None)
             self.button((r.right - 140, r.y + 145, 124, 30), "Продать муку", self.do_sell_flour, (235, 170, 70), f.flour > 0, 13)
         else:
             draw_text(s, f"Мука на мельнице: ${fmt(f.flour)}", 13, (tx, r.y + 66), brown, anchor="midleft", outline=None)
@@ -1879,9 +1880,10 @@ class App(TavernUI):
             for i in range(3):
                 ellipse(s, (215, 150, 80), hb.x + 30 + i * 22, hb.centery + 4 - (i % 2) * 6, 34, 20)
                 pygame.draw.line(s, (170, 110, 50), (hb.x + 22 + i * 22, hb.centery - (i % 2) * 6), (hb.x + 36 + i * 22, hb.centery + 2 - (i % 2) * 6), 2)
-            draw_text(s, f"Хлеб: ${fmt(f.bread)}", 16, (hb.x + 110, hb.centery - 8), (150, 95, 40), anchor="midleft", outline=None)
-            draw_text(s, "нажми, чтобы продать" if f.bread > 0 else "пока пусто", 11, (hb.x + 110, hb.centery + 14), soft,
-                      anchor="midleft", outline=None)
+            draw_text_fit(s, f"Хлеб: ${fmt(f.bread)}", 16, (hb.x + 104, hb.centery - 8), hb.right - hb.x - 112, (150, 95, 40),
+                          anchor="midleft", outline=None)
+            draw_text_fit(s, "нажми, чтобы продать" if f.bread > 0 else "пока пусто", 11, (hb.x + 104, hb.centery + 14),
+                          hb.right - hb.x - 112, soft, anchor="midleft", outline=None)
             if f.bread > 0:
                 self.zone_btn(hb, self.do_collect_bread)
         # работники

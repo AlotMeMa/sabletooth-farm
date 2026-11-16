@@ -46,6 +46,12 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER),
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
+MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
+    "millstone": (160, 160, "center"), "mill_bed": (260, 104, "bottom"), "mill_hopper": (150, 200, "bottom"),
+    "grain_heap": (140, 70, "bottom"), "flour_sacks_1": (90, 90, "bottom"), "flour_sacks_2": (120, 90, "bottom"),
+    "flour_sacks_3": (150, 100, "bottom"), "oven": (240, 240, "bottom"), "oven_fire": (100, 75, "bottom"),
+    "bread_shelf": (200, 150, "bottom"),
+}
 UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110)}   # наибольший размер (3.4)
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
@@ -113,6 +119,9 @@ def _fit_spec_base(name):
                  "chapel_ringing": _box(100, 140, 2, 2, 2, 2)}
         if last in table:
             return _spec(*table[last], "bottom")
+        if last in MILL_PROPS:            # 3.6: детали живой мельницы (экран мельницы — в 3.7)
+            w, h, anchor = MILL_PROPS[last]
+            return _spec(*_box(w, h, 2, 2, 2, 0 if anchor == "bottom" else 2), anchor)
         if last == "sun":
             return _spec(*_box(130, 130, 3, 3, 3, 3), "center")
         if last.startswith("cloud"):
@@ -139,6 +148,8 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "bard":
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
+            return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
         return None
     if folder == "vehicles":
         if last.startswith("truck"):
@@ -168,6 +179,8 @@ def _fit_spec_base(name):
     if folder == "icons":
         if last == "peasant":
             s = 26
+        elif last.startswith("note_"):    # ноты барда (3.6): icons/note_1 ... note_4
+            s = 30
         elif last in ("egg", "milk", "truffle", "honey"):
             s = 30
         elif last == "sheet":

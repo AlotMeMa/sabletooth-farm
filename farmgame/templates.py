@@ -209,6 +209,22 @@ def spec_list():
             lambda s, c=col: _skin().draw_button_fallback(s, pygame.Rect(6, 10, 288, 80), _skin().BUTTON_COLORS[c]))
     add("ui/slider_knob", (48, 48), "центр", "ручка ползунка громкости", 0,
         lambda s: _skin().draw_knob(s, 24, 24))
+    from .spritefit import MILL_PROPS
+    mill_desc = {"millstone": "каменное колесо-жернов (игра вращает; центр = ось)", "mill_bed": "каменная чаша под колесом",
+                 "mill_hopper": "бункер для зерна", "grain_heap": "горка зерна в бункере",
+                 "flour_sacks_1": "мешок муки", "flour_sacks_2": "три мешка муки", "flour_sacks_3": "гора мешков муки",
+                 "oven": "хлебная печь (проём пустой и тёмный)", "oven_fire": "огонь на поленьях (без печи)",
+                 "bread_shelf": "пустой стеллаж для хлеба"}
+    for key, (w, h, anchor) in MILL_PROPS.items():
+        add(f"props/{key}", (w, h), "центр" if anchor == "center" else "низ по центру", mill_desc[key] + " — экран мельницы",
+            1, lambda s: None)
+    for key, desc in (("miller", "мельник с мешком, идёт вправо"), ("baker", "пекарь с лопатой, смотрит влево")):
+        add(f"characters/{key}", (100, 150), "низ по центру = пол", desc + " — экран мельницы", 1, lambda s: None)
+    for key, desc in (("grain", "мешочек зерна"), ("flour", "мешок муки"), ("bread", "буханка хлеба")):
+        add(f"icons/{key}", (40, 40), "центр", desc + " (мельница)", 1, lambda s: None)
+    for n in range(1, 5):
+        add(f"icons/note_{n}", (30, 30), "центр", f"нота барда, вариант {n} (в таверне; необязательно)", 1,
+            lambda s, n=n: tu.draw_note(s, 9, 22, color=tu.NOTE_COLORS[n - 1]))
     add("icons/coin", (40, 40), "центр", "монета", 0, lambda s: art.draw_coin(s, 20, 20, 17))
     add("icons/coin_silver", (40, 40), "центр", "серебряная монета (доход/с)", 0,
         lambda s: art.draw_coin(s, 20, 20, 17, (200, 215, 240)))

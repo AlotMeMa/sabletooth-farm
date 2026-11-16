@@ -231,5 +231,35 @@ class Saves(unittest.TestCase):
         self.assertEqual((f.leaves, f.home_leaves, f.levels[:3], f.money), (7, 7, [3, 1, 0], 10.0))
 
 
+
+class MillFairness(unittest.TestCase):
+    """3.6: каждый уровень мельницы и пекарни что-то даёт, а зерно не лежит в закромах мёртвым грузом."""
+
+    def test_full_mill_grinds_all_grain(self):
+        f = medieval_farm()
+        f.m_levels = [cfg.MILL_MAX_LVL, cfg.MILL_MAX_LVL]
+        self.assertAlmostEqual(f.mill_speed() * cfg.MILL_MAX_LVL, f.grain_rate(), delta=f.grain_rate() * 1e-9)
+        f.m_workers = [cfg.MILL_MAX_LVL, cfg.MILL_MAX_LVL]
+        flour = f.mill_speed() * cfg.MILL_MAX_LVL * cfg.FLOUR_RATIO
+        self.assertAlmostEqual(f.bake_rate(), flour, delta=flour * 1e-9)    # пекари успевают за мельниками
+
+    def test_millers_leave_extra_grain_on_plots(self):
+        f = medieval_farm()
+        f.m_levels, f.m_workers = [5, 0], [1, 0]
+        f.rain_left, f.rain_cd = 0, 1e9
+        for _ in range(240):
+            f.update(0.25)
+        grind_10s = f.mill_speed() * 10
+        self.assertLessEqual(f.hopper, grind_10s * 1.01)
+        self.assertGreater(sum(f.stash[i] for i in cfg.GRAIN), 0)       # лишнее зерно можно собрать самому
+
+    def test_manual_fill_still_fills_up_to_cap(self):
+        f = medieval_farm()
+        f.m_workers = [0, 0]
+        for i in cfg.GRAIN:
+            f.stash[i] = f.hopper_cap()
+        f.fill_hopper()
+        self.assertAlmostEqual(f.hopper, f.hopper_cap())
+
 if __name__ == "__main__":
     unittest.main()

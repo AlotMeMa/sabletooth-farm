@@ -95,6 +95,44 @@ def _load_sprite(name):
     return None
 
 
+def extended_down(name, ext, from_frac=0.7):
+    """Спрайт name, у которого низ продлён вниз на ext логических px: каждый столбец, дошедший ниже
+    from_frac высоты, тянется своим цветом (чуть выше края) до нового низа. Так персонаж «по пояс»
+    (бармен) уходит за стойку целиком — без щели под локтями. Имя результата: name + "#down".
+    None — если картинки нет."""
+    key = name + "#down"
+    if key in _sprite_cache:
+        return key if _sprite_cache[key] is not None else None
+    img = sprite(name)
+    if img is None:
+        _sprite_cache[key] = None
+        return None
+    src = hd.real(img)
+    k = hd.scale()
+    px = spritefit.Pix(src)
+    w, h, b = px.w, px.h, px.buf
+    e = max(1, int(round(ext * k)))
+    out = bytearray(b) + bytearray(w * e * 4)
+    nh = h + e
+    lift = max(1, int(round(2 * k)))
+    for x in range(w):
+        yb = -1
+        for y in range(h - 1, -1, -1):
+            if b[(y * w + x) * 4 + 3] > 128:
+                yb = y
+                break
+        if yb < h * from_frac:
+            continue
+        sy = max(0, yb - lift)
+        pix = bytes(b[(sy * w + x) * 4:(sy * w + x) * 4 + 3]) + b"\xff"
+        for y in range(yb + 1, nh):
+            i = (y * w + x) * 4
+            out[i:i + 4] = pix
+    surf = spritefit._frombytes(bytes(out), (w, nh))
+    _sprite_cache[key] = hd.wrap(surf) if k != 1 else surf
+    return key
+
+
 def has_sprite(name):
     return sprite(name) is not None
 

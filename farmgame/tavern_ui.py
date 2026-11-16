@@ -21,7 +21,7 @@ import pygame
 from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR
 from .art import (OUT, WHITE, GOLD, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
                   draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite,
-                  blit_tf, blit_light)
+                  blit_tf, blit_light, extended_down)
 from .particles import soft_dot
 from . import tavern as tv
 from . import hd
@@ -806,8 +806,10 @@ class TavernUI:
         b = L["barman"]
         wipe = math.sin(tt * 3)
         # 3.5: протирает кружку — чуть поворачивается и ходит из стороны в сторону (низ закрыт стойкой)
-        if not blit_tf(s, "characters/barman", b["x"] + 1.3 * math.sin(tt * 3.2), b["waist"] + 2 + math.sin(tt * 1.5),
-                       b["sprite_scale"], angle=1.5 * math.sin(tt * 3.2 + 0.6)):
+        # низ продлён на 30 px: локти и фартук уходят за стойку без щели (её наклон открывал фон под локтем)
+        down = extended_down("characters/barman", 30 / max(0.1, b["sprite_scale"]))
+        if not down or not blit_tf(s, down, b["x"] + 1.3 * math.sin(tt * 3.2), b["waist"] + 32 + math.sin(tt * 1.5),
+                                   b["sprite_scale"], angle=1.5 * math.sin(tt * 3.2 + 0.6)):
             look = dict(top=(200, 210, 225), apron=True, hair=(70, 50, 40), style="bald", mustache=True)
             talking = self.tv_bubble is not None and self.tv_bubble[0] == b["x"]
             hands = draw_person(s, b["x"], b["waist"], b["k"], look, tt, talking, upper=True,
@@ -837,8 +839,16 @@ class TavernUI:
             talking = self.tv_bubble is not None and self.tv_bubble[0] == bx
             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
+        notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
         for x, y, life, _vx, col in self.tv_notes:
-            draw_note(s, x, y, color=col)
+            if notes:   # свои ноты из assets/icons/note_1..4: появляются, покачиваются и тают
+                n = NOTE_COLORS.index(col) if col in NOTE_COLORS else 0
+                age = 2.2 - life
+                grow = min(1.0, 0.55 + age * 2.5)
+                blit_tf(s, notes[n % len(notes)], x, y, grow, angle=12 * math.sin(life * 4 + n),
+                        pivot="center", alpha=255 * min(1.0, life / 0.6))
+            else:
+                draw_note(s, x, y, color=col)
         self.zone(L["barman_zone"], self.say_barman)
         self.zone(L["bard_zone"], self.poke_bard)
         # стрелка к доске заданий

@@ -309,9 +309,11 @@ class Farm:
         self.m_workers[b] = new
         return True
 
-    def fill_hopper(self):
-        """Засыпать зерно со всех зерновых грядок в закрома (сколько влезет)."""
+    def fill_hopper(self, limit=None):
+        """Засыпать зерно со всех зерновых грядок в закрома (сколько влезет, но не больше limit)."""
         space = max(0.0, self.hopper_cap() - self.hopper)
+        if limit is not None:
+            space = min(space, max(0.0, limit))
         moved = 0.0
         for i in GRAIN:
             if space <= 0:
@@ -336,7 +338,9 @@ class Farm:
             self.m_carry_t += dt
             if self.m_carry_t >= KEEPER_INTERVAL:
                 self.m_carry_t = 0.0
-                self.fill_hopper()
+                # 3.6: носят столько, сколько успеют смолоть за два похода. Раньше засыпали всё зерно сразу —
+                # лишнее лежало в закромах мёртвым грузом, а собрать его с грядок игрок уже не мог.
+                self.fill_hopper(self.mill_speed() * self.m_workers[0] * KEEPER_INTERVAL * 2 - self.hopper)
         g = min(self.hopper, self.mill_speed() * self.m_workers[0] * dt)
         self.hopper -= g
         self.flour += g * FLOUR_RATIO

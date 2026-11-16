@@ -1535,11 +1535,11 @@ class App(TavernUI):
             if enabled:
                 self.zone_btn(b, cb, 8)
         if pages > 1:
-            draw_text(s, f"{self.shop_page + 1} / {pages}", 16, (r.centerx, r.bottom - 26), (90, 70, 60), outline=None)
+            draw_text(s, f"{self.shop_page + 1} / {pages}", 16, (r.centerx, r.bottom - 36), (90, 70, 60), outline=None)
             if self.shop_page > 0:
-                self.button((r.centerx - 90, r.bottom - 44, 40, 36), "<", lambda: setattr(self, "shop_page", self.shop_page - 1), BTN_BLUE)
+                self.button((r.centerx - 90, r.bottom - 54, 40, 36), "<", lambda: setattr(self, "shop_page", self.shop_page - 1), BTN_BLUE)
             if self.shop_page < pages - 1:
-                self.button((r.centerx + 50, r.bottom - 44, 40, 36), ">", lambda: setattr(self, "shop_page", self.shop_page + 1), BTN_BLUE)
+                self.button((r.centerx + 50, r.bottom - 54, 40, 36), ">", lambda: setattr(self, "shop_page", self.shop_page + 1), BTN_BLUE)
 
     # ------------------------------------------------------------ сарай
     def toggle_barn(self):
@@ -2241,8 +2241,8 @@ class App(TavernUI):
                       13, (r.centerx, y + 130), r.w - 50, (140, 110, 95), outline=None)
         draw_text_fit(s, f"Грядки, здания и работники обнулятся. {CUR['title']} и дерево остаются (до переезда).",
                       13, (r.centerx, y + 150), r.w - 50, (190, 80, 70), outline=None)
-        self.button((r.centerx - 230, r.bottom - 66, 250, 50), "Продать ферму!", self.sell_farm, BTN_GREEN, p > 0, 20)
-        self.button((r.centerx + 40, r.bottom - 66, 190, 50), "Ещё покоплю", self.close_modal, BTN_BLUE, True, 18)
+        self.button((r.centerx - 230, r.bottom - 76, 250, 50), "Продать ферму!", self.sell_farm, BTN_GREEN, p > 0, 20)
+        self.button((r.centerx + 40, r.bottom - 76, 190, 50), "Ещё покоплю", self.close_modal, BTN_BLUE, True, 18)
 
     def toggle_music(self):
         self.music.toggle_mute()
@@ -2378,8 +2378,8 @@ class App(TavernUI):
             self.button((x, y + 140, half, 46), "Сохранить", lambda: (self.save(), self.toast("Сохранено!")), BTN_BLUE)
             label = "Точно? Ещё раз!" if self.confirm_reset else "Сбросить всё"
             self.button((x + w - half, y + 140, half, 46), label, self.reset_everything, (230, 90, 80), True, 17)
-        self.button((r.centerx - 165, r.bottom - 62, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
-        self.button((r.centerx + 15, r.bottom - 62, 180, 46), "Выйти из игры", self.quit_game, (150, 110, 100), True, 17)
+        self.button((r.centerx - 165, r.bottom - 72, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
+        self.button((r.centerx + 15, r.bottom - 72, 180, 46), "Выйти из игры", self.quit_game, (150, 110, 100), True, 17)
         draw_text(s, f"версия {GAME_VERSION}", 12, (r.x + 26, r.y + 56), soft, anchor="midleft", outline=None)
 
     def set_option(self, name, value):
@@ -2421,7 +2421,7 @@ class App(TavernUI):
             lines.append(f"До переезда: ${fmt(max(0.0, f.move_threshold() - f.run_total()))}")
         for n, line in enumerate(lines):
             draw_text_fit(s, line, 17, (r.x + 34, r.y + 84 + n * 32), r.w - 68, brown, anchor="midleft", outline=None)
-        self.button((r.centerx - 100, r.bottom - 62, 200, 46), "<  Назад", lambda: self.open_modal("settings"), BTN_BLUE)
+        self.button((r.centerx - 100, r.bottom - 72, 200, 46), "<  Назад", lambda: self.open_modal("settings"), BTN_BLUE)
 
     def draw_move(self):
         s, f = self.screen, self.farm
@@ -2441,14 +2441,14 @@ class App(TavernUI):
         elif nxt["frost"]:
             lines.append(("Там: вместо дождя оттепель, вместо вороны мороз — лёд разбивай кликами.", soft))
         for n, (line, col) in enumerate(lines):
-            draw_text(s, line, 15, (r.centerx, r.y + 128 + n * 26), col, outline=None)
+            draw_text_fit(s, line, 15, (r.centerx, r.y + 128 + n * 26), r.w - 56, col, outline=None)
         need = f.move_threshold()
         have = f.run_total()
         draw_text(s, f"Нужно заработать за забег: ${fmt(need)}", 16, (r.centerx, r.y + 270), brown, outline=None)
         draw_bar(s, (r.x + 60, r.y + 288, r.w - 120, 18), have / need, (120, 200, 255))
         draw_text(s, f"${fmt(have)}", 13, (r.centerx, r.y + 297))
-        self.button((r.centerx - 230, r.bottom - 66, 250, 50), "Переехать!", self.do_move, (245, 175, 50), f.can_move(), 20)
-        self.button((r.centerx + 40, r.bottom - 66, 190, 50), "Позже", self.close_modal, BTN_BLUE, True, 18)
+        self.button((r.centerx - 230, r.bottom - 76, 250, 50), "Переехать!", self.do_move, (245, 175, 50), f.can_move(), 20)
+        self.button((r.centerx + 40, r.bottom - 76, 190, 50), "Позже", self.close_modal, BTN_BLUE, True, 18)
 
     # ------------------------------------------------------------ режим разработчика
     def dev_actions(self):
@@ -2560,14 +2560,14 @@ class App(TavernUI):
     def draw_offline(self):
         s = self.screen
         secs, amt = self.offline_info
-        r = self.panel(460, 260, "С ВОЗВРАЩЕНИЕМ!")
+        r = self.panel(460, 280, "С ВОЗВРАЩЕНИЕМ!")
         brown = (90, 70, 60)
         h, m = int(secs // 3600), int(secs % 3600 // 60)
         draw_text(s, f"Тебя не было {h} ч {m} мин.", 18, (r.centerx, r.y + 86), brown, outline=None)
         draw_text(s, "На ферме накопилось:", 18, (r.centerx, r.y + 116), brown, outline=None)
         draw_text(s, "+$" + fmt(amt), 30, (r.centerx, r.y + 154), GOLD)
         draw_text(s, "Не забудь собрать!", 14, (r.centerx, r.y + 182), (140, 110, 95), outline=None)
-        self.button((r.centerx - 80, r.bottom - 62, 160, 46), "Ура!", self.close_modal)
+        self.button((r.centerx - 80, r.bottom - 72, 160, 46), "Ура!", self.close_modal)
 
     # ------------------------------------------------------------ frame
     def draw(self):

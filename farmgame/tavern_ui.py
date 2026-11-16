@@ -693,7 +693,7 @@ class TavernUI:
                       outline=None)
         for n, sg in enumerate(SONGS):
             card = pygame.Rect(r.x + 34, r.y + 84 + n * 86, r.w - 68, 76)
-            rounded(s, (238, 222, 192), card, 10, 2)
+            rounded(s, (238, 222, 192), card, 10, 2, skin="card")
             for i in range(2):                     # ноты слева
                 draw_note(s, card.x + 20 + i * 14, card.centery + 8 - i * 10, color=NOTE_COLORS[(n + i) % len(NOTE_COLORS)])
             draw_text_fit(s, sg["name"], 17, (card.x + 62, card.y + 22), card.w - 240, BROWN, anchor="midleft", outline=None)

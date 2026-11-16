@@ -448,7 +448,7 @@ class MillUI:
         r.x = max(96, min(W - 8 - r.w, r.x))
         grow = self.btn_anim(r, enabled) if enabled else 0.0
         look = r.inflate(int(round(6 * grow)), int(round(4 * grow)))
-        rounded(s, CARD if enabled else (214, 204, 186), look, 9, 2)
+        rounded(s, CARD if enabled else (214, 204, 186), look, 9, 2, skin="card" if enabled else None)
         draw_icon(s, kind, look.x + 20, look.centery)
         draw_text_fit(s, text, 14, (look.x + 36, look.centery - 8), look.w - 42, BROWN, anchor="midleft", outline=None)
         draw_text_fit(s, sub, 11, (look.x + 36, look.centery + 10), look.w - 42, OK_GREEN if enabled and "пуст" not in sub else SOFT,
@@ -475,7 +475,7 @@ class MillUI:
         price = f.mill_building_cost(b)
         r = pygame.Rect(0, 0, 250, 92)
         r.center = (x, y)
-        rounded(s, CARD, r, 12, 3)
+        rounded(s, CARD, r, 12, 3, skin="card")
         name = ("Мельница", "Пекарня")[b]
         if can:
             draw_text_fit(s, (name + ": мелет зерно в муку") if b == 0 else (name + ": печёт хлеб из муки"), 14,
@@ -515,7 +515,7 @@ class MillUI:
     def draw_mill_cards(self):
         s, f = self.screen, self.farm
         for b, r in ((0, MILL_CARD), (1, BAKE_CARD)):
-            rounded(s, CARD if f.m_levels[b] else (214, 204, 186), r, 12, 3)
+            rounded(s, CARD if f.m_levels[b] else (214, 204, 186), r, 12, 3, skin="card" if f.m_levels[b] else None)
             lvl = f.m_levels[b]
             name = ("Мельница", "Пекарня")[b]
             draw_text(s, name + (f"  ур. {lvl}" if lvl else ""), 16, (r.x + 14, r.y + 19), BROWN, anchor="midleft",

@@ -174,7 +174,7 @@ class TutorialUI:
         shadow.fill((0, 0, 0, 0))
         pygame.draw.rect(shadow, (30, 20, 15, 70), shadow.get_rect(), border_radius=14)
         s.blit(shadow, (box.x + 4, box.y + 6))
-        rounded(s, CARD, box, 14, 3)
+        rounded(s, CARD, box, 14, 3, skin="card")
         self.zone(box, self.tut_click_box)
         self.draw_tut_barman(box.x + 66, box.bottom - 6)
         plate = pygame.Rect(box.x + 128, box.y - 14, 96, 26)

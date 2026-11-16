@@ -23,6 +23,8 @@ from .art import *  # noqa: F401,F403
 from .tavern import Tavern
 from .tavern_ui import TavernUI
 from .mill_ui import MillUI
+from .tutorial import Tutorial
+from .tutorial_ui import TutorialUI
 from .particles import Particles, draw_shadow
 from . import skin
 
@@ -74,7 +76,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, MillUI):
+class App(TavernUI, MillUI, TutorialUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -156,6 +158,7 @@ class App(TavernUI, MillUI):
         self.show_tips = True
         self.init_tavern()
         self.init_mill()
+        self.init_tutorial()
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -261,6 +264,7 @@ class App(TavernUI, MillUI):
                            "sfx_volume": self.sfx.volume, "hd": self.hd_mode, "fps_limit": self.fps_limit,
                            "show_fps": self.show_fps, "tips": self.show_tips}
         data["tavern"] = self.tavern.to_dict()
+        data["tutorial"] = self.tut.to_dict()
         savefile.write(cfg.SAVE_FILE, data)     # через временный файл + запасная копия раз в 5 минут
 
     def apply_save(self, data):
@@ -269,6 +273,7 @@ class App(TavernUI, MillUI):
         try:
             self.farm.from_dict(data)
             self.tavern.from_dict(data.get("tavern"))
+            self.tut = Tutorial.from_save(data.get("tutorial"))     # 3.9: старые сохранения — без обучения
             opts = data.get("options")
             opts = opts if isinstance(opts, dict) else {}
 
@@ -380,6 +385,7 @@ class App(TavernUI, MillUI):
         was_locked = f.levels[k] == 0
         if f.buy(k, n):
             self.quest("buy_levels", n)
+            self.tut_event("plant" if was_locked else "buy_level")
             if f.speed_steps(k) > before:
                 self.quest("milestone", f.speed_steps(k) - before)
             cx, cy = crop_center(k)
@@ -755,6 +761,7 @@ class App(TavernUI, MillUI):
         self.truck_state, self.truck_x = "away", W + 230.0
         self.confirm_reset = False
         self.modal = None
+        self.tut.restart()
         self.save()
         self.toast("Прогресс сброшен")
 
@@ -879,6 +886,7 @@ class App(TavernUI, MillUI):
         self.confirm_reset = False
         if name == "shop":
             self.shop_page = 0
+            self.tut_event("shop")
 
     # ------------------------------------------------------------ input
     def on_click(self, pos):
@@ -930,6 +938,7 @@ class App(TavernUI, MillUI):
         f.update(dt)
         self.tavern_tick(dt)
         self.mill_tick(dt)
+        self.tut_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -1442,6 +1451,8 @@ class App(TavernUI, MillUI):
                 y = 602 - n * 38
             elif in_barn:
                 y = 126 - n * 38
+            elif self.tut_visible():               # 3.9: над окошком бармена (в прокачке — наверху: внизу таблички)
+                y = 100 + n * 40 if self.mode == "upgrade" else self.tut_box().y - 28 - n * 40
             else:
                 y = 512 - n * 40
             r = img.get_rect(center=(W // 2 - (60 if in_barn else 0), y))
@@ -2216,6 +2227,7 @@ class App(TavernUI, MillUI):
                         BTN_GREEN if self.show_tips else BTN_GREY, True, 18)
             draw_text(s, "подсказка появится, если задержать курсор на кнопке", 13, (r.centerx, y + 116), soft,
                       outline=None)
+            self.button((x, y + 196, w, 46), "Обучение заново (бармен)", self.tut_restart, (150, 120, 220), True, 17)
             half = (w - 12) // 2
             self.button((x, y + 140, half, 46), "Сохранить", lambda: (self.save(), self.toast("Сохранено!")), BTN_BLUE)
             label = "Точно? Ещё раз!" if self.confirm_reset else "Сбросить всё"
@@ -2638,6 +2650,7 @@ class App(TavernUI, MillUI):
         self.draw_crow_layer()
         self.draw_bandit_layer()
         self.fx.draw(s)
+        self.draw_tutorial()
         if self.modal:
             self.draw_modal()
         else:

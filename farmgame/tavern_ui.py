@@ -571,6 +571,8 @@ class TavernUI:
 
     # ---------- задания ----------
     def quest(self, event, n=1):
+        if event == "collect":
+            self.tut_event("collect")
         for q in self.tavern.on(event, n):
             self.sfx.play("quest")
             big = q is self.tavern.weekly

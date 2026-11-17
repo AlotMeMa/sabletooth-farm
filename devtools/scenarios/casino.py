@@ -1,0 +1,10 @@
+A.tavern.tokens = 120
+A.open_casino(); A.toasts.clear(); frames(3); snap("casino_empty")
+A.cs_place(("num", 17)); A.cs_chip = 10; A.cs_place(("red",)); A.cs_place(("dozen", 2)); A.cs_chip = 1; A.cs_place(("num", 0))
+frames(2); snap("casino_bets")
+A.roulette.rng.seed(5); A.cs_start()
+for i in range(int(3.0*30)): A.update(1/30)
+frames(1); snap("casino_spin")
+for i in range(int(3.0*30)): A.update(1/30)
+frames(2); snap("casino_result")
+print("tokens", A.tavern.tokens, A.roulette.history)

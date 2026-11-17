@@ -33,7 +33,7 @@
 Режим разработчика (для тестов):
     python farm_idle.py --dev   — отдельное сохранение farm_save_dev.json (основное не трогается),
                                   F1 открывает панель: деньги, листья, переезд, звери, скорость времени x10/x60.
-    python farm_idle.py --export-templates — выгрузить шаблоны спрайтов (см. SPRITES.md)
+    python farm_idle.py --export-templates — выгрузить шаблоны спрайтов (см. docs/SPRITES.md)
 Прогресс сохраняется в farm_save.json рядом с игрой.
 Код лежит в папке farmgame/, картинки — в assets/.
 """

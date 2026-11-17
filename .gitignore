@@ -9,3 +9,6 @@ crash.log
 /*.zip
 # 3.11.2: в игре только .ogg — WAV-оригиналы музыки и звуков держи вне папки игры
 assets/**/*.wav
+# шаблоны спрайтов — выгружаются командой python farm_idle.py --export-templates
+assets_templates/
+devtools/shots/

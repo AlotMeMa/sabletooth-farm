@@ -79,8 +79,8 @@ class SaveFile(unittest.TestCase):
             self.assertFalse(savefile.write(self.path, {"bad": {1, 2}}))
         self.assertEqual(savefile.load_json(self.path), {"n": 1})
 
-    def test_names_are_protected_by_updater(self):
-        """update.py не трогает и кладёт в бэкап всё, что подходит под farm_save*.json."""
+    def test_names_match_gitignore(self):
+        """Все файлы сохранения подходят под farm_save*.json (их не берёт git)."""
         import re
         save_re = re.compile(r"^farm_save.*\.json$", re.IGNORECASE)
         for path in (self.path, os.path.join(self.dir, "farm_save_dev.json")):

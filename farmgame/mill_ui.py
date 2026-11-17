@@ -35,20 +35,23 @@ MILL_CARD = pygame.Rect(96, 556, 440, 78)
 BAKE_CARD = pygame.Rect(552, 556, 440, 78)
 HOPPER_X, HOPPER_TOP = 165, 352          # бункер на ножках: верх воронки, низ — на полу
 WHEEL = (338, 446)                        # ось колеса-жернова
-WHEEL_R = 62
 BED = pygame.Rect(218, 472, 240, 76)       # каменная чаша (передняя стенка закрывает низ колеса)
 SACKS_X = 500
 OVEN_X = 688                              # середина печи
 OVEN_MOUTH = (688, 500)                   # устье печи (огонь)
 CHIMNEY = (740, 300)                      # откуда идёт дым (верх трубы)
 SHELF_X = 902
+SHELF_Y = 258                             # низ полки на фоне: с неё свисают таблички
+TAG_Y = 290                               # верх табличек (3.11.2: подняты — висят на верёвках с полки)
+BED_K = 0.92                              # каменная чаша props/mill_bed
+STONE_D, STONE_FLAT, STONE_T = 132, 0.32, 13   # жернов лежит в чаше: диаметр, сплющенность (вид сбоку), толщина
 HOPPER_K = 0.85                           # картинка бункера props/mill_hopper (холст 150x200) в сцене
 HOPPER_RIM = 0.19                         # передний край бункера на картинке (доля высоты сверху)
 HEAP_K = 0.72                             # горка зерна props/grain_heap — по ширине в бункер
 MILLER_PATH = (232, 438)                  # мельник ходит от бункера к мешкам
 BAKER_SPOTS = (792, 846)                  # у печи / у стеллажа
 SCENE_ZONES = {
-    "hopper": pygame.Rect(HOPPER_X - 70, HOPPER_TOP - 6, 140, 130),
+    "hopper": pygame.Rect(HOPPER_X - 66, 380, 132, 168),
     "sacks": pygame.Rect(SACKS_X - 72, FLOOR - 104, 144, 104),
     "shelf": pygame.Rect(SHELF_X - 86, FLOOR - 160, 172, 160),
 }
@@ -125,7 +128,11 @@ class MillUI:
     def init_mill(self):
         self.mill_smoke = []         # [x, y, vx, vy, возраст, жизнь, радиус]
         self.mill_angle = 0.0        # поворот колеса-жернова
-        self.mill_walk = 0.0         # путь мельника: 0..2 (туда с мешком и обратно пустым)
+        self.mill_spin = 0.0         # скорость жернова (плавно разгоняется и тормозит)
+        self.miller_x = MILLER_PATH[0]   # 3.11.2: мельник ходит по-настоящему: где остановился — оттуда и пойдёт
+        self.miller_carry = False
+        self.miller_pause = 0.0
+        self.miller_face = 0
         self.mill_puff = 0.0
         self.mill_dust_t = 0.0
         self.baker_x = BAKER_SPOTS[1]
@@ -158,10 +165,11 @@ class MillUI:
         dt = min(dt, 0.1)
         f = self.farm
         working = self.mill_working()
-        spin = 0.9 + 0.25 * f.m_workers[0] if working else 0.0
-        self.mill_angle = (self.mill_angle + spin * dt) % (2 * math.pi)
-        if f.m_workers[0] > 0:
-            self.mill_walk = (self.mill_walk + dt / 4.5) % 2.0
+        want = 0.9 + 0.25 * f.m_workers[0] if working else 0.0
+        step = 1.2 * dt                                  # жернов тяжёлый: разгоняется и тормозит за секунду-две
+        self.mill_spin += max(-step, min(step, want - self.mill_spin))
+        self.mill_angle = (self.mill_angle + self.mill_spin * dt) % (2 * math.pi)
+        self.tick_miller(dt, working)
         if working:
             self.mill_dust_t += dt
             if self.mill_dust_t > 0.22:
@@ -188,6 +196,32 @@ class MillUI:
         target = BAKER_SPOTS[1] if self.baker_carry > 0 or not baking else BAKER_SPOTS[0]
         step = 70 * dt
         self.baker_x += max(-step, min(step, target - self.baker_x))
+
+    def tick_miller(self, dt, working):
+        """Мельник: у бункера берёт мешок (если мельница мелет), несёт к мешкам, кладёт и идёт обратно.
+        Зерно кончилось — донесёт мешок, вернётся к бункеру и будет ждать; зерно появилось — пойдёт оттуда же."""
+        x0, x1 = MILLER_PATH
+        self.miller_face = 0
+        if self.farm.m_workers[0] <= 0:
+            return
+        if self.miller_pause > 0:
+            self.miller_pause -= dt
+            return
+        target = x1 if self.miller_carry else x0
+        if abs(self.miller_x - target) < 0.5:
+            self.miller_x = target
+            if self.miller_carry:
+                self.miller_carry = False
+                self.miller_pause = 0.35
+                self.fx.dust(x1 + 30, FLOOR - 4, n=3, color=FLOUR_WHITE, size=(3, 6), spread=10, up=10)
+            elif working:
+                self.miller_carry = True
+                self.miller_pause = 0.35
+            return
+        d = target - self.miller_x
+        speed = 85.0 * (0.8 if self.miller_carry else 1.0)
+        self.miller_x += max(-speed * dt, min(speed * dt, d))
+        self.miller_face = 1 if d > 0 else -1
 
     # ------------------------------------------------------------ действия (кнопки и сцена)
     def do_build(self, b):
@@ -300,39 +334,74 @@ class MillUI:
             pygame.draw.line(s, dark, (P(hx - half + 3), P(y)), (P(hx + half - 3), P(y)), 2)
         poly(s, dark, [(hx + 14, top + 108), (hx + 34, top + 108), (hx + 40, top + 130), (hx + 22, top + 132)], 2)
 
-    def hopper_bar_y(self):
-        """Полоска закромов — на стенке бункера."""
-        img = self.hopper_img()
-        return FLOOR - img.get_height() + int(img.get_height() * 0.36) if img is not None else HOPPER_TOP + 60
+    def scaled(self, name, k):
+        """Картинка в масштабе k (кэш на смену HD). None — картинки нет."""
+        img = sprite(name)
+        if img is None:
+            return None
+        cache = self.__dict__.setdefault("_mill_scaled", {})
+        key = (name, k, id(img), hd.scale())
+        out = cache.get(key)
+        if out is None:
+            w, h = img.get_size()
+            out = pygame.transform.smoothscale(img, (max(1, int(w * k)), max(1, int(h * k))))
+            cache[key] = out
+        return out
 
-    def draw_wheel(self, s, working):
-        """Колесо-жернов на ребре, вращается вокруг оси (рисуется ДО чаши — чаша закрывает его низ)."""
-        cx, cy = WHEEL
-        deg = -math.degrees(self.mill_angle)
-        if blit_tf(s, "props/millstone", cx, cy, 0.8, angle=deg, pivot="center"):
-            return
-        r = WHEEL_R
-        blob(s, (172, 168, 160), [(cx, cy, r)], 3)
-        pygame.draw.circle(s, (150, 146, 140), (cx, cy), r - 12, 2)
-        for i in range(8):              # борозды жернова
-            a = self.mill_angle + i * math.pi / 4
-            pygame.draw.line(s, (130, 126, 120), (P(cx + math.cos(a) * 18), P(cy + math.sin(a) * 18)),
-                             (P(cx + math.cos(a) * (r - 6)), P(cy + math.sin(a) * (r - 6))), 2)
-        pygame.draw.circle(s, OUT, (cx, cy), 15)
-        pygame.draw.circle(s, (120, 90, 60), (cx, cy), 12)
-        # деревянный вал сверху
-        rounded(s, (150, 100, 60), (cx - 7, cy - r - 70, 14, 72), 4, 2)
+    def draw_millstone(self, s, cx, cy):
+        """Жернов лежит в чаше и крутится: верх — картинка, повёрнутая и сплющенная (вид сбоку), под ним — бок камня.
+        Вал из середины поднимается к шестерне на полке."""
+        D, T = STONE_D, STONE_T
+        H = int(D * STONE_FLAT)
+        side = (128, 122, 116)
+        pygame.draw.ellipse(s, OUT, (P(cx - D / 2 - 2), P(cy + T - H / 2 - 2), D + 4, H + 4))
+        pygame.draw.ellipse(s, side, (P(cx - D / 2), P(cy + T - H / 2), D, H))
+        pygame.draw.rect(s, side, (P(cx - D / 2), P(cy), D, T))
+        pygame.draw.line(s, OUT, (P(cx - D / 2 - 1), P(cy)), (P(cx - D / 2 - 1), P(cy + T)), 2)
+        pygame.draw.line(s, OUT, (P(cx + D / 2), P(cy)), (P(cx + D / 2), P(cy + T)), 2)
+        img = sprite("props/millstone")
+        deg = math.degrees(self.mill_angle)
+        if img is not None:
+            iw = img.get_width()
+            rot = pygame.transform.rotate(img, deg)
+            k = D / iw
+            rw, rh = rot.get_size()
+            face = pygame.transform.smoothscale(rot, (max(1, int(rw * k)), max(1, int(rh * k * STONE_FLAT))))
+            s.blit(face, face.get_rect(center=(int(cx), int(cy))))
+        else:
+            pygame.draw.ellipse(s, OUT, (P(cx - D / 2 - 2), P(cy - H / 2 - 2), D + 4, H + 4))
+            pygame.draw.ellipse(s, (172, 168, 160), (P(cx - D / 2), P(cy - H / 2), D, H))
+            for i in range(10):          # борозды — крутятся вместе с камнем
+                a = self.mill_angle + i * math.pi / 5
+                pygame.draw.line(s, (138, 132, 126), (P(cx + math.cos(a) * D * 0.12), P(cy + math.sin(a) * H * 0.12)),
+                                 (P(cx + math.cos(a) * D * 0.46), P(cy + math.sin(a) * H * 0.46)), 2)
+        # вал: из середины камня вверх, к шестерне на полке
+        rounded(s, (150, 100, 60), (P(cx - 6), SHELF_Y - 6, 12, P(cy - SHELF_Y + 4)), 4, 2)
+        pygame.draw.ellipse(s, OUT, (P(cx - 11), P(cy - 6), 22, 11))
+        pygame.draw.ellipse(s, (110, 105, 100), (P(cx - 9), P(cy - 5), 18, 8))
 
-    def draw_bed(self, s):
-        if blit_sprite(s, "props/mill_bed", WHEEL[0], FLOOR, 0.92, "midbottom"):
+    def draw_mill_core(self, s):
+        """Чаша, жернов в ней и передняя стенка чаши поверх низа жернова."""
+        cx = WHEEL[0]
+        bed = self.scaled("props/mill_bed", BED_K)
+        if bed is not None:
+            w, h = bed.get_size()
+            x0, y0 = cx - w // 2, FLOOR - h
+            s.blit(bed, (x0, y0))
+            self.draw_millstone(s, cx, y0 + h * 0.36 - STONE_T * 0.6)
+            front = int(h * 0.56)
+            s.blit(bed, (x0, y0 + front), (0, front, w, h - front))
             return
         r = BED
         rounded(s, (158, 152, 144), r, 14, 3)
+        pygame.draw.ellipse(s, FLOUR_WHITE, (r.x + 14, r.y - 18, r.w - 28, 40))
+        self.draw_millstone(s, cx, r.y - 6)
+        front = pygame.Rect(r.x, r.y + 16, r.w, r.h - 16)
+        rounded(s, (158, 152, 144), front, 14, 3)
         for i in range(5):
             x = r.x + 18 + i * 46
-            rounded(s, (170, 164, 156), (x, r.y + 12, 40, 22), 5, 2, (120, 114, 108))
-            rounded(s, (164, 158, 150), (x + 20 - (i % 2) * 18, r.y + 40, 40, 22), 5, 2, (120, 114, 108))
-        pygame.draw.line(s, FLOUR_WHITE, (r.x + 16, r.y + 4), (r.right - 16, r.y + 4), 4)
+            rounded(s, (170, 164, 156), (x, r.y + 26, 40, 20), 5, 2, (120, 114, 108))
+            rounded(s, (164, 158, 150), (x + 20 - (i % 2) * 18, r.y + 50, 40, 18), 5, 2, (120, 114, 108))
 
     def draw_sacks(self, s, n):
         if n <= 0:
@@ -349,29 +418,22 @@ class MillUI:
     def draw_miller(self, s, n_workers, working):
         if n_workers <= 0:
             return
-        x0, x1 = MILLER_PATH
-        u = self.mill_walk
-        carry = u < 1.0 and working
-        frac = u if u < 1.0 else 2.0 - u
-        if not working:                      # мельница стоит — мельник ждёт у бункера
-            frac, carry = 0.15, False
-        x = x0 + (x1 - x0) * (0.5 - 0.5 * math.cos(frac * math.pi))
-        moving = working and 0.06 < frac < 0.94
+        x, carry, face = self.miller_x, self.miller_carry, self.miller_face
+        moving = face != 0
         bob = abs(math.sin(self.t * 7)) * 3 if moving else 0.0
-        face = (1 if u < 1.0 else -1) if moving else 0
         draw_shadow(s, x, FLOOR - 2, 46, 10, 70)
         if blit_tf(s, "characters/miller", x, FLOOR - bob, 0.85, flip=(face < 0)):
             if carry:
                 draw_sack(s, x + 6 * (face or 1), FLOOR - bob - 104, 0.7)
-            return
-        k = 0.95
-        if carry:                              # мешок на плече — за спиной (рисуется до человечка)
-            draw_sack(s, x - 15 * (face or 1), FLOOR - bob - 56, 0.7, tilt=-0.5 * (face or 1))
-        arms = ((-2.6, 0.3) if face >= 0 else (-0.3, 2.6)) if carry else (0.25, -0.25)
-        draw_person(s, x, FLOOR - bob, k, MILLER_LOOK, self.t, arms=arms, face=face)
-        draw_beret(s, x + face * 1.5 * k, FLOOR - bob - 81 * k, k)
+        else:
+            k = 0.95
+            if carry:                          # мешок на плече — за спиной (рисуется до человечка)
+                draw_sack(s, x - 15 * (face or 1), FLOOR - bob - 56, 0.7, tilt=-0.5 * (face or 1))
+            arms = ((-2.6, 0.3) if face >= 0 else (-0.3, 2.6)) if carry else (0.25, -0.25)
+            draw_person(s, x, FLOOR - bob, k, MILLER_LOOK, self.t, arms=arms, face=face)
+            draw_beret(s, x + face * 1.5 * k, FLOOR - bob - 81 * k, k)
         if n_workers > 1:                      # подсказка, что мельников несколько
-            draw_text(s, f"x{n_workers}", 14, (x + 22, FLOOR - bob - 104), WHITE)
+            draw_text(s, f"x{n_workers}", 14, (x + 24, FLOOR - bob - 100), WHITE)
 
     # ------------------------------------------------------------ сцена: пекарня
     def draw_oven(self, s, baking):
@@ -472,19 +534,26 @@ class MillUI:
             draw_text(s, f"x{n_workers}", 14, (x + 22, FLOOR - bob - 104), WHITE)
 
     # ------------------------------------------------------------ подсказки и ярлычки на сцене
-    def scene_tag(self, x, y, kind, text, sub, cb, enabled, tip):
-        """Деревянная табличка над предметом: иконка, сумма, подпись «нажми». Нажимается вся."""
+    def scene_tag(self, x, kind, text, sub, cb, enabled, tip, bar=None):
+        """Табличка на двух верёвках с полки над предметом: иконка, сумма, подпись. Нажимается вся.
+        bar — полоска (0..1) внизу таблички (закрома)."""
         s = self.screen
-        r = pygame.Rect(0, 0, 150, 42)
-        r.midbottom = (int(x), int(y))
+        r = pygame.Rect(0, TAG_Y, 156, 50 if bar is not None else 44)
+        r.centerx = int(x)
         r.x = max(96, min(W - 8 - r.w, r.x))
+        for rx in (r.x + 20, r.right - 20):            # верёвки и гвоздики
+            pygame.draw.line(s, (110, 78, 50), (rx, SHELF_Y), (rx, r.y + 4), 2)
+            pygame.draw.circle(s, OUT, (rx, SHELF_Y + 1), 3)
         grow = self.btn_anim(r, enabled) if enabled else 0.0
         look = r.inflate(int(round(6 * grow)), int(round(4 * grow)))
         rounded(s, CARD if enabled else (214, 204, 186), look, 9, 2, skin="card" if enabled else None)
-        draw_icon(s, kind, look.x + 20, look.centery)
-        draw_text_fit(s, text, 14, (look.x + 36, look.centery - 8), look.w - 42, BROWN, anchor="midleft", outline=None)
-        draw_text_fit(s, sub, 11, (look.x + 36, look.centery + 10), look.w - 42, OK_GREEN if enabled and "пуст" not in sub else SOFT,
-                      anchor="midleft", outline=None)
+        top = look.y + 22 - (3 if bar is not None else 0)
+        draw_icon(s, kind, look.x + 21, top)
+        draw_text_fit(s, text, 14, (look.x + 38, top - 8), look.w - 46, BROWN, anchor="midleft", outline=None)
+        draw_text_fit(s, sub, 11, (look.x + 38, top + 10), look.w - 46,
+                      OK_GREEN if enabled and "пуст" not in sub else SOFT, anchor="midleft", outline=None)
+        if bar is not None:
+            draw_bar(s, (look.x + 12, look.bottom - 13, look.w - 24, 7), bar, (230, 200, 110))
         if enabled:
             self.zone_btn(r, cb, 9)
         self.tip(r, tip)
@@ -600,7 +669,7 @@ class MillUI:
             if baking:                                      # полоска партии над печью
                 draw_bar(s, (OVEN_X - 50, OVEN_MOUTH[1] - 74, 100, 10), f.oven_prog / BAKE_TIME, (240, 150, 70))
             self.zone(SCENE_ZONES["shelf"], self.do_collect_bread) if f.bread > 0 else None
-            self.scene_tag(SHELF_X, FLOOR - 166, "bread", "Хлеб: $" + fmt(f.bread),
+            self.scene_tag(SHELF_X, "bread", "Хлеб: $" + fmt(f.bread),
                            "нажми — продать" if f.bread > 0 else "пока пусто", self.do_collect_bread, f.bread > 0,
                            "Продать весь хлеб со стеллажа")
         else:
@@ -610,22 +679,20 @@ class MillUI:
         # --- мельница
         def mill(layer):
             self.draw_hopper(layer, fill, working)
-            self.draw_wheel(layer, working)
-            self.draw_bed(layer)
+            self.draw_mill_core(layer)
             self.draw_sacks(layer, flour_sacks(f.flour, self.mill_rate()))
         if mill_on:
             mill(s)
             self.draw_miller(s, f.m_workers[0], working)
-            # закрома: полоска на бункере и табличка «засыпать»
-            draw_bar(s, (HOPPER_X - 46, self.hopper_bar_y(), 92, 11), fill, (230, 200, 110))
+            # закрома: полоска на табличке «засыпать»
             self.zone_btn(SCENE_ZONES["hopper"], self.do_fill, 10)
             self.tip(SCENE_ZONES["hopper"], f"Закрома: ${fmt(f.hopper)} из ${fmt(cap)}. Нажми — засыпать зерно с грядок")
             grain = sum(f.stash[i] for i in GRAIN)
-            self.scene_tag(HOPPER_X, HOPPER_TOP - 8, "grain", "Засыпать зерно",
+            self.scene_tag(HOPPER_X, "grain", "Засыпать зерно",
                            ("на грядках $" + fmt(grain)) if grain > 0 else "на грядках пусто", self.do_fill, True,
-                           "Засыпать зерно с грядок в закрома (сколько влезет)")
+                           f"Закрома: ${fmt(f.hopper)} из ${fmt(cap)}. Нажми — засыпать зерно с грядок", bar=fill)
             self.zone(SCENE_ZONES["sacks"], self.do_sell_flour) if f.flour > 0 else None
-            self.scene_tag(SACKS_X, FLOOR - 112, "flour", "Мука: $" + fmt(f.flour),
+            self.scene_tag(SACKS_X, "flour", "Мука: $" + fmt(f.flour),
                            "нажми — продать" if f.flour > 0 else "пока пусто", self.do_sell_flour, f.flour > 0,
                            "Продать муку. Пекарня берёт муку сама — продавай лишнюю")
         else:

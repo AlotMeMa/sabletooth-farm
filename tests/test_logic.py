@@ -249,9 +249,29 @@ class MillFairness(unittest.TestCase):
         f.rain_left, f.rain_cd = 0, 1e9
         for _ in range(240):
             f.update(0.25)
-        grind_10s = f.mill_speed() * 10
-        self.assertLessEqual(f.hopper, grind_10s * 1.01)
+        self.assertLessEqual(f.hopper, f.hopper_cap() * 1.01)
+        self.assertLessEqual(f.hopper_seconds(), cfg.HOPPER_SECONDS * 1.01)   # запаса — не больше минуты помола
         self.assertGreater(sum(f.stash[i] for i in cfg.GRAIN), 0)       # лишнее зерно можно собрать самому
+
+    def test_millers_keep_hopper_full_without_clicks(self):
+        """3.13: при мельниках и зерне на грядках закрома почти полные — жать «Засыпать» не нужно."""
+        f = medieval_farm()
+        f.m_levels, f.m_workers = [3, 0], [2, 0]
+        f.rain_left, f.rain_cd = 0, 1e9
+        for _ in range(240):
+            f.update(0.25)
+        self.assertGreater(f.hopper, f.hopper_cap() * 0.8)
+        self.assertGreater(f.flour, 0)
+
+    def test_hopper_cap_is_time_not_income(self):
+        """Закрома в секундах помола не зависят от дохода грядок."""
+        f = medieval_farm()
+        f.m_levels, f.m_workers = [3, 0], [2, 0]
+        a = f.hopper_cap() / f.mill_grind()
+        for i in cfg.GRAIN:
+            f.levels[i] *= 4
+        self.assertAlmostEqual(f.hopper_cap() / f.mill_grind(), a)
+        self.assertAlmostEqual(a, cfg.HOPPER_SECONDS)
 
     def test_manual_fill_still_fills_up_to_cap(self):
         f = medieval_farm()

@@ -54,6 +54,7 @@ MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экра
     "grain_heap": (140, 70, "bottom"), "flour_sacks_1": (90, 90, "bottom"), "flour_sacks_2": (120, 90, "bottom"),
     "flour_sacks_3": (150, 100, "bottom"), "oven": (240, 240, "bottom"), "oven_fire": (100, 75, "bottom"),
     "bread_shelf": (200, 150, "bottom"),
+    "mill_card": (360, 130, "bottom"), "bakery_card": (360, 130, "bottom"),   # 3.13: картинки карточек мельницы
 }
 UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110)}   # наибольший размер (3.4)
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами

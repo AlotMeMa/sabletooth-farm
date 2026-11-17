@@ -24,6 +24,7 @@ CARD_ON, CARD_OFF, HEAD = (238, 220, 186), (205, 190, 170), (150, 98, 62)   # к
 FLOUR_WHITE = (246, 240, 226)
 ORANGE = (235, 170, 70)
 CARD_W, CARD_GAP, CARD_Y, CARD_H = 300, 12, 190, 368   # ниже плашек слева (у средневековья их 4)
+VIGNETTE_K = 0.58                # props/mill_card, props/bakery_card: холст 360x130 -> ~210x75 в карточке
 PIC_Y = 114                      # пол «картинки» в карточке (от верха карточки)
 
 
@@ -138,6 +139,7 @@ class MillUI:
         amt = self.farm.sell_flour()
         if amt:
             r = card_rect(1)
+            self.quest("flour_sell")
             self.sfx.play("product")
             self.floater(r.centerx, r.y + 70, "+$" + fmt(amt))
             self.coins_to_counter(r.centerx, r.y + PIC_Y - 30, amt)
@@ -223,9 +225,20 @@ class MillUI:
                     can and f.money >= price, 18)
 
     # ------------------------------------------------------------ картинки
+    def vignette(self, r, name, active):
+        """Своя картинка карточки (props/mill_card, props/bakery_card) — одна сценка вместо набора предметов.
+        Пока здание работает, чуть «дышит». False — картинки нет."""
+        k = 1.0 + (0.012 * math.sin(self.t_real * 3) if active else 0.0)
+        return blit_tf(self.screen, name, r.centerx, r.y + PIC_Y + 14, VIGNETTE_K, sx=k, sy=2 - k)
+
     def pic_mill(self, r, active):
         s, f = self.screen, self.farm
         cx, floor = r.centerx + 30, r.y + PIC_Y
+        if self.vignette(r, "props/mill_card", active and self.mill_spin > 0.3):
+            if active and self.mill_spin > 0.3 and int(self.t_real * 5) % 2 == 0:
+                self.fx.dust(r.centerx + (-50 if int(self.t_real * 7) % 2 else 50), floor + 8, n=1, color=FLOUR_WHITE,
+                             size=(3, 5), spread=8, up=12, alpha=140, life=(0.4, 0.7))
+            return
         cap = f.hopper_cap()
         fill = f.hopper / cap if cap > 0 else 0.0
         # горка зерна слева — растёт с закромами
@@ -265,6 +278,8 @@ class MillUI:
     def pic_bakery(self, r, baking, loaves, active):
         s = self.screen
         ox, floor = r.centerx - 54, r.y + PIC_Y + 8
+        if self.vignette(r, "props/bakery_card", baking):
+            return
         warm = 1.0 if baking else (0.3 if active else 0.0)
         if warm > 0:
             fl = 0.85 + 0.15 * math.sin(self.t_real * 9) * math.sin(self.t_real * 3.7)
@@ -304,12 +319,16 @@ class MillUI:
             return
         cap = f.hopper_cap()
         draw_bar(s, (r.x + 20, r.y + 140, r.w - 40, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
-        draw_text(s, f"Закрома: ${fmt(f.hopper)} / ${fmt(cap)}", 12, (r.centerx, r.y + 163), BROWN, outline=None)
+        sec = f.hopper_seconds()
+        left = f"зерна на {int(sec // 60)}:{int(sec % 60):02d} помола" if sec != float("inf") else f"${fmt(f.hopper)} зерна"
+        draw_text(s, "Закрома: " + left, 12, (r.centerx, r.y + 163), BROWN, outline=None)
+        self.tip(pygame.Rect(r.x + 20, r.y + 134, r.w - 40, 38),
+                 f"В закромах ${fmt(f.hopper)} из ${fmt(cap)}. Мельники сами носят зерно с грядок")
         speed = f.mill_speed() * f.m_workers[0]
         if not f.m_workers[0]:
             msg, col = "Стоит: нет мельников", RED
         elif f.hopper <= 0:
-            msg, col = "Стоит: закрома пусты — засыпь зерно", RED
+            msg, col = "Ждёт зерно с грядок", (150, 120, 60)
         else:
             share = min(100, round(speed / max(1e-9, f.grain_rate()) * 100))
             msg, col = f"Мелет ${fmt(speed)}/с  ({share}% зерна)", OK_GREEN
@@ -317,8 +336,9 @@ class MillUI:
         grain = sum(f.stash[i] for i in GRAIN)
         draw_text_fit(s, f"Зерно на грядках: ${fmt(grain)}", 11, (r.centerx, r.y + 201), r.w - 16, SOFT, outline=None)
         self.workers_row(r, 0, r.y + 216, "Мельники")
-        self.button((r.x + 14, r.y + 266, r.w - 28, 36), "Засыпать зерно с грядок", self.do_fill, BTN_GREEN, True, 15)
-        self.zone((r.x + 8, r.y + 56, r.w - 16, 70), self.do_fill)
+        draw_text_fit(s, "Мельники сами носят зерно с грядок" if f.m_workers[0] else "Поставь мельников — зерно понесут сами",
+                      12, (r.centerx, r.y + 280), r.w - 20, SOFT if f.m_workers[0] else RED, outline=None)
+        self.zone((r.x + 8, r.y + 56, r.w - 16, 70), self.do_fill)   # клик по картинке — подсыпать вручную
         self.upgrade_button(r, 0, r.y + 312)
 
     def card_flour(self):

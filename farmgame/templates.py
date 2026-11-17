@@ -214,9 +214,11 @@ def spec_list():
                  "mill_hopper": "бункер для зерна", "grain_heap": "горка зерна в бункере",
                  "flour_sacks_1": "мешок муки", "flour_sacks_2": "три мешка муки", "flour_sacks_3": "гора мешков муки",
                  "oven": "хлебная печь (проём пустой и тёмный)", "oven_fire": "огонь на поленьях (без печи)",
-                 "bread_shelf": "пустой стеллаж для хлеба"}
+                 "bread_shelf": "пустой стеллаж для хлеба",
+                 "mill_card": "сценка для карточки «Мельница» (жернов, бункер, мешок)",
+                 "bakery_card": "сценка для карточки «Пекарня» (печь с огнём, хлеб)"}
     for key, (w, h, anchor) in MILL_PROPS.items():
-        add(f"props/{key}", (w, h), "центр" if anchor == "center" else "низ по центру", mill_desc[key] + " — экран мельницы",
+        add(f"props/{key}", (w, h), "центр" if anchor == "center" else "низ по центру", mill_desc.get(key, key) + " — экран мельницы",
             1, lambda s: None)
     for key, desc in (("miller", "мельник с мешком, идёт вправо"), ("baker", "пекарь с лопатой, смотрит влево")):
         add(f"characters/{key}", (100, 150), "низ по центру = пол", desc + " — экран мельницы", 1, lambda s: None)

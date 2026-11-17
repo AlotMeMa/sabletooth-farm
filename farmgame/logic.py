@@ -290,8 +290,20 @@ class Farm:
     def mill_speed(self):
         return MILL_EAT * self.grain_rate() * (1 + 0.25 * self.up("diligence"))
 
+    def mill_grind(self):
+        """Сколько зерна (в $) мельники перемалывают в секунду."""
+        return self.mill_speed() * self.m_workers[0]
+
     def hopper_cap(self):
-        return MILL_EAT * self.grain_rate() * max(1, self.m_levels[0]) * HOPPER_SECONDS * 2 ** self.up("hopper")
+        """3.13: закрома — запас на HOPPER_SECONDS помола нынешних мельников («Большие закрома» — x2 за уровень).
+        До 3.13 закрома росли с доходом и уровнем мельницы, а мельники носили только на 10 с — полоска
+        никогда не заполнялась, и казалось, что надо всё время жать «Засыпать»."""
+        return self.mill_speed() * max(1, self.m_workers[0]) * HOPPER_SECONDS * 2 ** self.up("hopper")
+
+    def hopper_seconds(self):
+        """На сколько секунд помола хватит зерна в закромах (inf — мельников нет)."""
+        g = self.mill_grind()
+        return self.hopper / g if g > 0 else float("inf")
 
     def mill_building_cost(self, b):
         return MILL_COST[b] * MILL_LVL_MULT ** self.m_levels[b] * self.price_mult
@@ -349,9 +361,9 @@ class Farm:
             self.m_carry_t += dt
             if self.m_carry_t >= KEEPER_INTERVAL:
                 self.m_carry_t = 0.0
-                # 3.6: носят столько, сколько успеют смолоть за два похода. Раньше засыпали всё зерно сразу —
-                # лишнее лежало в закромах мёртвым грузом, а собрать его с грядок игрок уже не мог.
-                self.fill_hopper(self.mill_speed() * self.m_workers[0] * KEEPER_INTERVAL * 2 - self.hopper)
+                # 3.13: досыпают закрома доверху. Они рассчитаны на минуту помола нынешних мельников, поэтому
+                # зерно в них не залёживается (3.6), а остальное остаётся на грядках — его можно собрать самому.
+                self.fill_hopper()
         g = min(self.hopper, self.mill_speed() * self.m_workers[0] * dt)
         self.hopper -= g
         self.flour += g * FLOUR_RATIO

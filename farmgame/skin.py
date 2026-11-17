@@ -218,3 +218,24 @@ def draw_knob(s, x, y, muted=False):
     pygame.draw.circle(s, OUT, (P(x), P(y)), 15)
     pygame.draw.circle(s, (170, 160, 150) if muted else (176, 120, 70), (P(x), P(y)), 12)
     pygame.draw.circle(s, (200, 190, 182) if muted else (214, 162, 104), (P(x - 3), P(y - 3)), 6)
+
+
+def draw_max(surf, rect, size=15, text="Макс. уровень"):
+    """3.13.2: «Макс. уровень» — золотая дощечка со звёздами (не кнопка: не нажимается и не подсвечивается).
+    Раньше — плоский жёлтый прямоугольник."""
+    import math
+    from .art import draw_text, poly, GOLD
+    rect = pygame.Rect(rect)
+    draw(surf, "button_orange", rect)
+    glaze = hd.Surface(rect.size, pygame.SRCALPHA)
+    glaze.fill((0, 0, 0, 0))
+    pygame.draw.rect(glaze, (255, 236, 150, 70), glaze.get_rect(), border_radius=max(4, rect.h // 3))
+    surf.blit(glaze, rect.topleft)
+    draw_text(surf, text, size, (rect.centerx, rect.centery - 1))
+    for sx in (rect.x + 20, rect.right - 20):
+        pts = []
+        for i in range(10):
+            a = -math.pi / 2 + i * math.pi / 5
+            rr = 8 if i % 2 == 0 else 3.6
+            pts.append((sx + math.cos(a) * rr, rect.centery - 1 + math.sin(a) * rr))
+        poly(surf, GOLD, pts, 2)

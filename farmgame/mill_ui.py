@@ -17,6 +17,7 @@ from .config import W, fmt, MILL_MAX_LVL, CROPS, GRAIN, BREAD_RATIO, BAKE_TIME, 
 from .art import (OUT, BTN_GREEN, BTN_BLUE, P, poly, ellipse, blob, rounded, draw_text, draw_text_fit, draw_bar,
                   blit_sprite, blit_tf, blit_light, render_text, draw_peasant_head, has_sprite, sprite)
 from . import hd
+from . import skin
 
 BROWN, SOFT = (90, 70, 60), (140, 110, 95)
 RED, OK_GREEN = (190, 80, 70), (60, 130, 50)
@@ -205,8 +206,7 @@ class MillUI:
         bu = pygame.Rect(r.x + 14, y, r.w - 28, 36)
         lvl = f.m_levels[b]
         if lvl >= MILL_MAX_LVL:
-            rounded(s, (250, 212, 90), bu, 9, 2)
-            draw_text(s, "Макс. уровень", 15, bu.center, BROWN, outline=None)
+            skin.draw_max(s, bu, 15)
             return
         price = f.mill_building_cost(b)
         self.button(bu, f"Ур. {lvl + 1} (+1 место): ${fmt(price)}", lambda b=b: self.do_build(b), BTN_BLUE,

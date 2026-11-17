@@ -72,7 +72,19 @@ def is_template_copy(name, path):
 
 
 def _load_sprite(name):
-    """Свой файл; иначе — стадия из полоски crops/<ферма>/<культура>.png или иконка из icons/sheet.png."""
+    """Свой файл; иначе — стадия из полоски crops/<ферма>/<культура>.png или иконка из icons/sheet.png.
+    name@2x — та же картинка вдвое крупнее (spritefit.HI): для крупных иконок."""
+    if name.endswith(spritefit.HI):
+        base = name[:-len(spritefit.HI)]
+        path = find_asset_file(base)
+        if path and not is_template_copy(base, path):
+            return spritefit.load_fitted(name, path)
+        for sheet_name, (prefix, order) in spritefit.SHEETS.items():
+            if base.startswith(prefix) and base[len(prefix):] in order:
+                sheet = find_asset_file(sheet_name)
+                if sheet:
+                    return spritefit.load_fitted(name, sheet, ("sheet", order.index(base[len(prefix):]), prefix, order))
+        return None
     path = find_asset_file(name)
     if path and is_template_copy(name, path):
         path = None
@@ -745,20 +757,67 @@ def draw_bush(s, x, y, r):
         pygame.draw.circle(s, THEME["bush_light"], (P(x - r * 0.25), P(y - r * 0.55)), max(2, P(r * 0.22)))
 
 
+WALL_STONES = ((178, 170, 156), (164, 156, 144), (190, 182, 166), (152, 146, 138), (172, 160, 142))
+
+
+def _stone(s, base, d, cx, cy, w, h, color, rnd):
+    """Камень: скруглённый прямоугольник, скошенный вдоль стены (d — единичный вектор вдоль), с бликом сверху."""
+    pts = []
+    for i in range(16):
+        a = i * math.pi / 8
+        c, sn = math.cos(a), math.sin(a)
+        u = math.copysign(abs(c) ** 0.55, c) * w / 2 * (1 + rnd.uniform(-0.05, 0.05))
+        v = math.copysign(abs(sn) ** 0.55, sn) * h / 2 * (1 + rnd.uniform(-0.06, 0.06))
+        pts.append((cx + d[0] * u, cy + d[1] * u - v))
+    poly(s, color, pts, 2)
+    light = tuple(min(255, c + 22) for c in color)       # блик по верху камня
+    top = [(cx + d[0] * u * 0.7, cy + d[1] * u * 0.7 - h * 0.28) for u in (-w / 2, w / 2)]
+    pygame.draw.line(s, light, (P(top[0][0]), P(top[0][1])), (P(top[1][0]), P(top[1][1])), max(2, P(2)))
+    if rnd.random() < 0.18:                              # мох
+        mx = cx + d[0] * rnd.uniform(-w / 4, w / 4)
+        my = cy + d[1] * rnd.uniform(-w / 4, w / 4) - h * 0.35
+        blob(s, (118, 150, 78), [(mx, my, 3.2), (mx + 4, my + 1, 2.6)], 0)
+
+
+def draw_stone_wall(s, a, b):
+    """3.13.2: низкая каменная кладка вдоль края поля: тёмный раствор, два ряда скруглённых камней разного размера
+    и цвета, сверху плоские камни-накрывки, кое-где мох. Раньше — ровные серые параллелограммы."""
+    import random as _r
+    ax, ay = a
+    bx, by = b
+    ln = math.hypot(bx - ax, by - ay)
+    if ln < 4:
+        return
+    d = ((bx - ax) / ln, (by - ay) / ln)
+    rnd = _r.Random(int(ax * 7 + ay * 13 + bx))
+    H = 24
+    body = [(ax, ay), (bx, by), (bx, by - H), (ax, ay - H)]
+    poly(s, (104, 96, 88), body, 3)                       # раствор между камнями
+    for row, (yc, hgt) in enumerate(((-6, 11), (-16, 10))):
+        t = rnd.uniform(0, 8) if row else 2.0
+        while t < ln - 4:
+            w = rnd.uniform(14, 24)
+            w = min(w, ln - 2 - t)
+            if w < 7:
+                break
+            cx, cy = ax + d[0] * (t + w / 2), ay + d[1] * (t + w / 2) + yc
+            _stone(s, (ax, ay), d, cx, cy, w - 2, hgt, rnd.choice(WALL_STONES), rnd)
+            t += w
+    t = 0.0                                               # накрывки
+    while t < ln - 2:
+        w = min(rnd.uniform(20, 30), ln - t)
+        if w < 8:
+            break
+        cx, cy = ax + d[0] * (t + w / 2), ay + d[1] * (t + w / 2) - H
+        _stone(s, (ax, ay), d, cx, cy, w, 8, (196, 188, 174), rnd)
+        t += w - 1
+
+
 def draw_fence(s, a, b, off):
     ax, ay = a[0] + off[0], a[1] + off[1]
     bx, by = b[0] + off[0], b[1] + off[1]
     if THEME.get("wall"):   # средневековье: низкая каменная стена
-        n = max(1, int(math.hypot(bx - ax, by - ay) / 20))
-        for row, (h, shift) in enumerate(((0, 0.0), (11, 0.5))):
-            for k in range(n):
-                t0, t1 = (k + shift) / n, min(1.0, (k + shift + 1) / n)
-                if t0 >= 1:
-                    continue
-                x0, y0 = ax + (bx - ax) * t0, ay + (by - ay) * t0 - h
-                x1, y1 = ax + (bx - ax) * t1, ay + (by - ay) * t1 - h
-                shade = 165 + (k * 37 + row * 11) % 30
-                poly(s, (shade, shade - 5, shade - 12), [(x0 + 1, y0), (x1 - 1, y1), (x1 - 1, y1 - 11), (x0 + 1, y0 - 11)], 2)
+        draw_stone_wall(s, (ax, ay), (bx, by))
         return
     for h in (9, 19):
         pygame.draw.line(s, OUT, (P(ax), P(ay - h)), (P(bx), P(by - h)), 6)
@@ -906,8 +965,15 @@ def draw_loading_screen(s, frac, t, title, hint):
     draw_text(s, hint, 13, (W // 2, cy + r + 96), (235, 245, 220), outline=None)
 
 
+def blit_icon(s, name, x, y, k=1.0):
+    """Иконка с центром (x, y) в масштабе k. Крупно (k > 1.25) — из вдвое более крупной подгонки, чтобы не мылилась."""
+    if k > 1.25 and blit_sprite(s, name + spritefit.HI, x, y, k / 2, "center"):
+        return True
+    return blit_sprite(s, name, x, y, k, "center")
+
+
 def draw_peasant_head(s, x, y, k=1.0):
-    if blit_sprite(s, "icons/peasant", x, y, k, "center"):
+    if blit_icon(s, "icons/peasant", x, y, k):
         return
     blob(s, (245, 205, 170), [(x, y + 1 * k, 8 * k)], 2)
     poly(s, (140, 100, 60), [(x - 10 * k, y + 2 * k), (x - 8 * k, y - 7 * k), (x, y - 11 * k), (x + 8 * k, y - 7 * k), (x + 10 * k, y + 2 * k), (x + 6 * k, y - 3 * k), (x - 6 * k, y - 3 * k)], 2)
@@ -1500,9 +1566,15 @@ def draw_front_fence_layer(s):
             s.blit(*layer)
             return
         break
-    (a1, b1), (a2, b2) = front_fence_segments()
-    draw_fence(s, a1, b1, (0, 0))
-    draw_fence(s, a2, b2, (0, 0))
+    key = ("code", FARM_ID[0], hd.scale())
+    if key not in _fence_layers:               # забор кодом не двигается — рисуем один раз
+        layer = hd.Surface((W, H), pygame.SRCALPHA)
+        layer.fill((0, 0, 0, 0))
+        (a1, b1), (a2, b2) = front_fence_segments()
+        draw_fence(layer, a1, b1, (0, 0))
+        draw_fence(layer, a2, b2, (0, 0))
+        _fence_layers[key] = (layer, (0, 0))
+    s.blit(*_fence_layers[key])
 
 
 def draw_sun_rays(s, x, y, t, strength=0.5):

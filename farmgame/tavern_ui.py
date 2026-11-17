@@ -709,8 +709,8 @@ class TavernUI:
                 self.tip(bt, "Бард ещё играет прошлый заказ" if playing else f"Нужно жетонов: {sg['cost']}")
         self.button((r.centerx - 120, r.bottom - 66, 240, 42), "Просто послушать", self.listen_bard, BTN_BLUE, True, 16)
 
-    def draw_song_pill(self, y):
-        """Плашка «♪ песня  12:34» под плашками денег, пока играет заказанная песня."""
+    def draw_song_pill(self, y, right=None):
+        """Плашка «♪ песня  12:34», пока играет заказанная песня. right — правый край (плашка справа)."""
         f, s = self.farm, self.screen
         sg = self.song_def() if f.song_left > 0 else None
         if sg is None:
@@ -718,6 +718,8 @@ class TavernUI:
         m, sec = int(f.song_left // 60), int(f.song_left % 60)
         img = render_text(f"{sg['name']}   {m}:{sec:02d}", 14, WHITE, OUT)
         r = pygame.Rect(14, y, 50 + img.get_width() + 14, 30)
+        if right is not None:
+            r.right = right
         rounded(s, (170, 140, 220), r, 15, 3)
         draw_note(s, r.x + 22, r.centery + 6, color=(255, 235, 150))
         s.blit(img, img.get_rect(midleft=(r.x + 46, r.centery)))
@@ -932,11 +934,22 @@ class TavernUI:
         self.tip(L["bard_zone"], "Бард: заказать песню за жетоны")
         # стрелка к доске заданий
         r = L["board_sign"]
-        poly(s, (176, 120, 70), [(r.x, r.centery), (r.x + 34, r.y + 10), (r.x + 34, r.y + 26), (r.right, r.y + 26),
-                                 (r.right, r.bottom - 26), (r.x + 34, r.bottom - 26), (r.x + 34, r.bottom - 10)], 3)
+        arrow = [(r.x, r.centery), (r.x + 34, r.y + 10), (r.x + 34, r.y + 26), (r.right, r.y + 26),
+                 (r.right, r.bottom - 26), (r.x + 34, r.bottom - 26), (r.x + 34, r.bottom - 10)]
+        hover = self.modal is None and r.collidepoint(self.mouse)
+        grow = self.btn_anim(r)
+        if hover or grow:      # 3.13.2: подсветка по форме стрелки (раньше — квадратная рамка вокруг)
+            cx, cy = r.centerx + 8, r.centery
+            k = 1.0 + 0.04 * grow
+            arrow = [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in arrow]
+        if hover:
+            blit_light(s, r.centerx + 8, r.centery, r.w * 1.7, (255, 232, 140), 150)
+            halo = [(cx + (x - cx) * 1.08, cy + (y - cy) * 1.14) for x, y in arrow]
+            poly(s, (255, 236, 160), halo, 0)
+        poly(s, (190, 132, 78) if hover else (176, 120, 70), arrow, 3)
         draw_text(s, "Доска", 18, (r.x + 82, r.centery - 11))
         draw_text(s, "заданий", 16, (r.x + 82, r.centery + 10))
-        self.zone_btn(r, self.open_board, 12)
+        self.zone_btn(r, self.open_board, 12, glow="sprite")
         if self.tavern.claimable():
             pygame.draw.circle(s, OUT, (r.right - 4, r.y + 24), 12)
             pygame.draw.circle(s, (240, 70, 70), (r.right - 4, r.y + 24), 10)
@@ -1139,13 +1152,16 @@ class TavernUI:
         self.icon_button(pygame.Rect(16, 478, 62, 56), "tavern", lambda r: draw_mug(self.screen, r.centerx - 3, r.centery + 4, 1.2),
                          self.open_tavern, "Таверна", badge=bool(self.tavern.claimable()), tip=TAVERN_TIP)
 
-    def draw_boost_pill(self, y):
+    def draw_boost_pill(self, y, right=None):
         f, s = self.farm, self.screen
         if f.boost_left <= 0:
-            return
+            return 0
         m, sec = int(f.boost_left // 60), int(f.boost_left % 60)
         img = render_text(f"доход x2   {m}:{sec:02d}", 15, WHITE, OUT)
         r = pygame.Rect(14, y, 58 + img.get_width() + 14, 32)
+        if right is not None:
+            r.right = right
         rounded(s, (250, 200, 90), r, 16, 3)
         draw_text(s, "x2", 15, (r.x + 30, r.centery), WHITE)
         s.blit(img, img.get_rect(midleft=(r.x + 54, r.centery)))
+        return 38

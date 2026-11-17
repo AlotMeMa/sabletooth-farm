@@ -101,8 +101,17 @@ def fit_spec(name):
     return dict(spec, canvas=(r(cw), r(ch)), box=(r(x0), r(y0), r(x1), r(y1)))
 
 
+HI = "@2x"   # 3.13.2: «name@2x» — та же картинка, подогнанная вдвое крупнее (для крупных иконок: не мыльная)
+
+
 def _fit_spec_base(name):
     """Как подгонять картинку с этим именем в обычном размере (координаты 1000x640)."""
+    if name.endswith(HI):
+        spec = _fit_spec_base(name[:-len(HI)])
+        if spec is None:
+            return None
+        (cw, ch), (x0, y0, x1, y1) = spec["canvas"], spec["box"]
+        return dict(spec, canvas=(cw * 2, ch * 2), box=(x0 * 2, y0 * 2, x1 * 2, y1 * 2))
     n = name.lower()
     parts = n.split("/")
     folder, last = parts[0], parts[-1]
@@ -722,10 +731,11 @@ def load_fitted(name, path, part=None):
         out = outs[part[1] - 1]
     else:  # sheet: ("sheet", номер, префикс, порядок)
         _kind, idx, prefix, order = part
-        outs = fit_sheet(img, 3, 3, lambda i: fit_spec(prefix + order[i]))
+        sfx = HI if name.endswith(HI) else ""
+        outs = fit_sheet(img, 3, 3, lambda i: fit_spec(prefix + order[i] + sfx))
         for i, surf in enumerate(outs):
             if surf is not None and i != idx:
-                _save_cache(_cache_path(prefix + order[i], path), surf)
+                _save_cache(_cache_path(prefix + order[i] + sfx, path), surf)
         out = outs[idx]
     if out is None:
         return None

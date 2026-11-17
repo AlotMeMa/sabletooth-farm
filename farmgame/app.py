@@ -1289,11 +1289,14 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
             self.zone_btn(pr, lambda: (self.open_modal("shop"), setattr(self, "shop_tab", "farm")), 16)
             self.tip(pr, "Свободные крестьяне. Щёлкни — нанять ещё")
         if not board:
-            y = 180 if self.farm_info()["peasants"] else 142
-            self.draw_boost_pill(y)
-            if self.farm.boost_left > 0:
-                y += 38
-            self.draw_song_pill(y)
+            # 3.13.2: на поле — столбиком слева; в сарае, мельнице, таверне — справа под шестерёнкой,
+            # чтобы не налезать на карточки
+            if self.view == "field":
+                y, right = (180 if self.farm_info()["peasants"] else 142), None
+            else:
+                y, right = 70 if self.view != "tavern" else 64, W - 14
+            y += self.draw_boost_pill(y, right)
+            self.draw_song_pill(y, right)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)
@@ -1743,8 +1746,7 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
             self.zone_btn(b1, lambda a=a: self.do_feed(a), 9)
         b2 = pygame.Rect(r.x + 14, r.y + 300, r.w - 28, 36)
         if lvl >= ANIMAL_MAX_LVL:
-            rounded(s, (250, 212, 90), b2, 9, 2)
-            draw_text(s, "Макс. уровень", 15, b2.center, brown, outline=None)
+            skin.draw_max(s, b2, 15)
         else:
             price = f.animal_cost(a)
             rounded(s, BTN_BLUE if f.money >= price else BTN_GREY, b2, 9, 3)
@@ -2039,8 +2041,7 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
                   soft, anchor="midleft", outline=None)
         b = pygame.Rect(row.right - 160, row.y + 22, 146, 46)
         if f.peasants >= PEASANT_MAX:
-            rounded(s, (250, 212, 90), b, 8, 2)
-            draw_text(s, "Все наняты", 15, b.center, brown, outline=None)
+            skin.draw_max(s, b, 14, "Все наняты")
         else:
             ok = f.money >= f.peasant_cost()
             rounded(s, BTN_GREEN if ok else BTN_GREY, b, 8, 3)

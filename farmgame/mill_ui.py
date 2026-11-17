@@ -15,7 +15,7 @@ import pygame
 
 from .config import W, fmt, MILL_MAX_LVL, CROPS, GRAIN, BREAD_RATIO, BAKE_TIME, FLOUR_RATIO
 from .art import (OUT, BTN_GREEN, BTN_BLUE, P, poly, ellipse, blob, rounded, draw_text, draw_text_fit, draw_bar,
-                  blit_sprite, blit_tf, blit_light, render_text, draw_peasant_head)
+                  blit_sprite, blit_tf, blit_light, render_text, draw_peasant_head, has_sprite, sprite)
 from . import hd
 
 BROWN, SOFT = (90, 70, 60), (140, 110, 95)
@@ -24,8 +24,9 @@ CARD_ON, CARD_OFF, HEAD = (238, 220, 186), (205, 190, 170), (150, 98, 62)   # к
 FLOUR_WHITE = (246, 240, 226)
 ORANGE = (235, 170, 70)
 CARD_W, CARD_GAP, CARD_Y, CARD_H = 300, 12, 190, 368   # ниже плашек слева (у средневековья их 4)
-VIGNETTE_K = 0.58                # props/mill_card, props/bakery_card: холст 360x130 -> ~210x75 в карточке
-PIC_Y = 114                      # пол «картинки» в карточке (от верха карточки)
+VIGNETTE_K = 0.66                # props/mill_card, props/bakery_card: холст 360x130 -> ~240x86 в карточке
+OVEN_FIRE = (0.31, 0.55)         # где огонь на картинке bakery_card (доля ширины/высоты) — там мерцает свет
+PIC_Y = 128                      # пол «картинки» в карточке (от верха карточки)
 
 
 def card_rect(n):
@@ -156,7 +157,7 @@ class MillUI:
             self.toast("Хлеб продан: +$" + fmt(amt), 2)
 
     # ------------------------------------------------------------ части карточки
-    def card_frame(self, r, title, active):
+    def card_frame(self, r, title, active, floor=True):
         """Карточка как стойло в сарае: шапка, подстилка под картинкой, подпись на плашке."""
         s = self.screen
         rounded(s, CARD_ON if active else CARD_OFF, r, 12, 3, skin=None)
@@ -164,7 +165,8 @@ class MillUI:
         pygame.draw.rect(s, HEAD, head, border_top_left_radius=12, border_top_right_radius=12)
         pygame.draw.rect(s, OUT, head, 3, border_top_left_radius=12, border_top_right_radius=12)
         draw_text(s, title, 17, head.center)
-        ellipse(s, (240, 210, 110), r.centerx, r.y + PIC_Y + 8, 210, 34, ow=0)
+        if floor:                 # подстилка, как в стойле (у своих сценок пол нарисован — без неё)
+            ellipse(s, (240, 210, 110), r.centerx, r.y + PIC_Y + 8, 210, 34, ow=0)
 
     def card_caption(self, r, caption, active):
         """Подпись на плашке — поверх картинки (как в сарае)."""
@@ -178,7 +180,7 @@ class MillUI:
 
     def card_shade(self, r):
         """Не построено — картинка под полупрозрачной пеленой."""
-        shade = hd.Surface((r.w - 20, 72), pygame.SRCALPHA)
+        shade = hd.Surface((r.w - 20, 96), pygame.SRCALPHA)
         shade.fill((205, 190, 170, 170))
         self.screen.blit(shade, (r.x + 10, r.y + 58))
 
@@ -229,7 +231,7 @@ class MillUI:
         """Своя картинка карточки (props/mill_card, props/bakery_card) — одна сценка вместо набора предметов.
         Пока здание работает, чуть «дышит». False — картинки нет."""
         k = 1.0 + (0.012 * math.sin(self.t_real * 3) if active else 0.0)
-        return blit_tf(self.screen, name, r.centerx, r.y + PIC_Y + 14, VIGNETTE_K, sx=k, sy=2 - k)
+        return blit_tf(self.screen, name, r.centerx, r.y + PIC_Y + 12, VIGNETTE_K, sx=k, sy=2 - k)
 
     def pic_mill(self, r, active):
         s, f = self.screen, self.farm
@@ -278,9 +280,16 @@ class MillUI:
     def pic_bakery(self, r, baking, loaves, active):
         s = self.screen
         ox, floor = r.centerx - 54, r.y + PIC_Y + 8
-        if self.vignette(r, "props/bakery_card", baking):
-            return
         warm = 1.0 if baking else (0.3 if active else 0.0)
+        if self.vignette(r, "props/bakery_card", baking):
+            if warm > 0:            # огонь в нарисованной печи мерцает
+                img = sprite("props/bakery_card")
+                w, h = img.get_width() * VIGNETTE_K, img.get_height() * VIGNETTE_K
+                fx = r.centerx - w / 2 + w * OVEN_FIRE[0]
+                fy = r.y + PIC_Y + 12 - h + h * OVEN_FIRE[1]
+                fl = 0.8 + 0.2 * math.sin(self.t_real * 9) * math.sin(self.t_real * 3.7)
+                blit_light(s, fx, fy, 70 * fl * warm + 20, (255, 190, 100), int(120 * warm))
+            return
         if warm > 0:
             fl = 0.85 + 0.15 * math.sin(self.t_real * 9) * math.sin(self.t_real * 3.7)
             blit_light(s, ox, floor - 18, 90 * warm * fl + 30, (255, 170, 90), int(110 * warm))
@@ -310,7 +319,7 @@ class MillUI:
         s, f = self.screen, self.farm
         r = card_rect(0)
         lvl = f.m_levels[0]
-        self.card_frame(r, "Мельница" + (f"  ур. {lvl}" if lvl else ""), lvl > 0)
+        self.card_frame(r, "Мельница" + (f"  ур. {lvl}" if lvl else ""), lvl > 0, not has_sprite("props/mill_card"))
         self.pic_mill(r, lvl > 0)
         self.card_caption(r, "Рожь, ячмень, полба  ->  мука x1.5", lvl > 0)
         if not lvl:
@@ -318,11 +327,11 @@ class MillUI:
             self.build_block(r, 0, f.mill_can_build(0), "Сначала посади: " + CROPS[GRAIN[0]]["name"])
             return
         cap = f.hopper_cap()
-        draw_bar(s, (r.x + 20, r.y + 140, r.w - 40, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
+        draw_bar(s, (r.x + 20, r.y + 154, r.w - 40, 12), f.hopper / cap if cap > 0 else 0, (230, 200, 110))
         sec = f.hopper_seconds()
         left = f"зерна на {int(sec // 60)}:{int(sec % 60):02d} помола" if sec != float("inf") else f"${fmt(f.hopper)} зерна"
-        draw_text(s, "Закрома: " + left, 12, (r.centerx, r.y + 163), BROWN, outline=None)
-        self.tip(pygame.Rect(r.x + 20, r.y + 134, r.w - 40, 38),
+        draw_text(s, "Закрома: " + left, 12, (r.centerx, r.y + 177), BROWN, outline=None)
+        self.tip(pygame.Rect(r.x + 20, r.y + 148, r.w - 40, 38),
                  f"В закромах ${fmt(f.hopper)} из ${fmt(cap)}. Мельники сами носят зерно с грядок")
         speed = f.mill_speed() * f.m_workers[0]
         if not f.m_workers[0]:
@@ -332,14 +341,14 @@ class MillUI:
         else:
             share = min(100, round(speed / max(1e-9, f.grain_rate()) * 100))
             msg, col = f"Мелет ${fmt(speed)}/с  ({share}% зерна)", OK_GREEN
-        draw_text_fit(s, msg, 13, (r.centerx, r.y + 183), r.w - 16, col, outline=None)
+        draw_text_fit(s, msg, 13, (r.centerx, r.y + 197), r.w - 16, col, outline=None)
         grain = sum(f.stash[i] for i in GRAIN)
-        draw_text_fit(s, f"Зерно на грядках: ${fmt(grain)}", 11, (r.centerx, r.y + 201), r.w - 16, SOFT, outline=None)
-        self.workers_row(r, 0, r.y + 216, "Мельники")
+        draw_text_fit(s, f"Зерно на грядках: ${fmt(grain)}", 11, (r.centerx, r.y + 215), r.w - 16, SOFT, outline=None)
+        self.workers_row(r, 0, r.y + 230, "Мельники")
         draw_text_fit(s, "Мельники сами носят зерно с грядок" if f.m_workers[0] else "Поставь мельников — зерно понесут сами",
-                      12, (r.centerx, r.y + 280), r.w - 20, SOFT if f.m_workers[0] else RED, outline=None)
-        self.zone((r.x + 8, r.y + 56, r.w - 16, 70), self.do_fill)   # клик по картинке — подсыпать вручную
-        self.upgrade_button(r, 0, r.y + 312)
+                      12, (r.centerx, r.y + 294), r.w - 20, SOFT if f.m_workers[0] else RED, outline=None)
+        self.zone((r.x + 8, r.y + 56, r.w - 16, 84), self.do_fill)   # клик по картинке — подсыпать вручную
+        self.upgrade_button(r, 0, r.y + 326)
 
     def card_flour(self):
         s, f = self.screen, self.farm
@@ -352,31 +361,31 @@ class MillUI:
             self.card_shade(r)
             draw_text_fit(s, "Сначала построй мельницу", 14, (r.centerx, r.y + 200), r.w - 20, RED, outline=None)
             return
-        draw_text_fit(s, "$" + fmt(f.flour), 26, (r.centerx, r.y + 158), r.w - 20, (255, 235, 120))
+        draw_text_fit(s, "$" + fmt(f.flour), 26, (r.centerx, r.y + 172), r.w - 20, (255, 235, 120))
         rate = self.mill_rate()
         draw_text_fit(s, f"мельница: +${fmt(rate)}/с" if rate > 0 and self.mill_working() else "мельница стоит", 12,
-                      (r.centerx, r.y + 183), r.w - 16, SOFT, outline=None)
+                      (r.centerx, r.y + 197), r.w - 16, SOFT, outline=None)
         use = f.bake_rate() if f.m_levels[1] and f.m_workers[1] else 0.0
         draw_text_fit(s, f"пекарня берёт: ${fmt(use)}/с" if use > 0 else "пекарня муку не берёт", 12,
-                      (r.centerx, r.y + 201), r.w - 16, SOFT, outline=None)
-        self.button((r.x + 14, r.y + 266, r.w - 28, 36), "Продать муку" + (f": ${fmt(f.flour)}" if f.flour > 0 else ""),
+                      (r.centerx, r.y + 215), r.w - 16, SOFT, outline=None)
+        self.button((r.x + 14, r.y + 280, r.w - 28, 36), "Продать муку" + (f": ${fmt(f.flour)}" if f.flour > 0 else ""),
                     self.do_sell_flour, ORANGE, f.flour > 0, 15)
         if f.flour > 0:
-            self.zone((r.x + 8, r.y + 56, r.w - 16, 70), self.do_sell_flour)
+            self.zone((r.x + 8, r.y + 56, r.w - 16, 84), self.do_sell_flour)
 
     def card_bakery(self):
         s, f = self.screen, self.farm
         r = card_rect(2)
         lvl = f.m_levels[1]
         baking = self.oven_working()
-        self.card_frame(r, "Пекарня" + (f"  ур. {lvl}" if lvl else ""), lvl > 0)
+        self.card_frame(r, "Пекарня" + (f"  ур. {lvl}" if lvl else ""), lvl > 0, not has_sprite("props/bakery_card"))
         self.pic_bakery(r, baking, bread_loaves(f.bread, self.bread_batch()) if lvl else 3, lvl > 0)
         self.card_caption(r, f"Мука  ->  хлеб x{BREAD_RATIO:g}, партиями по {BAKE_TIME:g} с", lvl > 0)
         if not lvl:
             self.card_shade(r)
             self.build_block(r, 1, f.mill_can_build(1), "Сначала построй мельницу")
             return
-        draw_bar(s, (r.x + 20, r.y + 140, r.w - 40, 12), f.oven_prog / BAKE_TIME if f.oven_load > 0 else 0, (240, 150, 70))
+        draw_bar(s, (r.x + 20, r.y + 154, r.w - 40, 12), f.oven_prog / BAKE_TIME if f.oven_load > 0 else 0, (240, 150, 70))
         if not f.m_workers[1]:
             msg, col = "Стоит: нет пекарей", RED
         elif f.oven_load > 0:
@@ -385,14 +394,14 @@ class MillUI:
             msg, col = f"Копит муку на партию: {min(99, int(f.flour / max(1e-9, f.bake_rate() * BAKE_TIME) * 100))}%", (150, 120, 60)
         else:
             msg, col = "Ждёт муку", RED
-        draw_text_fit(s, msg, 13, (r.centerx, r.y + 163), r.w - 16, col, outline=None)
-        draw_text_fit(s, f"Хлеб: ${fmt(f.bread)}", 18, (r.centerx, r.y + 188), r.w - 16, (150, 95, 40), outline=None)
-        self.workers_row(r, 1, r.y + 216, "Пекари")
-        self.button((r.x + 14, r.y + 266, r.w - 28, 36), "Продать хлеб" + (f": ${fmt(f.bread)}" if f.bread > 0 else ""),
+        draw_text_fit(s, msg, 13, (r.centerx, r.y + 177), r.w - 16, col, outline=None)
+        draw_text_fit(s, f"Хлеб: ${fmt(f.bread)}", 18, (r.centerx, r.y + 202), r.w - 16, (150, 95, 40), outline=None)
+        self.workers_row(r, 1, r.y + 230, "Пекари")
+        self.button((r.x + 14, r.y + 280, r.w - 28, 36), "Продать хлеб" + (f": ${fmt(f.bread)}" if f.bread > 0 else ""),
                     self.do_collect_bread, ORANGE, f.bread > 0, 15)
         if f.bread > 0:
-            self.zone((r.x + 8, r.y + 56, r.w - 16, 70), self.do_collect_bread)
-        self.upgrade_button(r, 1, r.y + 312)
+            self.zone((r.x + 8, r.y + 56, r.w - 16, 84), self.do_collect_bread)
+        self.upgrade_button(r, 1, r.y + 326)
 
     # ------------------------------------------------------------ весь экран
     def draw_mill_view(self):

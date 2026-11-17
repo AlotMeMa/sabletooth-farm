@@ -22,7 +22,7 @@ import pygame
 
 from .config import BASE_DIR, W, H
 
-CACHE_VERSION = "fit5"   # 3.4.2: тёмный контур у края больше не принимается за тень — картинки пересчитаются
+CACHE_VERSION = "fit6"   # 3.11.2: светлое (мука, дымка) у края на мадженте больше не розовеет — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
@@ -33,6 +33,8 @@ MIN_ALPHA = 16   # что прозрачнее — считается пусто
 CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
 CURSOR_HOVER_SIZE = 32   # курсор над кнопкой, px
 HOLE_TOL = 34    # «дырка» внутри рисунка — пиксели почти точно цвета фона
+SPILL_NEAR = 0.04   # 3.11.2: до такого расстояния от фона (доля стороны картинки) светлое отмывается от цвета фона
+SPILL_HUE = 22      # отмывается только то, что того же оттенка, что и фон (± градусов): смесь бесцветного с фоном
 HOLE_MAX_WHITE = 0.004   # на белом фоне убираем только просветы меньше 0.4% картинки
 HOLE_SLIM = 3.0          # ...и вытянутые просветы (длина ≥ 3 ширин, например между стеблями) — до 4 таких лимитов
 LINE_TOL = 100           # линии-рамки на фоне (нейросеть рисует стадии «по клеткам»): бледные, тонкие, через полкартинки
@@ -348,6 +350,8 @@ class Pix:
         for p in range(w * h):
             if is_bg[p]:
                 b[p * 4 + 3] = 0
+        if chroma:
+            self._despill(is_bg, bg)
         # край: 2 кольца пикселей вокруг фона. Похожие на фон делаем полупрозрачными
         # и «отмываем» их цвет от фона — так не остаётся розового/белого ореола вокруг контура.
         ring = is_bg
@@ -371,6 +375,61 @@ class Pix:
                     b[i + k] = max(0, min(255, int(c + (b[i + k] - c) / a)))
                 b[i + 3] = int(b[i + 3] * a)
             ring = nxt
+
+    def _despill(self, is_bg, bg):
+        """3.11.2: светлое полупрозрачное у края (мука, пыль, дымка), нарисованное нейросетью прямо на
+        мадженте, выходит розовым: в нём «просвечивает» фон. Такой пиксель — смесь бесцветного рисунка
+        (белое, серое, кремовое) с фоном: по тому, насколько сильные каналы фона (у мадженты — красный
+        и синий) выше слабого (зелёного), считаем долю фона, убираем её и делаем пиксель настолько же
+        прозрачнее. Только пиксели рядом с фоном и только оттенка самого фона (SPILL_HUE градусов):
+        поросёнок, румянец, редис, виноград и фиолетовые платья не трогаются."""
+        import colorsys
+        b, w, h = self.buf, self.w, self.h
+        top = max(bg)
+        strong = [k for k in range(3) if bg[k] > top * 0.6]
+        weak = [k for k in range(3) if k not in strong]
+        if not weak or not strong:
+            return 0
+        span = min(bg[k] for k in strong) - max(bg[k] for k in weak)
+        if span < 120:
+            return 0
+        bg_hue = colorsys.rgb_to_hsv(*(c / 255 for c in bg))[0] * 360
+        reach = max(3, int(max(w, h) * SPILL_NEAR))
+        near = bytearray(is_bg)
+        front = [p for p in range(w * h) if is_bg[p]]
+        for _ in range(reach):                 # расстояние до фона: слоями (не дальше reach)
+            nxt = []
+            for p in front:
+                x = p % w
+                for q in ((p - 1) if x > 0 else -1, (p + 1) if x < w - 1 else -1,
+                          p - w if p >= w else -1, p + w if p < (h - 1) * w else -1):
+                    if q >= 0 and not near[q]:
+                        near[q] = 2
+                        nxt.append(q)
+            front = nxt
+            if not front:
+                break
+        n = 0
+        for p in range(w * h):
+            if near[p] != 2:
+                continue
+            i = p * 4
+            px = (b[i], b[i + 1], b[i + 2])
+            spill = min(px[k] for k in strong) - max(px[k] for k in weak)
+            if spill <= 8:
+                continue
+            hue = colorsys.rgb_to_hsv(px[0] / 255, px[1] / 255, px[2] / 255)[0] * 360
+            if abs((hue - bg_hue + 180) % 360 - 180) > SPILL_HUE:
+                continue
+            a = max(0.0, 1.0 - spill / span)
+            if a < 0.04:
+                b[i + 3] = 0
+            else:
+                for k in range(3):
+                    b[i + k] = max(0, min(255, int(round((px[k] - (1 - a) * bg[k]) / a))))
+                b[i + 3] = int(b[i + 3] * a)
+            n += 1
+        return n
 
     def _remove_rule_lines(self, is_bg, dist):
         """Бледные прямые линии через всю картинку (рамки между стадиями, которые рисует нейросеть).

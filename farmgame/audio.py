@@ -32,7 +32,9 @@ def find_music(farm_id, scene=None):
     if not os.path.isdir(folder):
         return None
     files = {}
-    for fn in os.listdir(folder):
+    # 3.11.2: если лежат и summer.ogg, и summer.wav — берём .ogg (порядок AUDIO_EXTS), а не что вернёт папка
+    for fn in sorted(os.listdir(folder), key=lambda f: AUDIO_EXTS.index(os.path.splitext(f)[1].lower())
+                     if os.path.splitext(f)[1].lower() in AUDIO_EXTS else 99):
         stem, ext = os.path.splitext(fn)
         if ext.lower() in AUDIO_EXTS:
             files.setdefault(stem.lower(), os.path.join(folder, fn))

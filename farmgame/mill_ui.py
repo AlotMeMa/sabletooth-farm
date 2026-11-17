@@ -19,7 +19,7 @@ import pygame
 
 from .config import W, H, fmt, MILL_MAX_LVL, CROPS, GRAIN, BREAD_RATIO, BAKE_TIME, FLOUR_RATIO
 from .art import (OUT, WHITE, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded, draw_text,
-                  draw_text_fit, draw_bar, has_sprite, blit_sprite, blit_tf, blit_light, draw_peasant_head)
+                  draw_text_fit, draw_bar, has_sprite, sprite, blit_sprite, blit_tf, blit_light, draw_peasant_head)
 from .particles import soft_dot, draw_shadow
 from .tavern_ui import draw_person
 from . import hd
@@ -34,7 +34,7 @@ FLOOR = 548
 MILL_CARD = pygame.Rect(96, 556, 440, 78)
 BAKE_CARD = pygame.Rect(552, 556, 440, 78)
 HOPPER_X, HOPPER_TOP = 165, 352          # бункер на ножках: верх воронки, низ — на полу
-WHEEL = (338, 468)                        # ось колеса-жернова
+WHEEL = (338, 446)                        # ось колеса-жернова
 WHEEL_R = 62
 BED = pygame.Rect(218, 472, 240, 76)       # каменная чаша (передняя стенка закрывает низ колеса)
 SACKS_X = 500
@@ -42,6 +42,9 @@ OVEN_X = 688                              # середина печи
 OVEN_MOUTH = (688, 500)                   # устье печи (огонь)
 CHIMNEY = (740, 300)                      # откуда идёт дым (верх трубы)
 SHELF_X = 902
+HOPPER_K = 0.85                           # картинка бункера props/mill_hopper (холст 150x200) в сцене
+HOPPER_RIM = 0.19                         # передний край бункера на картинке (доля высоты сверху)
+HEAP_K = 0.72                             # горка зерна props/grain_heap — по ширине в бункер
 MILLER_PATH = (232, 438)                  # мельник ходит от бункера к мешкам
 BAKER_SPOTS = (792, 846)                  # у печи / у стеллажа
 SCENE_ZONES = {
@@ -238,10 +241,36 @@ class MillUI:
             self.toast("Хлеб продан: +$" + fmt(amt), 2)
 
     # ------------------------------------------------------------ сцена: мельница
+    def hopper_img(self):
+        """Картинка бункера в масштабе сцены (или None — тогда бункер рисуется кодом)."""
+        img = sprite("props/mill_hopper")
+        if img is None:
+            return None
+        key = (id(img), hd.scale())
+        if getattr(self, "_hopper_key", None) != key:
+            w, h = img.get_size()
+            self._hopper_scaled = pygame.transform.smoothscale(img, (int(w * HOPPER_K), int(h * HOPPER_K)))
+            self._hopper_key = key
+        return self._hopper_scaled
+
     def draw_hopper(self, s, fill, working):
-        """Бункер на ножках: горка зерна сверху (по закромам), из воронки сыплется зерно к колесу."""
+        """Бункер на ножках: горка зерна в нём (по закромам), из воронки сыплется зерно к колесу."""
         hx, top = HOPPER_X, HOPPER_TOP
         heap_k = 0.25 + 0.75 * max(0.0, min(1.0, fill))
+        img = self.hopper_img()
+        if img is not None:
+            # 3.11.2: картинка бункера. Горка лежит В бункере: рисуем бункер, горку, а потом ещё раз
+            # переднюю стенку бункера (от переднего края вниз) — она закрывает низ горки.
+            w, h = img.get_size()
+            x0, y0 = hx - w // 2, FLOOR - h
+            s.blit(img, (x0, y0))
+            rim = int(h * HOPPER_RIM)
+            if fill > 0.001:
+                if not blit_tf(s, "props/grain_heap", hx, y0 + rim + 6, HEAP_K, sy=heap_k):
+                    hgt = 40 * heap_k
+                    poly(s, (226, 184, 90), [(hx - 48, y0 + rim + 6), (hx, y0 + rim + 2 - hgt), (hx + 48, y0 + rim + 6)], 2)
+                s.blit(img, (x0, y0 + rim), (0, rim, w, h - rim))
+            return
         if fill > 0.001:             # горка — ЗА стенкой бункера, торчит над ним тем выше, чем полнее закрома
             if not blit_tf(s, "props/grain_heap", hx, top + 34, 0.85, sy=heap_k):
                 h = 46 * heap_k
@@ -259,8 +288,6 @@ class MillUI:
                 gx = x0 + (WHEEL[0] - 40 - x0) * u
                 gy = y0 + 30 * u + 26 * u * u
                 pygame.draw.circle(s, (232, 190, 95), (P(gx), P(gy)), 2)
-        if blit_sprite(s, "props/mill_hopper", hx, FLOOR, 0.85, "midbottom"):
-            return
         wood, dark = (176, 122, 72), (140, 92, 52)
         for lx in (-44, 44):        # ножки
             rounded(s, dark, (hx + lx - 5, top + 110, 10, FLOOR - top - 110), 3, 2)
@@ -272,6 +299,11 @@ class MillUI:
             half = 64 - (64 - 30) * (y - top - 30) / 82
             pygame.draw.line(s, dark, (P(hx - half + 3), P(y)), (P(hx + half - 3), P(y)), 2)
         poly(s, dark, [(hx + 14, top + 108), (hx + 34, top + 108), (hx + 40, top + 130), (hx + 22, top + 132)], 2)
+
+    def hopper_bar_y(self):
+        """Полоска закромов — на стенке бункера."""
+        img = self.hopper_img()
+        return FLOOR - img.get_height() + int(img.get_height() * 0.36) if img is not None else HOPPER_TOP + 60
 
     def draw_wheel(self, s, working):
         """Колесо-жернов на ребре, вращается вокруг оси (рисуется ДО чаши — чаша закрывает его низ)."""
@@ -585,7 +617,7 @@ class MillUI:
             mill(s)
             self.draw_miller(s, f.m_workers[0], working)
             # закрома: полоска на бункере и табличка «засыпать»
-            draw_bar(s, (HOPPER_X - 46, HOPPER_TOP + 60, 92, 11), fill, (230, 200, 110))
+            draw_bar(s, (HOPPER_X - 46, self.hopper_bar_y(), 92, 11), fill, (230, 200, 110))
             self.zone_btn(SCENE_ZONES["hopper"], self.do_fill, 10)
             self.tip(SCENE_ZONES["hopper"], f"Закрома: ${fmt(f.hopper)} из ${fmt(cap)}. Нажми — засыпать зерно с грядок")
             grain = sum(f.stash[i] for i in GRAIN)

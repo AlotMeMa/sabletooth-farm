@@ -79,7 +79,7 @@ jobs:
         if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/mobile'
         working-directory: build/web_src/build/web
         run: |
-          rm -f *.tar.gz
+          rm -f *.apk                       # pygbag 0.9 грузит .tar.gz, .apk — лишняя копия
           touch .nojekyll
           git init -q -b gh-pages
           git add -A

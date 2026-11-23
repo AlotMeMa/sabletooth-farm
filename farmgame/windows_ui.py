@@ -4,6 +4,7 @@
 Примесь к App (3.15: вынесено из app.py без изменений). Общие импорты и константы — ui_common.
 """
 from .ui_common import *  # noqa: F401,F403
+from . import device
 
 
 class WindowsUI:
@@ -325,15 +326,18 @@ class WindowsUI:
                 draw_text(s, "нет файла в assets/music/", 12, (x + w, y + 20), soft, anchor="midright", outline=None)
             self.volume_slider("Музыка", m.volume, "music", x, y + 20, w)
             self.volume_slider("Звуки", self.sfx.volume, "sfx", x, y + 82, w)
-            self.button((x, y + 138, w, 46), ("Включить звук" if m.muted else "Выключить звук") + "   (M)",
+            self.button((x, y + 138, w, 46), ("Включить звук" if m.muted else "Выключить звук") + ("" if self.touch else "   (M)"),
                         self.toggle_music, BTN_GREEN if m.muted else (230, 110, 100), m.ok, 18)
         elif tab == "screen":
             half = (w - 10) // 2
-            self.button((x, y, half, 46), f"{'Во весь экран' if self.fullscreen else 'В окне'}  (F11)",
-                        self.toggle_fullscreen, (150, 120, 220), True, 17)
-            self.button((x + w - half, y, half, 46), "Края: " + ("размытый фон" if self.edge_fill else "полосы"),
-                        lambda: self.set_edge_fill(not self.edge_fill), (150, 120, 220), True, 15)
-            self.tip(pygame.Rect(x + w - half, y, half, 46), "Полный экран: по бокам размытое продолжение картинки или чёрные полосы")
+            if device.HANDHELD:          # 3.17: на телефоне всегда во весь экран, с размытыми краями
+                draw_text(s, "Игра во весь экран, по краям — размытый фон", 15, (r.centerx, y + 23), soft, outline=None)
+            else:
+                self.button((x, y, half, 46), f"{'Во весь экран' if self.fullscreen else 'В окне'}  (F11)",
+                            self.toggle_fullscreen, (150, 120, 220), True, 17)
+                self.button((x + w - half, y, half, 46), "Края: " + ("размытый фон" if self.edge_fill else "полосы"),
+                            lambda: self.set_edge_fill(not self.edge_fill), (150, 120, 220), True, 15)
+                self.tip(pygame.Rect(x + w - half, y, half, 46), "Полный экран: по бокам размытое продолжение картинки или чёрные полосы")
             active = "auto" if self.hd_k != 1 else "off"
             label = "Чёткость: HD" if self.hd_mode == "auto" else "Чёткость: обычная"
             self.button((x, y + 56, w, 46), label + ("*" if self.hd_mode != active else ""), self.toggle_hd,
@@ -357,15 +361,18 @@ class WindowsUI:
             self.button((x, y + 56, w, 46), "Подсказки у кнопок: " + ("включены" if self.show_tips else "выключены"),
                         lambda: self.set_option("show_tips", not self.show_tips),
                         BTN_GREEN if self.show_tips else BTN_GREY, True, 18)
-            draw_text(s, "подсказка появится, если задержать курсор на кнопке", 13, (r.centerx, y + 116), soft,
+            draw_text(s, "подсказка появится, если задержать " + ("палец" if self.touch else "курсор") + " на кнопке", 13, (r.centerx, y + 116), soft,
                       outline=None)
             self.button((x, y + 196, w, 46), "Обучение заново (бармен)", self.tut_restart, (150, 120, 220), True, 17)
             half = (w - 12) // 2
             self.button((x, y + 140, half, 46), "Сохранить", lambda: (self.save(), self.toast("Сохранено!")), BTN_BLUE)
             label = "Точно? Ещё раз!" if self.confirm_reset else "Сбросить всё"
             self.button((x + w - half, y + 140, half, 46), label, self.reset_everything, (230, 90, 80), True, 17)
-        self.button((r.centerx - 165, r.bottom - 72, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
-        self.button((r.centerx + 15, r.bottom - 72, 180, 46), "Выйти из игры", self.quit_game, (150, 110, 100), True, 17)
+        if device.WEB:                   # 3.17: из страницы браузера не «выходят» — просто закрывают вкладку
+            self.button((r.centerx - 80, r.bottom - 72, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
+        else:
+            self.button((r.centerx - 165, r.bottom - 72, 160, 46), "Закрыть", self.close_modal, BTN_GREEN)
+            self.button((r.centerx + 15, r.bottom - 72, 180, 46), "Выйти из игры", self.quit_game, (150, 110, 100), True, 17)
         draw_text(s, f"версия {GAME_VERSION}", 12, (r.x + 26, r.y + 56), soft, anchor="midleft", outline=None)
 
     def set_option(self, name, value):

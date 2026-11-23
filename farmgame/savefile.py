@@ -5,6 +5,9 @@
     farm_save.bak.json                — запасная копия (заведомо читаемая, не старше нескольких минут игры);
     farm_save.broken_<дата>.json      — повреждённый файл, если он не прочитался (его не затирают — можно спасти руками).
 Имена farm_save*.json в .gitignore — сохранения не попадают в git.
+
+3.17, веб-версия: файлы в браузере живут только в памяти страницы, поэтому каждая удачная запись копируется
+ещё и в хранилище браузера (STORE = device.web_store()), а при запуске restore() возвращает файлы оттуда.
 """
 import json
 import os
@@ -14,6 +17,40 @@ import time
 BAK_EVERY = 300.0      # запасную копию обновляем не чаще раза в 5 минут
 KEEP_BROKEN = 5        # сколько отложенных повреждённых файлов хранить
 _last_bak = {}         # путь -> когда последний раз делали запасную копию
+STORE = None           # 3.17: хранилище браузера (get(ключ) / set(ключ, текст)) — только в веб-версии
+
+
+def _mirror(path, text=None):
+    """Веб-версия: копия файла в хранилище браузера (ключ — имя файла)."""
+    if STORE is None:
+        return
+    try:
+        if text is None:
+            with open(path, encoding="utf-8") as f:
+                text = f.read()
+        STORE.set(os.path.basename(path), text)
+    except OSError as e:
+        print("Не удалось скопировать сохранение в браузер:", e)
+
+
+def restore(path):
+    """Веб-версия, при запуске: вернуть сохранение и запасную копию из хранилища браузера в файлы."""
+    if STORE is None:
+        return
+    for p in (path, bak_path(path)):
+        if os.path.exists(p):
+            continue
+        text = STORE.get(os.path.basename(p))
+        if not text:
+            continue
+        try:
+            folder = os.path.dirname(p)
+            if folder:
+                os.makedirs(folder, exist_ok=True)
+            with open(p, "w", encoding="utf-8") as f:
+                f.write(text)
+        except OSError as e:
+            print("Не удалось восстановить сохранение из браузера:", e)
 
 
 def bak_path(path):
@@ -70,7 +107,9 @@ def write(path, data, now=None):
         if now - _last_bak.get(path, 0.0) >= BAK_EVERY and load_json(path) is not None:
             shutil.copy2(path, bak_path(path))
             _last_bak[path] = now
+            _mirror(bak_path(path))
         os.replace(tmp, path)
+        _mirror(path, text)
         return True
     except (OSError, TypeError, ValueError) as e:
         print("Не удалось сохранить:", e)

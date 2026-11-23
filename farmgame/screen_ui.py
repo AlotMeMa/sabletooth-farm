@@ -4,6 +4,7 @@
 Примесь к App (3.15: вынесено из app.py без изменений). Общие импорты и константы — ui_common.
 """
 from .ui_common import *  # noqa: F401,F403
+from . import device
 
 
 class ScreenUI:
@@ -16,12 +17,19 @@ class ScreenUI:
             k = forced
         elif (forced or self.hd_mode) == "off":
             k = 1.0
+        elif device.HANDHELD:
+            k = self.preview_scale() if device.PHONE_PREVIEW else device.HANDHELD_K
         else:
             k = hd.choose_scale(W, H)
         hd.install(k)
         spritefit.FIT_SCALE[0] = k
         self.hd_k = k
         self.canvas = (int(round(W * k)), int(round(H * k)))
+        if device.HANDHELD:
+            self.enter_handheld()
+            print(f"Телефон: экран {self.wide['size'][0]}×{self.wide['size'][1]}, картинка игры "
+                  f"{self.canvas[0]}×{self.canvas[1]} (чёткость x{self.hd_k:g})")
+            return
         try:
             real = pygame.display.set_mode(self.canvas, pygame.SCALED | pygame.RESIZABLE)
         except pygame.error as e:              # не дали окно такого размера — обычная чёткость
@@ -32,6 +40,55 @@ class ScreenUI:
             real = pygame.display.set_mode((W, H), pygame.SCALED | pygame.RESIZABLE)
         self.screen = hd.HiSurf(real, self.hd_k, (W, H)) if self.hd_k != 1 else real
         print(f"Картинка {self.canvas[0]}×{self.canvas[1]} (чёткость x{self.hd_k:g})")
+
+    # ---------- 3.17: телефон ----------
+    @staticmethod
+    def preview_scale():
+        """Примерка телефона на компьютере: окно в пропорциях телефона должно влезть на экран."""
+        aw, ah = device.PREVIEW_SCREEN
+        area = hd.work_area() or (1280, 720)
+        k = min(area[0] / (H * aw / ah), area[1] / H, device.HANDHELD_K)
+        return max(0.5, int(k * 100) / 100.0)
+
+    def handheld_screen(self):
+        """Размер экрана телефона (в браузере — страницы), лёжа: (ширина, высота). Заодно замечает, что держат стоя."""
+        if device.WEB:
+            vp = device.viewport()
+            if vp is None:
+                return self.hh_screen or (1950, 900)
+            w, h = vp
+            self.portrait = h > w * 1.05
+            return (max(w, h), min(w, h))
+        if device.PHONE_PREVIEW:
+            return device.PREVIEW_SCREEN
+        try:
+            w, h = pygame.display.get_desktop_sizes()[0]
+            if w > 0 and h > 0:
+                return (max(w, h), min(w, h))
+        except Exception:
+            pass
+        return (2400, 1080)
+
+    def enter_handheld(self):
+        """Телефон: экран целиком в его пропорциях, игра посередине, по бокам — размытое продолжение (как в 3.10)."""
+        scr = self.handheld_screen()
+        geo = screenfit.wide_geometry(self.canvas, scr)
+        (ww, wh), (ox, oy) = geo if geo else (self.canvas, (0, 0))
+        if device.WEB:
+            flags = 0                                   # размер на странице подгоняет браузер
+        elif device.PHONE_PREVIEW:
+            flags = pygame.SCALED | pygame.RESIZABLE
+        else:
+            flags = pygame.SCALED | pygame.FULLSCREEN
+        display = pygame.display.set_mode((ww, wh), flags)
+        frame = pygame.Surface(self.canvas).convert()
+        self.wide = dict(display=display, frame=frame, offset=(ox, oy), size=(ww, wh), edges=None, t=-1.0,
+                         win=None, check=self.t_real)
+        self.set_canvas(frame)
+        hd.set_offset(ox, oy)
+        self.shade_fade = None
+        self.fullscreen = True
+        self.hh_screen = scr
 
     def toggle_hd(self):
         """Чёткость меняется со следующего запуска: все картинки подгоняются под новый размер."""
@@ -49,6 +106,8 @@ class ScreenUI:
         Кончик стрелки = левый верхний угол картинки. Нет файла — обычный курсор Windows."""
         self.cursors = {}
         self.cursor_state = None
+        if device.HANDHELD and not device.PHONE_PREVIEW:     # 3.17: на телефоне курсора нет
+            return
         for name in ("cursor", "cursor_hover"):
             img = sprite(f"ui/{name}")
             if img is None:
@@ -68,8 +127,8 @@ class ScreenUI:
         if not self.cursors:
             return
         want = "cursor"
-        if "cursor_hover" in self.cursors:
-            pos = pygame.mouse.get_pos()
+        if "cursor_hover" in self.cursors and not self.touch:
+            pos = self.mouse
             if any(rect.collidepoint(pos) for rect, _cb, _b in self.zones):
                 want = "cursor_hover"
         if want not in self.cursors:
@@ -87,6 +146,8 @@ class ScreenUI:
             self.cursors = {}
 
     def toggle_fullscreen(self):
+        if device.HANDHELD:              # 3.17: на телефоне игра всегда во весь экран
+            return
         try:
             if self.fullscreen and self.wide:
                 self.leave_wide()
@@ -204,6 +265,9 @@ class ScreenUI:
         (ww, wh), (ox, oy) = wd["size"], wd["offset"]
         cw, ch = frame.get_size()
         edges = []
+        if ox <= 0 and oy <= 0:          # 3.17: пропорции экрана совпали с игрой — полей нет
+            wd["edges"] = edges
+            return
         if ox > 0:     # полосы берутся вдвое шире поля и сжимаются: мелкие детали (плашки, кнопки) растворяются
             sw = min(cw // 3, ox * 2)
             parts = (((0, 0, sw, ch), (0, oy)), ((cw - sw, 0, sw, ch), (ox + cw, oy)))

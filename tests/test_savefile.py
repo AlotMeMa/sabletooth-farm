@@ -108,5 +108,29 @@ class SaveFile(unittest.TestCase):
         self.assertEqual(json.dumps(g.to_dict()), json.dumps(f.to_dict()))
 
 
+    def test_web_store_mirror_and_restore(self):
+        """3.17, веб-версия: сохранение копируется в хранилище браузера и возвращается из него после перезагрузки."""
+        class Store(dict):
+            def get(self, k):
+                return dict.get(self, k)
+
+            def set(self, k, v):
+                self[k] = v
+        store = Store()
+        savefile.STORE = store
+        try:
+            savefile.write(self.path, {"n": 1}, now=1000)
+            savefile.write(self.path, {"n": 2}, now=1000 + savefile.BAK_EVERY)
+            self.assertEqual(json.loads(store["farm_save.json"]), {"n": 2})
+            self.assertEqual(json.loads(store["farm_save.bak.json"]), {"n": 1})
+            for fn in self.files():                      # страницу перезагрузили — файлов в памяти больше нет
+                os.remove(os.path.join(self.dir, fn))
+            savefile.restore(self.path)
+            self.assertEqual(savefile.read(self.path), ({"n": 2}, None, None))
+            self.assertEqual(savefile.load_json(savefile.bak_path(self.path)), {"n": 1})
+        finally:
+            savefile.STORE = None
+
+
 if __name__ == "__main__":
     unittest.main()

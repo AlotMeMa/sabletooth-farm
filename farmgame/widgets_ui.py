@@ -146,7 +146,7 @@ class WidgetsUI:
         key = tuple(hovered[0]) if hovered else None
         if key != self.hover_key:
             self.hover_key = key
-            if key is not None:
+            if key is not None and not self.touch:      # 3.17: пальцем «наведения» нет — и звука тоже
                 self.sfx.play("hover")
         if hovered and hovered[1][0] == "ring":
             draw_hover_ring(self.screen, hovered[0], hovered[1][1])
@@ -170,7 +170,7 @@ class WidgetsUI:
         img = render_text(tip[1], 14, WHITE, None)
         box = img.get_rect().inflate(20, 12)
         mx, my = self.mouse
-        box.midbottom = (mx, my - 14)
+        box.midbottom = (mx, my - (48 if self.touch else 14))     # 3.17: над пальцем, а не под ним
         if box.y < 4:                                   # у верхнего края — под курсором
             box.midtop = (mx, my + 26)
         box.x = max(6, min(W - 6 - box.w, box.x))

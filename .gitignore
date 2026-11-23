@@ -12,3 +12,7 @@ assets/**/*.wav
 # шаблоны спрайтов — выгружаются командой python farm_idle.py --export-templates
 assets_templates/
 devtools/shots/
+
+# 3.17: телефонные сборки (собираются в GitHub Actions)
+build/
+baked/

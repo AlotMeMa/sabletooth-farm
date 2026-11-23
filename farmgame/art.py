@@ -74,6 +74,9 @@ def is_template_copy(name, path):
 def _load_sprite(name):
     """Свой файл; иначе — стадия из полоски crops/<ферма>/<культура>.png или иконка из icons/sheet.png.
     name@2x — та же картинка вдвое крупнее (spritefit.HI): для крупных иконок."""
+    baked = spritefit.baked_sprite(name)       # 3.17: телефонная сборка — готовые картинки из baked/
+    if baked is not spritefit.NOT_BAKED:
+        return baked
     if name.endswith(spritefit.HI):
         base = name[:-len(spritefit.HI)]
         path = find_asset_file(base)

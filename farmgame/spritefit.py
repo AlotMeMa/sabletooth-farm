@@ -20,10 +20,10 @@ import re
 
 import pygame
 
-from .config import BASE_DIR, W, H, PRIZES
+from .config import DATA_DIR, W, H, PRIZES
 
 CACHE_VERSION = "fit7"   # 3.11.2: светлое (мука, дымка) у края на мадженте больше не розовеет — картинки пересчитаются
-CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
+CACHE_DIR = os.path.join(DATA_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
                                        # (по «слабому» каналу фона — строже)
@@ -675,6 +675,63 @@ def _fit_piece(piece, spec):
         k = min(cw / w, ch / h)
         return pygame.transform.smoothscale(piece, (max(1, int(round(w * k))), max(1, int(round(h * k)))))
     return _place(piece, spec)
+
+
+# ----------------------------------------------------------------------
+#        3.17: «запечённые» картинки телефонной сборки (devtools/bake_sprites.py)
+# ----------------------------------------------------------------------
+# В APK и веб-версию кладутся не исходники из assets/ (большие, и подгонять их на телефоне долго), а уже
+# подогнанные картинки: папка baked/ рядом с farm_idle.py, в ней manifest.json {"k", "sprites": {имя: файл | null}}.
+BAKED_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "baked")
+BAKED = {"k": None, "sprites": {}}
+NOT_BAKED = object()
+
+
+def load_baked_manifest(folder=None):
+    folder = folder or BAKED_DIR
+    path = os.path.join(folder, "manifest.json")
+    if not os.path.isfile(path):
+        return False
+    try:
+        import json
+        with open(path, encoding="utf-8") as f:
+            data = json.load(f)
+        BAKED["k"] = float(data["k"])
+        BAKED["sprites"] = dict(data["sprites"])
+        BAKED["dir"] = folder
+        return True
+    except Exception as e:
+        print("baked/manifest.json не прочитался:", e)
+        return False
+
+
+def baked_sprite(name):
+    """Готовая картинка из baked/ (уже под нужную чёткость), None — картинки нет и не будет,
+    NOT_BAKED — про это имя baked/ ничего не знает (грузим как обычно)."""
+    table = BAKED["sprites"]
+    if name not in table:
+        return NOT_BAKED
+    fn = table[name]
+    if fn is None:
+        return None
+    path = os.path.join(BAKED["dir"], fn)
+    if fn.endswith(".jpg"):                              # фон без прозрачности
+        img = pygame.image.load(path)
+        try:
+            img = img.convert()
+        except pygame.error:
+            pass
+    else:
+        img = _load(path)
+    k_now, k_baked = FIT_SCALE[0], BAKED["k"]
+    if k_baked and abs(k_now - k_baked) > 1e-3:          # «Чёткость: обычная» на телефоне — уменьшаем
+        w, h = img.get_size()
+        img = pygame.transform.smoothscale(img, (max(1, int(round(w * k_now / k_baked))),
+                                                 max(1, int(round(h * k_now / k_baked)))))
+    return img
+
+
+load_baked_manifest()
 
 
 # ----------------------------------------------------------------------

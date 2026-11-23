@@ -4,14 +4,17 @@ import math
 import os
 import sys
 
+from . import device
+
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.16.7"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.17"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
 ASSET_DIR = os.path.join(BASE_DIR, "assets")
-SAVE_FILE = os.path.join(BASE_DIR,
+DATA_DIR = device.data_dir(BASE_DIR)     # 3.17: сохранения, кэш картинок, crash.log (на Android — личная папка приложения)
+SAVE_FILE = os.path.join(DATA_DIR,
                          "farm_save_dev.json" if DEV else "farm_save.json")
 
 # ======================================================================

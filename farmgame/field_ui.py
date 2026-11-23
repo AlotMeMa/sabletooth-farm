@@ -188,7 +188,12 @@ class FieldUI:
                 return
             price = f.cost(k, 1)
             ok = f.money >= price
-            rounded(s, (200, 150, 100), (P(cx - 56), P(cy - 34), 112, 56), 8, 3)
+            plank = pygame.Rect(P(cx - 56), P(cy - 34), 112, 56)
+            img = skin.stretched("sign", plank.w, plank.h)       # 3.16: своя табличка ui/sign
+            if img is not None:
+                s.blit(img, plank.topleft)
+            else:
+                rounded(s, (200, 150, 100), plank, 8, 3)
             draw_text_fit(s, CROPS[k]["name"], 14, (cx, cy - 22), 104)
             b = pygame.Rect(P(cx - 48), P(cy - 10), 96, 24)
             rounded(s, BTN_GREEN if ok else BTN_GREY, b, 8, 2)
@@ -245,7 +250,11 @@ class FieldUI:
         board = pygame.Rect(P(cx - 44), P(cy - 55), 88, 68)
         pygame.draw.line(s, OUT, (P(cx), board.bottom), (P(cx), P(cy + 18)), 6)
         pygame.draw.line(s, (170, 120, 80), (P(cx), board.bottom), (P(cx), P(cy + 18)), 3)
-        rounded(s, (235, 220, 205), board, 6, 3)
+        img = skin.stretched("sign", board.w, board.h)            # 3.16: своя табличка ui/sign
+        if img is not None:
+            s.blit(img, board.topleft)
+        else:
+            rounded(s, (235, 220, 205), board, 6, 3)
         draw_text_fit(s, CROPS[k]["name"], 12, (cx, board.y + 9), board.w - 8)
         bar = pygame.Rect(board.x + 5, board.y + 18, board.w - 10, 16)
         nm = next_milestone(lvl)
@@ -292,9 +301,13 @@ class FieldUI:
             return
         draw_cloud_body(s, x, y, raining)
         if raining:
+            drop = has_sprite("fx/raindrop")                     # 3.16: своя капля fx/raindrop
             for k in range(6):
                 dy = (self.t * 120 + k * 17) % 50
-                pygame.draw.line(s, (90, 160, 230), (x - 40 + k * 15, P(y + 34 + dy)), (x - 42 + k * 15, P(y + 42 + dy)), 3)
+                if drop:
+                    blit_sprite(s, "fx/raindrop", x - 41 + k * 15, P(y + 38 + dy), 0.5, "center")
+                else:
+                    pygame.draw.line(s, (90, 160, 230), (x - 40 + k * 15, P(y + 34 + dy)), (x - 42 + k * 15, P(y + 42 + dy)), 3)
             draw_text(s, f"{self.farm_info()['weather']} x{f.growth_speed():g}  " + fmt_time(f.rain_left), 16, (x, y - 58), (180, 225, 255))
         elif f.rain_cd > 0:
             draw_text(s, fmt_time(f.rain_cd), 18, (x, y - 58))

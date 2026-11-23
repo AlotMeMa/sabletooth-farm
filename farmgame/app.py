@@ -635,8 +635,12 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
                                         (sx - ww, y - tilt + 3)], 0)
             else:
                 s.blit(self.rain_tint, (0, 0))
+                drop = has_sprite("fx/raindrop")              # 3.16: своя капля fx/raindrop
                 for x, y, _ in self.drops:
-                    pygame.draw.line(s, (100, 170, 235), (P(x), P(y)), (P(x - 2), P(y + 11)), 2)
+                    if drop:
+                        blit_sprite(s, "fx/raindrop", x - 1, y + 6, 0.55, "center")
+                    else:
+                        pygame.draw.line(s, (100, 170, 235), (P(x), P(y)), (P(x - 2), P(y + 11)), 2)
         for k in DRAW_ORDER:
             if self.mode == "upgrade":
                 self.draw_upgrade_sign(k)

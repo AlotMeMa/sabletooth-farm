@@ -514,10 +514,12 @@ def draw_side_bubble(s, x, y, text, hint=None, size=14, maxw=230):
     h = len(imgs) * (size + 4) + 16 + (16 if himg else 0)
     bx = min(W - w - 8, x + 12)
     by = max(70, min(y - h // 2, H - h - 8))
-    rounded(s, WHITE, (bx, by, w, h), 12, 2, skin=None)
     ty = max(by + 12, min(y, by + h - 12))
-    poly(s, WHITE, [(bx + 2, ty - 8), (bx + 2, ty + 8), (x, ty)], 2)
-    pygame.draw.polygon(s, WHITE, [(bx + 3, ty - 6), (bx + 3, ty + 6), (x + 3, ty)])
+    from .tavern_ui import draw_bubble_skin
+    if not draw_bubble_skin(s, (bx, by, w, h), (x, ty), "left"):   # 3.16: облачко-картинка ui/bubble
+        rounded(s, WHITE, (bx, by, w, h), 12, 2, skin=None)
+        poly(s, WHITE, [(bx + 2, ty - 8), (bx + 2, ty + 8), (x, ty)], 2)
+        pygame.draw.polygon(s, WHITE, [(bx + 3, ty - 6), (bx + 3, ty + 6), (x + 3, ty)])
     for n, img in enumerate(imgs):
         s.blit(img, img.get_rect(midleft=(bx + 12, by + 8 + (size + 4) * n + (size + 4) // 2)))
     if himg:

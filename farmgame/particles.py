@@ -60,6 +60,34 @@ def draw_shadow(surf, x, y, w, h, alpha=70):
     surf.blit(img, (int(round(x - img.get_width() / 2)), int(round(y - img.get_height() / 2))))
 
 
+def fx_image(name, color=None):
+    """3.16: картинка частицы assets/fx/<name> (лист fx/sheet), перекрашенная умножением в color.
+    Светлые частицы (пыль, искра) рисуй белыми — так их можно красить. None — картинки нет."""
+    from .art import sprite
+    img = sprite("fx/" + name)
+    if img is None or color is None:
+        return img
+    key = ("fx", name, tuple(color[:3]), id(img))
+    out = _soft.get(key)
+    if out is None:
+        out = img.copy()
+        hd.real(out).fill(tuple(color[:3]) + (255,), special_flags=pygame.BLEND_RGBA_MULT)
+        _soft[key] = out
+    return out
+
+
+def _blit_fx(surf, img, x, y, size, alpha=255, angle=0.0):
+    """Картинка частицы по центру (x, y), шириной size логических px, прозрачность alpha, поворот angle."""
+    w = img.get_width()
+    k = max(0.05, size / max(1, w))
+    out = pygame.transform.smoothscale(img, (max(1, int(round(w * k))), max(1, int(round(img.get_height() * k)))))
+    if abs(angle) > 0.5:
+        out = pygame.transform.rotate(out, angle)
+    if alpha < 255:
+        hd.real(out).set_alpha(max(0, int(alpha)))
+    surf.blit(out, (int(round(x - out.get_width() / 2)), int(round(y - out.get_height() / 2))))
+
+
 class Particles:
     def __init__(self):
         self.items = []
@@ -208,6 +236,10 @@ class Particles:
             elif p["kind"] == "puff":
                 k = p["t"] / p["life"]
                 r = p["r0"] + (p["r1"] - p["r0"]) * anim.ease_out_cubic(k)
+                pic = fx_image("puff", p["color"])
+                if pic is not None:
+                    _blit_fx(surf, pic, p["x"], p["y"], r * 2.6, p["alpha"] * (1 - k))
+                    continue
                 img = soft_dot(r, p["color"], p["alpha"] * (1 - k))
                 surf.blit(img, (int(round(p["x"] - img.get_width() / 2)), int(round(p["y"] - img.get_height() / 2))))
             elif p["kind"] == "feather":
@@ -220,6 +252,11 @@ class Particles:
             elif p["kind"] == "twinkle":
                 k = p["t"] / p["life"]
                 r = p["r"] * math.sin(math.pi * k)
+                pic = fx_image("star")
+                if pic is not None:
+                    if r >= 0.5:
+                        _blit_fx(surf, pic, p["x"], p["y"], r * 4.2, 255, k * 60)
+                    continue
                 if r >= 1:
                     x, y, c = p["x"], p["y"], p["color"]
                     pts = [(x, y - r * 1.7), (x + r * 0.4, y - r * 0.4), (x + r * 1.7, y), (x + r * 0.4, y + r * 0.4),
@@ -227,6 +264,10 @@ class Particles:
                     pygame.draw.polygon(surf, c, [(int(round(a)), int(round(b))) for a, b in pts])
             else:
                 k = p["t"] / p["life"]
+                pic = fx_image("spark", p["color"]) if p["r"] >= 1.8 else None   # брызги дождя — точками
+                if pic is not None:
+                    _blit_fx(surf, pic, p["x"], p["y"], p["r"] * (1 - k * 0.6) * 3.4, 255 * min(1.0, 2.5 * (1 - k)))
+                    continue
                 r = max(1, int(round(p["r"] * (1 - k * 0.6))))
                 c = p["color"]
                 pygame.draw.circle(surf, c, (int(round(p["x"])), int(round(p["y"]))), r)
@@ -241,6 +282,10 @@ class Particles:
         ang = math.radians(90 + sway * 50 + p["t"] * 40)
         ln = p["ln"] * (1.0 if k < 0.8 else max(0.0, 1 - (k - 0.8) / 0.2))
         if ln < 2:
+            return
+        pic = fx_image("feather")                        # 3.16: своё перо fx/feather (лежит по диагонали)
+        if pic is not None:
+            _blit_fx(surf, pic, x, y, ln * 1.3, 255, -math.degrees(ang) - 45)
             return
         dx, dy = math.cos(ang), math.sin(ang)
         nx, ny = -dy, dx

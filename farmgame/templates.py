@@ -13,6 +13,7 @@ import pygame
 from . import config as cfg
 from .config import FARMS, ANIMALS, TRUCK_TIERS, W, H
 from . import art
+from . import spritefit
 from . import hd
 from . import tavern_ui as tu
 
@@ -234,6 +235,23 @@ def spec_list():
     from .config import PRIZES
     for p in PRIZES:
         add(f"icons/prize_{p['id']}", (40, 40), "центр", f"приз казино: {p['name']}", 1, lambda s: None)
+    # 3.16: доска заданий, табличка на поле, облачко, стрелка обучения, частицы и лампочки гирлянды
+    for d in (1, 2, 3):
+        add(f"ui/quest_note_{d}", (245, 167), "растягивается", f"записка дня на доске, сложность {d}", 1, lambda s: None)
+    add("ui/quest_weekly", (244, 366), "растягивается", "свиток задания недели с валиками сверху и снизу", 1, lambda s: None)
+    add("ui/pin", (28, 28), "центр", "булавка записки", 1, lambda s: None)
+    add("ui/wax_seal", (44, 44), "центр", "сургучная печать свитка недели", 1, lambda s: None)
+    add("ui/sign", (112, 56), "растягивается", "деревянная табличка над грядкой (цена, прокачка)", 0, lambda s: None)
+    add("ui/bubble", (250, 80), "растягивается", "облачко речи без хвостика", 1, lambda s: None)
+    add("ui/bubble_tail", (32, 24), "кончик внизу по центру", "хвостик облачка, смотрит вниз", 1, lambda s: None)
+    add("ui/arrow", (44, 60), "остриё внизу по центру", "стрелка обучения, смотрит вниз", 0, lambda s: None)
+    fx_desc = {"feather": "чёрное перо вороны (по диагонали)", "star": "звёздочка-блик", "puff": "облачко пыли (белое)",
+               "spark": "искорка (белая)", "raindrop": "капля дождя", "bulb_red": "красная лампочка гирлянды",
+               "bulb_yellow": "жёлтая лампочка гирлянды", "bulb_green": "зелёная лампочка гирлянды",
+               "bulb_blue": "синяя лампочка гирлянды"}
+    for key, desc in fx_desc.items():
+        sz = spritefit.FX_SIZE.get(key, 28)
+        add(f"fx/{key}", (sz, sz), "центр", desc, 0, lambda s: None)
     for n in range(1, 5):
         add(f"icons/note_{n}", (30, 30), "центр", f"нота барда, вариант {n} (в таверне; необязательно)", 1,
             lambda s, n=n: tu.draw_note(s, 9, 22, color=tu.NOTE_COLORS[n - 1]))

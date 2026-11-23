@@ -47,11 +47,18 @@ BUTTON_SHEET_ORDER = ["shop", "upgrade", "tree", "barn", "mill", "move", "settin
 # 3.14.3: листы казино — несколько картинок одной генерацией
 PRIZE_SHEET_ORDER = [p["id"] for p in PRIZES]   # лист призов 3×3 (assets/icons/prizes.png), порядок как в config.PRIZES
 CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "props/roulette_ball"]   # ряд из 5 (ui/chips.png)
+# 3.16: доска заданий и таблички (2×3), облачко и стрелка (1×3), частицы и лампочки гирлянды (3×3)
+BOARD_SHEET_ORDER = ["quest_note_1", "quest_note_2", "quest_note_3", "sign", "pin", "wax_seal"]
+TALK_SHEET_ORDER = ["bubble", "bubble_tail", "arrow"]
+FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER, 3, 3),
     "icons/prizes": ("icons/prize_", PRIZE_SHEET_ORDER, 3, 3),
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
+    "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
+    "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
+    "fx/sheet": ("fx/", FX_SHEET_ORDER, 3, 3),
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -61,7 +68,11 @@ MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экра
     "bread_shelf": (200, 150, "bottom"),
     "mill_card": (360, 130, "bottom"), "bakery_card": (360, 130, "bottom"),   # 3.13: картинки карточек мельницы
 }
-UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110)}   # наибольший размер (3.4)
+UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110),   # наибольший размер (3.4)
+           # 3.16: растягиваемые записки доски, свиток недели, табличка на поле, облачко речи
+           "quest_note_1": (490, 334), "quest_note_2": (490, 334), "quest_note_3": (490, 334),
+           "quest_weekly": (460, 720), "sign": (300, 170), "bubble": (360, 200)}
+FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
 
@@ -185,6 +196,21 @@ def _fit_spec_base(name):
         # 3.4: окна и кнопки — фон убрать, поля обрезать, пропорции картинки сохранить (игра режет её на 9/3 части)
         size = UI_TRIM.get(last, (300, 100))
         return _spec(size, (0, 0) + size, "trim")
+    if folder == "ui" and last == "pin":               # 3.16: булавка записки на доске
+        return _spec(*_box(28, 28, 1, 1, 1, 1), "center")
+    if folder == "ui" and last == "wax_seal":          # 3.16: сургучная печать свитка недели
+        return _spec(*_box(44, 44, 1, 1, 1, 1), "center")
+    if folder == "ui" and last == "bubble_tail":       # 3.16: хвостик облачка, кончик внизу по центру
+        return _spec(*_box(32, 24, 0, 0, 0, 0), "bottom")
+    if folder == "ui" and last == "arrow":             # 3.16: стрелка обучения, остриё внизу по центру
+        return _spec(*_box(44, 60, 1, 1, 1, 0), "bottom")
+    if folder == "fx":                                 # 3.16: частицы и лампочки гирлянды
+        if last.startswith("bulb_"):
+            return _spec(*_box(28, 28, 1, 1, 1, 1), "center")
+        if last in FX_SIZE:
+            sz = FX_SIZE[last]
+            return _spec(*_box(sz, sz, 1, 1, 1, 1), "center")
+        return None
     if folder == "ui" and last == "slider_knob":
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("chip_"):   # 3.14: фишки казино (рисуются в 0.5 — вдвое крупнее для чёткости)
@@ -634,8 +660,20 @@ def fit_sheet(img, rows, cols, spec_for):
         for ca, cb in split_by_gaps(px.occupancy("x", band), cols):
             bb = px.bbox((band[0] + ca, band[1], band[0] + cb, band[3]))
             i = len(out)
-            out.append(_place(px.surface(bb), spec_for(i)) if bb else None)
+            out.append(_fit_piece(px.surface(bb), spec_for(i)) if bb else None)
     return out
+
+
+def _fit_piece(piece, spec):
+    """Кусок листа -> картинка по spec. «trim» (окна, записки, облачко) — без холста, со своими пропорциями."""
+    if spec is None:
+        return piece
+    if spec["align"] == "trim":
+        cw, ch = spec["canvas"]
+        w, h = piece.get_size()
+        k = min(cw / w, ch / h)
+        return pygame.transform.smoothscale(piece, (max(1, int(round(w * k))), max(1, int(round(h * k)))))
+    return _place(piece, spec)
 
 
 # ----------------------------------------------------------------------

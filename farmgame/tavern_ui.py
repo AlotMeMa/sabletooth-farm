@@ -320,6 +320,30 @@ def draw_note(s, x, y, alpha_k=1.0, color=(255, 235, 150)):
     ellipse(s, color, x, y + 1, 12, 9, 2)
 
 
+def draw_bubble_skin(s, rect, tip, side="down"):
+    """3.16: облачко-картинка ui/bubble (растягивается) + хвостик ui/bubble_tail (остриё — в tip).
+    side: "down" — хвостик под облачком, "left" — слева. False — картинки облачка нет (рисуем кодом)."""
+    from . import skin
+    bx, by, w, h = rect
+    img = skin.stretched("bubble", w, h)
+    if img is None:
+        return False
+    tx, ty = tip
+    if side == "down":
+        gap = max(6, ty - (by + h) + 6)                      # хвостик от края облачка до кончика
+        k = gap / 24
+        if not blit_tf(s, "ui/bubble_tail", tx, ty, k):
+            poly(s, WHITE, [(tx - 8, by + h - 4), (tx + 8, by + h - 4), (tx, ty)], 2)
+    else:
+        gap = max(6, bx - tx + 6)
+        k = gap / 24
+        # хвостик вниз, повёрнутый на 90° по часовой: остриё смотрит влево, на говорящего
+        if not blit_tf(s, "ui/bubble_tail", tx, ty, k, angle=-90):
+            poly(s, WHITE, [(bx + 4, ty - 8), (bx + 4, ty + 8), (tx, ty)], 2)
+    s.blit(img, (bx, by))
+    return True
+
+
 def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True):
     """Облачко с речью: (x, y) — кончик хвостика."""
     lines = wrap(text, size, maxw, 4)
@@ -329,9 +353,10 @@ def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True):
     bx = max(8, min(W - w - 8, x - w // 2))
     by = max(4, y - 12 - h)
     y = max(y, by + h + 8)
-    poly(s, WHITE, [(x - 9, by + h - 3), (x + 9, by + h - 3), (x, y)], 2)
-    rounded(s, WHITE, (bx, by, w, h), 12, 2)
-    pygame.draw.polygon(s, WHITE, [(x - 7, by + h - 4), (x + 7, by + h - 4), (x, y - 3)])
+    if not draw_bubble_skin(s, (bx, by, w, h), (x, y), "down"):
+        poly(s, WHITE, [(x - 9, by + h - 3), (x + 9, by + h - 3), (x, y)], 2)
+        rounded(s, WHITE, (bx, by, w, h), 12, 2)
+        pygame.draw.polygon(s, WHITE, [(x - 7, by + h - 4), (x + 7, by + h - 4), (x, y - 3)])
     for n, img in enumerate(imgs):
         s.blit(img, img.get_rect(center=(bx + w // 2, by + 8 + (size + 4) * n + (size + 4) // 2)))
 
@@ -1076,11 +1101,18 @@ class TavernUI:
     def draw_note_card(self, q, r):
         """Записка дня 245x167: звёзды сложности, название, задание, прогресс, награда, кнопка."""
         s = self.screen
-        paper = {1: (250, 242, 210), 2: (246, 232, 192), 3: (242, 222, 178)}[q["diff"]]
-        pygame.draw.rect(s, (60, 40, 30), r.move(3, 4), border_radius=6)
-        rounded(s, paper, r, 6, 2)
-        pygame.draw.circle(s, OUT, (r.centerx, r.y + 8), 7)
-        pygame.draw.circle(s, (210, 60, 60), (r.centerx, r.y + 8), 5)
+        from . import skin
+        img = skin.stretched(f"quest_note_{q['diff']}", r.w, r.h)   # 3.16: своя бумажка (ui/quest_note_1..3)
+        if img is not None:
+            s.blit(skin.shadow_of(img), (r.x + 3, r.y + 4))
+            s.blit(img, r.topleft)
+        else:
+            paper = {1: (250, 242, 210), 2: (246, 232, 192), 3: (242, 222, 178)}[q["diff"]]
+            pygame.draw.rect(s, (60, 40, 30), r.move(3, 4), border_radius=6)
+            rounded(s, paper, r, 6, 2)
+        if not blit_sprite(s, "ui/pin", r.centerx, r.y + 8, 0.8, "center"):     # булавка
+            pygame.draw.circle(s, OUT, (r.centerx, r.y + 8), 7)
+            pygame.draw.circle(s, (210, 60, 60), (r.centerx, r.y + 8), 5)
         for i in range(q["diff"]):
             draw_star(s, r.x + 14 + i * 16, r.y + 13, 7)
         draw_text_fit(s, q["title"], 17, (r.centerx, r.y + 31), r.w - 24, BROWN, outline=None)
@@ -1095,14 +1127,21 @@ class TavernUI:
     def draw_weekly_card(self, q, r):
         """Свиток недели 230x350."""
         s = self.screen
-        pygame.draw.rect(s, (60, 40, 30), r.move(4, 5), border_radius=8)
-        rounded(s, (248, 236, 200), r, 8, 3)
-        for y in (r.y, r.bottom):                         # деревянные валики свитка
-            rounded(s, (130, 85, 50), (r.x - 7, y - 8, r.w + 14, 16), 8, 3)
+        from . import skin
+        img = skin.stretched("quest_weekly", r.w + 14, r.h + 16)   # 3.16: свой свиток (ui/quest_weekly) с валиками
+        if img is not None:
+            s.blit(skin.shadow_of(img), (r.x - 3, r.y - 3))
+            s.blit(img, (r.x - 7, r.y - 8))
+        else:
+            pygame.draw.rect(s, (60, 40, 30), r.move(4, 5), border_radius=8)
+            rounded(s, (248, 236, 200), r, 8, 3)
+            for y in (r.y, r.bottom):                         # деревянные валики свитка
+                rounded(s, (130, 85, 50), (r.x - 7, y - 8, r.w + 14, 16), 8, 3)
         sx, sy = r.right - 28, r.y + 34
-        blob(s, (200, 45, 50), [(sx + math.cos(a) * 8, sy + math.sin(a) * 8, 6)
-                                for a in [i * math.pi / 4 for i in range(8)]] + [(sx, sy, 10)], 2)
-        draw_star(s, sx, sy, 7, (250, 205, 70))
+        if not blit_sprite(s, "ui/wax_seal", sx, sy, 0.75, "center"):     # сургучная печать
+            blob(s, (200, 45, 50), [(sx + math.cos(a) * 8, sy + math.sin(a) * 8, 6)
+                                    for a in [i * math.pi / 4 for i in range(8)]] + [(sx, sy, 10)], 2)
+            draw_star(s, sx, sy, 7, (250, 205, 70))
         draw_text(s, "ЗАДАНИЕ", 18, (r.centerx - 14, r.y + 26), (190, 60, 50), outline=None)
         draw_text(s, "НЕДЕЛИ", 18, (r.centerx - 14, r.y + 46), (190, 60, 50), outline=None)
         draw_text_fit(s, q["title"], 19, (r.centerx, r.y + 76), r.w - 24, BROWN, outline=None)
@@ -1122,7 +1161,8 @@ class TavernUI:
             icon(r.x + 24, y)
             draw_text_fit(s, text, 14, (r.x + 42, y), r.w - 52, BROWN, anchor="midleft", outline=None)
         self.draw_claim_area(q, pygame.Rect(r.x + 14, r.y + 300, r.w - 28, 30), 15)
-        draw_text(s, "новое через " + fmt_long(tv.seconds_to_monday()), 12, (r.centerx, r.bottom - 14), SOFT, outline=None)
+        low = r.bottom - (21 if img is not None else 14)          # над нижним валиком картинки
+        draw_text(s, "новое через " + fmt_long(tv.seconds_to_monday()), 12, (r.centerx, low), SOFT, outline=None)
 
     # ---------- HUD ----------
     def draw_garland(self, s, tt):
@@ -1130,6 +1170,7 @@ class TavernUI:
         y0 = self.tl.get("garland_y", 212)
         xs = [160, 400, 650, 900]
         cols = [(255, 90, 80), (255, 210, 80), (110, 220, 120), (110, 170, 255)]
+        bulbs = ["fx/bulb_red", "fx/bulb_yellow", "fx/bulb_green", "fx/bulb_blue"]   # 3.16: свои лампочки
         n = 0
         for a, b in zip(xs, xs[1:]):
             pts = []
@@ -1141,8 +1182,9 @@ class TavernUI:
                 col = cols[n % len(cols)]
                 on = 0.55 + 0.45 * math.sin(tt * 2.4 - n * 0.9)
                 blit_light(s, x, y + 6, 30, col, 90 + 120 * on, 0.0)
-                pygame.draw.circle(s, OUT, (int(x), int(y + 6)), 5)
-                pygame.draw.circle(s, tuple(int(c * (0.6 + 0.4 * on)) for c in col), (int(x), int(y + 6)), 4)
+                if not blit_tf(s, bulbs[n % len(bulbs)], x, y + 7, 0.6, pivot="center", alpha=150 + 105 * on):
+                    pygame.draw.circle(s, OUT, (int(x), int(y + 6)), 5)
+                    pygame.draw.circle(s, tuple(int(c * (0.6 + 0.4 * on)) for c in col), (int(x), int(y + 6)), 4)
                 n += 1
 
     def draw_tokens_pill(self, x, y, right=False):

@@ -142,11 +142,13 @@ class TutorialUI:
         ay = ty - 14 - bob
         if ay < 70:                          # у верхнего края — стрелка снизу, вверх
             by = (ring.bottom if isinstance(target, pygame.Rect) else ring.bottom) + 14 + bob
-            poly(s, GOLD, [(tx - 15, by + 22), (tx + 15, by + 22), (tx, by)], 3)
-            rounded(s, GOLD, (tx - 6, by + 20, 12, 18), 3, 3)
+            if not blit_tf(s, "ui/arrow", tx, by, 0.75, angle=180):    # 3.16: своя стрелка ui/arrow (остриё вниз)
+                poly(s, GOLD, [(tx - 15, by + 22), (tx + 15, by + 22), (tx, by)], 3)
+                rounded(s, GOLD, (tx - 6, by + 20, 12, 18), 3, 3)
         else:
-            poly(s, GOLD, [(tx - 15, ay - 22), (tx + 15, ay - 22), (tx, ay)], 3)
-            rounded(s, GOLD, (tx - 6, ay - 40, 12, 20), 3, 3)
+            if not blit_tf(s, "ui/arrow", tx, ay, 0.75):
+                poly(s, GOLD, [(tx - 15, ay - 22), (tx + 15, ay - 22), (tx, ay)], 3)
+                rounded(s, GOLD, (tx - 6, ay - 40, 12, 20), 3, 3)
 
     def draw_tut_barman(self, x, y):
         """Бармен по пояс у левого края окошка: (x, y) — середина низа."""

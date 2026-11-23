@@ -18,7 +18,7 @@ import random
 
 import pygame
 
-from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR, SONGS, DEV
+from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR, SONGS, DEV, CASINO_UNLOCK_TOKENS
 from .art import (OUT, WHITE, GOLD, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
                   draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite,
                   blit_tf, blit_light, extended_down)
@@ -787,6 +787,8 @@ class TavernUI:
     def draw_tavern_life(self, s, tt):
         """Свет и воздух зала (под персонажами): пылинки в свете окон, огонь камина, свечи, пар."""
         fx = self.tl["fx"]
+        if self.tavern.prize_on("garland"):
+            self.draw_garland(s, tt)
         if fx.get("motes"):
             x0, y0, x1, y1 = fx["motes"]
             if self.tv_motes is None:
@@ -819,11 +821,12 @@ class TavernUI:
             s.blit(img, (int(px - r) - 1, int(y - 30 * k - r) - 1))
 
     def poke_casino(self):
-        if DEV:                         # 3.10: заготовка рулетки — пока только для разработчика
+        t = self.tavern
+        if DEV or t.casino_open:        # 3.14: открыто, когда жетонов впервые набралось CASINO_UNLOCK_TOKENS
             self.open_casino()
             return
-        self.toast("Игорный зал пока закрыт — скоро откроется!", 2.5)
-        self.say_barman("Туда пока нельзя: там ещё расставляют столы для костей.")
+        self.toast(f"Игорный зал откроется, когда накопишь {CASINO_UNLOCK_TOKENS} жетонов (у тебя {t.tokens})", 3)
+        self.say_barman(f"Туда пускают с {CASINO_UNLOCK_TOKENS} жетонами в кармане. Выполняй задания с доски!")
 
     def tavern_tick(self, dt):
         t = self.tavern
@@ -832,6 +835,10 @@ class TavernUI:
             self.tavern_refresh()
             self.toast("Открылась таверна «Хмельной колос»! Кнопка — над «Магазином»", 5)
             self.sfx.play("fanfare")
+        if t.unlocked and t.check_casino():
+            self.toast(f"Открылся игорный зал! Дверь «Казино» — справа в таверне", 5)
+            self.sfx.play("fanfare")
+            self.save()
         self.tavern_check -= dt
         if t.unlocked and self.tavern_check <= 0:
             self.tavern_check = 5.0
@@ -920,7 +927,12 @@ class TavernUI:
             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
         notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
+        fancy = self.tavern.prize_on("gold_notes")     # 3.14: приз «Нарядные ноты»
         for x, y, life, _vx, col in self.tv_notes:
+            if fancy:
+                col = (255, 214, 90)
+                if int(life * 10) % 7 == 0:
+                    blit_light(s, x + 5, y - 6, 26, (255, 236, 150), 160, 0.0)
             if notes:   # свои ноты из assets/icons/note_1..4: появляются, покачиваются и тают
                 n = NOTE_COLORS.index(col) if col in NOTE_COLORS else 0
                 age = 2.2 - life
@@ -958,7 +970,11 @@ class TavernUI:
         c, door = L["casino_sign"], L["casino_door"]
         rounded(s, (176, 120, 70), c, 6, 3)
         draw_text(s, "Казино  >", 17, c.center)
-        draw_text(s, "скоро", 13, (door.centerx, door.y + 70), (255, 230, 160))
+        if self.tavern.casino_open or DEV:
+            draw_text(s, "открыто", 13, (door.centerx, door.y + 70), (190, 255, 170))
+        else:
+            draw_text(s, f"от {CASINO_UNLOCK_TOKENS}", 13, (door.centerx, door.y + 62), (255, 230, 160))
+            draw_token(s, door.centerx, door.y + 86, 0.6)
         self.zone_btn(door.union(c), self.poke_casino, 10)
         # разговоры
         if self.tv_talk and self.tv_talk[0] < len(L["talkers"]):
@@ -1109,6 +1125,26 @@ class TavernUI:
         draw_text(s, "новое через " + fmt_long(tv.seconds_to_monday()), 12, (r.centerx, r.bottom - 14), SOFT, outline=None)
 
     # ---------- HUD ----------
+    def draw_garland(self, s, tt):
+        """3.14, приз казино: гирлянда огоньков провисает под балконом, лампочки мигают по очереди."""
+        y0 = self.tl.get("garland_y", 212)
+        xs = [160, 400, 650, 900]
+        cols = [(255, 90, 80), (255, 210, 80), (110, 220, 120), (110, 170, 255)]
+        n = 0
+        for a, b in zip(xs, xs[1:]):
+            pts = []
+            for i in range(13):
+                u = i / 12
+                pts.append((a + (b - a) * u, y0 + 22 * 4 * u * (1 - u)))
+            pygame.draw.lines(s, (60, 45, 35), False, [(int(x), int(y)) for x, y in pts], 2)
+            for x, y in pts[1:-1:2]:
+                col = cols[n % len(cols)]
+                on = 0.55 + 0.45 * math.sin(tt * 2.4 - n * 0.9)
+                blit_light(s, x, y + 6, 30, col, 90 + 120 * on, 0.0)
+                pygame.draw.circle(s, OUT, (int(x), int(y + 6)), 5)
+                pygame.draw.circle(s, tuple(int(c * (0.6 + 0.4 * on)) for c in col), (int(x), int(y + 6)), 4)
+                n += 1
+
     def draw_tokens_pill(self, x, y, right=False):
         s = self.screen
         img = render_text(str(self.tavern.tokens), 18, WHITE, OUT)

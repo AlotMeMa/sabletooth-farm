@@ -84,6 +84,9 @@ def stage(target, out, baked, p4a=None):
         spec = re.sub(r"(?m)^version = .*$", "version = " + game_version(), spec)
         if p4a:
             spec = re.sub(r"(?m)^p4a\.source_dir = .*$", "p4a.source_dir = " + os.path.abspath(p4a), spec)
+        recipes = os.path.join(out, "recipes")
+        shutil.copytree(os.path.join(HERE, "android", "recipes"), recipes)
+        spec = re.sub(r"(?m)^p4a\.local_recipes = .*$", "p4a.local_recipes = " + os.path.abspath(recipes), spec)
         with open(os.path.join(out, "buildozer.spec"), "w", encoding="utf-8") as f:
             f.write(spec)
     size = sum(os.path.getsize(os.path.join(r, fn)) for r, _d, fs in os.walk(out) for fn in fs)

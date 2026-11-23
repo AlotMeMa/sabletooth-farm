@@ -5,7 +5,7 @@ name: android
 
 on:
   push:
-    branches: [main, mobile]
+    branches: [main]
     paths:
       - "farmgame/**"
       - "assets/**"
@@ -68,11 +68,8 @@ jobs:
           sudo apt-get install -y git zip unzip autoconf automake libtool pkg-config zlib1g-dev \
             libncurses5-dev libncursesw5-dev libtinfo5 cmake libffi-dev libssl-dev
           pip install buildozer "cython<3.0" "setuptools<71"
-      - name: python-for-android (с починкой рецепта pygame)
-        run: |
-          git clone --depth 1 --branch master https://github.com/kivy/python-for-android build/p4a
-          git -C build/p4a log --oneline -1
-          python mobile/patch_p4a.py build/p4a
+      - name: python-for-android
+        run: git clone --depth 1 --branch v2026.05.09 https://github.com/kivy/python-for-android build/p4a
       - name: Подготовка
         run: |
           python mobile/build.py stage android build/android_src --baked build/baked --p4a build/p4a
@@ -86,7 +83,7 @@ jobs:
       - uses: actions/cache@v4
         with:
           path: build/android_src/.buildozer
-          key: buildozer-app-${{ hashFiles('mobile/android/buildozer.spec', 'mobile/patch_p4a.py') }}
+          key: buildozer-app-${{ hashFiles('mobile/android/buildozer.spec', 'mobile/android/recipes/**') }}
       - name: buildozer android debug
         working-directory: build/android_src
         run: |

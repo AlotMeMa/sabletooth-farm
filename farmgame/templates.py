@@ -316,7 +316,7 @@ def known_names():
     from .spritefit import SHEETS
     names |= set(SHEETS)   # листы: icons/sheet, ui/buttons, icons/prizes, ui/chips
     from .spritefit import BUTTON_SHEET_ORDER
-    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_tavern"}   # кнопки: отдельными файлами или листом ui/buttons
+    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

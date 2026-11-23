@@ -61,6 +61,7 @@ class HudUI:
         if self.view == "tavern":
             self.draw_tokens_pill(W - 72, 16, right=True)
             self.draw_tavern_back("На поле", self.leave_tavern)
+            self.draw_prizes_button()
             return
         if board:
             if self.view == "casino":       # 3.14.2: в казино — над столом слева, а не на краю стола

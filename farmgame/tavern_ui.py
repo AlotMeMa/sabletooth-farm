@@ -1284,6 +1284,34 @@ class TavernUI:
         self.icon_button(pygame.Rect(16, 478, 62, 56), "tavern", lambda r: draw_mug(self.screen, r.centerx - 3, r.centery + 4, 1.2),
                          self.open_tavern, "Таверна", badge=bool(self.tavern.claimable()), tip=TAVERN_TIP)
 
+    def draw_prizes_button(self):
+        """3.16.7: «Призы» прямо в таверне — над «На поле» (как «Таверна» над «Магазином» на поле).
+        Своя картинка — ui/btn_prizes; без неё деревянная плашка с жетоном, в тон остальным кнопкам."""
+        from .config import PRIZES as _P
+        r = pygame.Rect(16, 478, 62, 56)
+        t = self.tavern
+        cheapest = min(p["cost"] for p in _P if t.prize_state(p) == "can") if any(
+            t.prize_state(p) == "can" for p in _P) else None
+        badge = cheapest is not None and t.tokens >= cheapest
+        tip = f"Призы за жетоны: трофеи, удача, украшения (у тебя {t.tokens})"
+        if not has_sprite("ui/btn_prizes") and has_sprite("ui/btn_shop"):
+            s = self.screen
+            hov = self.modal is None and r.collidepoint(self.mouse)
+            rounded(s, (255, 240, 190) if hov else (120, 72, 40), r.inflate(6, 6), 12, 0)
+            rounded(s, (176, 112, 62), r, 10, 3)
+            rounded(s, (214, 160, 100), r.inflate(-10, -10), 7, 2, (150, 95, 55))
+            draw_token(s, r.centerx, r.centery, 1.15)
+            draw_text(s, "Призы", 12, (r.centerx, r.bottom + 12))
+            if badge:
+                pygame.draw.circle(s, OUT, (r.right - 2, r.y + 2), 11)
+                pygame.draw.circle(s, (240, 70, 70), (r.right - 2, r.y + 2), 9)
+                draw_text(s, "!", 14, (r.right - 2, r.y + 2))
+            self.zone_btn(r, lambda: self.open_modal("prizes"), glow="sprite")
+            self.tip(r, tip)
+            return
+        self.icon_button(r, "prizes", lambda rr: draw_token(self.screen, rr.centerx, rr.centery, 1.15),
+                         lambda: self.open_modal("prizes"), "Призы", badge=badge, tip=tip)
+
     def draw_boost_pill(self, y, right=None):
         f, s = self.farm, self.screen
         if f.boost_left <= 0:

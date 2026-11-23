@@ -132,6 +132,10 @@ def _fit_spec_base(name):
                  "chapel_ringing": _box(100, 140, 2, 2, 2, 2)}
         if last in table:
             return _spec(*table[last], "bottom")
+        if last == "roulette_wheel":       # 3.14: колесо рулетки (игра вращает; центр = ось)
+            return _spec(*_box(338, 338, 1, 1, 1, 1), "center")
+        if last == "roulette_ball":
+            return _spec(*_box(40, 40, 1, 1, 1, 1), "center")
         if last in MILL_PROPS:            # 3.6: детали живой мельницы (экран мельницы — в 3.7)
             w, h, anchor = MILL_PROPS[last]
             return _spec(*_box(w, h, 2, 2, 2, 0 if anchor == "bottom" else 2), anchor)
@@ -161,6 +165,8 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "bard":
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола
+            return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
             return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
         return None
@@ -176,6 +182,8 @@ def _fit_spec_base(name):
         return _spec(size, (0, 0) + size, "trim")
     if folder == "ui" and last == "slider_knob":
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
+    if folder == "ui" and last.startswith("chip_"):   # 3.14: фишки казино (рисуются в 0.5 — вдвое крупнее для чёткости)
+        return _spec(*_box(72, 72, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("btn_"):
         return _spec(*_box(BTN_CANVAS, BTN_CANVAS, 4, 4, 4, 4), "center")
     if folder == "ui" and last == "logo":              # экран загрузки: название игры
@@ -192,6 +200,8 @@ def _fit_spec_base(name):
     if folder == "icons":
         if last == "peasant":
             s = 26
+        elif last.startswith("prize_"):   # 3.14: призы казино
+            s = 40
         elif last.startswith("note_"):    # ноты барда (3.6): icons/note_1 ... note_4
             s = 30
         elif last in ("egg", "milk", "truffle", "honey"):

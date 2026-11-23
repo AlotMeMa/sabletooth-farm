@@ -1296,7 +1296,8 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
             else:
                 y, right = 70 if self.view != "tavern" else 64, W - 14
             y += self.draw_boost_pill(y, right)
-            self.draw_song_pill(y, right)
+            y += self.draw_song_pill(y, right) or 0
+            self.draw_prize_pills(y, right)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)
@@ -2509,7 +2510,7 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
             ("Разбойник", bandit), ("Мельница и пекарня ур.3", mill),
             ("Таверна: все задания готовы", quests_done), ("Таверна: новый день и неделя", new_day),
             ("Таверна: показать разметку" + (" (вкл)" if self.tavern_debug else ""), tavern_debug),
-            ("Казино (заготовка)", self.open_casino),
+            ("Казино", self.open_casino),
         ]
 
     def draw_dev(self):
@@ -2541,7 +2542,8 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
         self.tips = []
         self.draw_scene()
         if self.view == "field" and self.modal is None:
-            draw_trail(self.screen, self.trail, self.t_real)
+            draw_trail(self.screen, self.trail, self.t_real,
+                       color=(255, 212, 80) if self.tavern.prize_on("gold_trail") else (255, 250, 225))
         self.draw_hover()
         self.draw_tip()
         if self.show_fps:
@@ -2564,7 +2566,8 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
     def modal_drawers(self):
         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
-                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs}
+                "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs,
+                "prizes": self.draw_prizes}
 
     def draw_modal_layer(self, name, prog, opening):
         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно

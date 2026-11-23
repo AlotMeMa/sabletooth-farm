@@ -135,6 +135,64 @@ class Tavern:
         self.daily_done_total = 0
         self.just_done = []      # задания недели, выполненные последним claim() («Завсегдатай»)
         self.owed = []           # награды за сменившиеся незабранные задания: [{title, weekly, minutes, tokens, prestige, boost}]
+        # 3.14: казино
+        self.casino_open = False # открылось навсегда (жетонов впервые стало CASINO_UNLOCK_TOKENS)
+        self.casino_intro = False   # крупье уже рассказал правила
+        self.prizes = {}         # id приза -> True (трофеи, косметика)
+        self.prize_off = []      # купленная косметика, которую игрок выключил
+        self.prize_day = {}      # id бафа -> день покупки (бафы — раз в день)
+
+    # ---------- казино (3.14) ----------
+    def check_casino(self):
+        """True, если казино открылось только что (жетонов впервые набралось достаточно)."""
+        from .config import CASINO_UNLOCK_TOKENS
+        if not self.casino_open and self.tokens >= CASINO_UNLOCK_TOKENS:
+            self.casino_open = True
+            return True
+        return False
+
+    def prize_state(self, prize, today=None):
+        """owned — куплен (трофей/косметика), today — баф уже брали сегодня, can — можно купить."""
+        if prize["kind"] == "buff":
+            if self.prize_day.get(prize["id"]) == (today or day_key()):
+                return "today"
+            return "can"
+        return "owned" if self.prizes.get(prize["id"]) else "can"
+
+    def prize_on(self, pid):
+        """Косметика куплена и не выключена."""
+        return bool(self.prizes.get(pid)) and pid not in self.prize_off
+
+    def toggle_prize(self, pid):
+        if not self.prizes.get(pid):
+            return False
+        if pid in self.prize_off:
+            self.prize_off.remove(pid)
+        else:
+            self.prize_off.append(pid)
+        return True
+
+    def buy_prize(self, farm, pid, today=None):
+        """Купить приз за жетоны. Возвращает (получилось, причина отказа)."""
+        from .config import PRIZES
+        prize = next((p for p in PRIZES if p["id"] == pid), None)
+        if prize is None:
+            return False, "Такого приза нет"
+        state = self.prize_state(prize, today)
+        if state == "owned":
+            return False, "Уже есть"
+        if state == "today":
+            return False, "Сегодня уже брали — приходи завтра"
+        if self.tokens < prize["cost"]:
+            return False, f"Нужно жетонов: {prize['cost']}"
+        self.tokens -= prize["cost"]
+        if prize["kind"] == "buff":
+            self.prize_day[pid] = today or day_key()
+            attr = "lucky_left" if pid == "lucky_coin" else "clover_left"
+            setattr(farm, attr, prize["minutes"] * 60.0)
+        else:
+            self.prizes[pid] = True
+        return True, ""
 
     # ---------- генерация ----------
     def _quest_text(self, tpl, n, fm):
@@ -272,7 +330,9 @@ class Tavern:
     # ---------- сохранение ----------
     def to_dict(self):
         return dict(unlocked=self.unlocked, tokens=self.tokens, day=self.day, week=self.week,
-                    daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed)
+                    daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
+                    casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
+                    prize_off=self.prize_off, prize_day=self.prize_day)
 
     def from_dict(self, d):
         """Читает таверну из сохранения. Испорченные записи пропускаются — задания тогда просто выдадутся заново."""
@@ -288,6 +348,17 @@ class Tavern:
             self.daily = [q for q in (_clean_quest(q) for q in d["daily"]) if q][:DAILY_COUNT]
         if "weekly" in d:
             self.weekly = _clean_quest(d["weekly"], weekly=True)
+        from .config import PRIZES
+        ids = {p["id"] for p in PRIZES}
+        self.casino_open = bool(d.get("casino_open", self.casino_open))
+        self.casino_intro = bool(d.get("casino_intro", self.casino_intro))
+        if isinstance(d.get("prizes"), dict):
+            self.prizes = {k: True for k, v in d["prizes"].items() if isinstance(k, str) and k in ids and v}
+        if isinstance(d.get("prize_off"), list):
+            self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
+        if isinstance(d.get("prize_day"), dict):
+            self.prize_day = {k: v for k, v in d["prize_day"].items()
+                              if isinstance(k, str) and k in ids and isinstance(v, str)}
         if isinstance(d.get("owed"), list):
             self.owed = [dict(title=str(o.get("title", "")), weekly=bool(o.get("weekly")),
                               minutes=_int(o.get("minutes"), 0), tokens=_int(o.get("tokens"), 0),

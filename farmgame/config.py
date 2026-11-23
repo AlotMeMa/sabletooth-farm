@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.13.2"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.14"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -65,6 +65,22 @@ SONGS = [
          effect="белки вдвое чаще, золотые — втрое", line="Слушайте, люди, сказ о белке золотой..."),
     dict(id=3, name="Гимн урожаю", cost=20, minutes=30, income=1.5, squirrel=1.0, golden=1.0,
          effect="доход грядок +50%", line="Славься, поле, славься, хлеб! Королю и нам на век!"),
+]
+# 3.14: казино для игроков. Открывается навсегда, когда жетонов впервые набирается CASINO_UNLOCK_TOKENS
+CASINO_UNLOCK_TOKENS = 100
+# Призовая стойка казино: kind — trophy (навсегда, на полку), buff (раз в день), cosmetic (навсегда, вкл/выкл)
+PRIZES = [
+    dict(id="horseshoe", kind="trophy", name="Бронзовая подкова", cost=50, text="первый трофей на полку игорного зала"),
+    dict(id="cup", kind="trophy", name="Серебряный кубок", cost=150, text="кубок удачливого фермера"),
+    dict(id="statue", kind="trophy", name="Золотой крестьянин", cost=500, text="статуэтка с кривым зубом"),
+    dict(id="crystal", kind="trophy", name="Хрустальный колос", cost=1500, text="для настоящих завсегдатаев"),
+    dict(id="lucky_coin", kind="buff", name="Счастливая монета", cost=40, minutes=60,
+         text="доход грядок x1.5 на 60 мин", effect="income", value=1.5),
+    dict(id="clover", kind="buff", name="Четырёхлистный клевер", cost=25, minutes=30,
+         text="шанс урожая x10 +5% на 30 мин", effect="lucky", value=0.05),
+    dict(id="gold_notes", kind="cosmetic", name="Нарядные ноты", cost=80, text="ноты барда золотые и блестят"),
+    dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
+    dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
 ]
 GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше
 # Ворона: реже белки, останавливает грядку, пока её не прогонят (только пока игра открыта)

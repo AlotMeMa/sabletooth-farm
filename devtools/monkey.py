@@ -79,7 +79,7 @@ for step in range(STEPS):
         for _ in range(random.randint(1, 40)):
             guard("update big", app.update, random.choice((0.25, 1.0, 5.0, 15.0)))
     elif r < 0.90:
-        app.modal = random.choice([None, "shop", "truck", "settings", "stats", "tree", "dev", "offline", "songs"]
+        app.modal = random.choice([None, "shop", "truck", "settings", "stats", "tree", "dev", "offline", "songs", "prizes"]
                                   + (["move"] if app.farm.has_next_farm() else []))
         if app.modal == "tree":
             app.tree_sel = random.choice(list(appmod.TREE_NODES))
@@ -118,7 +118,7 @@ for view in ["field", "barn", "tavern", "board"] + EXTRA_VIEWS:
         guard("open " + view, getattr(app, "open_" + view))
     else:
         app.view = view
-    for modal in [None, "shop", "truck", "settings", "stats", "tree", "dev", "offline", "songs"] + (["move"] if app.farm.has_next_farm() else []):
+    for modal in [None, "shop", "truck", "settings", "stats", "tree", "dev", "offline", "songs", "prizes"] + (["move"] if app.farm.has_next_farm() else []):
         app.modal = modal
         for sel in (list(appmod.TREE_NODES) if modal == "tree" else [None]):
             app.tree_sel = sel

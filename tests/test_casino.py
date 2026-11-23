@@ -62,7 +62,7 @@ class Bets(unittest.TestCase):
         self.assertFalse(self.r.place(self.t, ("num", 37), 1)[0])
         self.assertFalse(self.r.place(self.t, ("blue",), 1)[0])
         self.t.tokens = 1000
-        self.assertFalse(self.r.place(self.t, ("red",), cs.MAX_BET_TOTAL + 1)[0])
+        self.assertTrue(self.r.place(self.t, ("red",), 600)[0])          # 3.14: лимита за спин нет
 
     def test_settle_win_and_loss(self):
         self.r.place(self.t, ("num", 7), 5)       # 7 — красное, нечёт
@@ -79,3 +79,60 @@ class Bets(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PlayerCasino(unittest.TestCase):
+    """3.14: казино для игроков — открытие по жетонам, призовая стойка, сохранение."""
+
+    def setUp(self):
+        from farmgame.logic import Farm
+        self.t = tv.Tavern()
+        self.f = Farm()
+
+    def test_opens_once_at_100_tokens_and_stays_open(self):
+        from farmgame.config import CASINO_UNLOCK_TOKENS
+        self.t.tokens = CASINO_UNLOCK_TOKENS - 1
+        self.assertFalse(self.t.check_casino())
+        self.t.tokens = CASINO_UNLOCK_TOKENS
+        self.assertTrue(self.t.check_casino())
+        self.assertFalse(self.t.check_casino())          # второй раз «только что открылось» не говорит
+        self.t.tokens = 0
+        self.assertTrue(self.t.casino_open)
+
+    def test_min_chip_is_5(self):
+        self.assertEqual(min(cs.CHIPS), 5)
+
+    def test_trophy_once(self):
+        self.t.tokens = 1000
+        self.assertTrue(self.t.buy_prize(self.f, "cup")[0])
+        self.assertFalse(self.t.buy_prize(self.f, "cup")[0])
+        self.assertEqual(self.t.tokens, 850)
+
+    def test_buff_once_a_day_and_works(self):
+        self.t.tokens = 1000
+        base = self.f.cycle_income(0) if self.f.levels[0] else None
+        self.f.levels[0] = 10
+        base = self.f.cycle_income(0)
+        self.assertTrue(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-23")[0])
+        self.assertAlmostEqual(self.f.cycle_income(0), base * 1.5)
+        self.assertFalse(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-23")[0])
+        self.assertTrue(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-24")[0])
+        self.f.update(3601)
+        self.assertAlmostEqual(self.f.cycle_income(0), base)
+
+    def test_cosmetic_toggle_and_save(self):
+        self.t.tokens = 1000
+        self.t.buy_prize(self.f, "garland")
+        self.assertTrue(self.t.prize_on("garland"))
+        self.t.toggle_prize("garland")
+        self.assertFalse(self.t.prize_on("garland"))
+        t2 = tv.Tavern()
+        t2.from_dict(self.t.to_dict())
+        self.assertTrue(t2.prizes.get("garland"))
+        self.assertFalse(t2.prize_on("garland"))
+
+    def test_not_enough_tokens(self):
+        self.t.tokens = 10
+        ok, why = self.t.buy_prize(self.f, "statue")
+        self.assertFalse(ok)
+        self.assertEqual(self.t.tokens, 10)

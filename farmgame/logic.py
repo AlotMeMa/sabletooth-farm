@@ -29,6 +29,8 @@ class Farm:
         self.boost_left = 0.0        # награда таверны: доход x2, секунд осталось
         self.song = 0                # 3.8: заказанная песня барда (id из SONGS, 0 — нет) и сколько ей ещё играть
         self.song_left = 0.0
+        self.lucky_left = 0.0        # 3.14: призы казино «Счастливая монета» и «Клевер», секунд осталось
+        self.clover_left = 0.0
         self.reset_run()
 
     def reset_run(self):
@@ -143,7 +145,16 @@ class Farm:
         c = CROPS[i]
         return (c["income"] * self.levels[i] * safe_pow(3, self.fert[i]) * self.overflow_mult(i)
                 * self.leaf_mult * 2 ** self.up("fertile") * FARM_BONUS ** self.farm_index
-                * (2 if self.boost_left > 0 else 1) * self.song_effect("income"))
+                * (2 if self.boost_left > 0 else 1) * self.song_effect("income") * self.prize_effect("income"))
+
+    def prize_effect(self, key):
+        """3.14: действие купленного в казино бафа. income — множитель дохода, lucky — прибавка к шансу x10."""
+        for p in PRIZES:
+            if p["kind"] == "buff" and p["effect"] == key:
+                left = self.lucky_left if p["id"] == "lucky_coin" else self.clover_left
+                if left > 0:
+                    return p["value"]
+        return 1.0 if key == "income" else 0.0
 
     def song_effect(self, key):
         """Множитель от играющей песни барда (income / squirrel / golden); без песни — 1."""
@@ -508,6 +519,8 @@ class Farm:
             self.rain_cd = max(0.0, self.rain_cd - dt)
         self.sun_cd = max(0.0, self.sun_cd - dt)
         self.boost_left = max(0.0, self.boost_left - dt)
+        self.lucky_left = max(0.0, self.lucky_left - dt)
+        self.clover_left = max(0.0, self.clover_left - dt)
         if self.song_left > 0:
             self.song_left = max(0.0, self.song_left - dt)
             if self.song_left <= 0:
@@ -539,7 +552,7 @@ class Farm:
         self.last_lucky = False
         if amt <= 0:
             return None
-        if random.random() < 0.02 * self.up("lucky"):
+        if random.random() < 0.02 * self.up("lucky") + self.prize_effect("lucky"):
             amt *= 10
             self.last_lucky = True
         self.earn(amt)
@@ -667,7 +680,7 @@ class Farm:
 
     # ---------- сохранение ----------
     FIELDS = ["leaves", "leaves_earned", "tree", "farm_index", "home_leaves", "prestiges", "total_earned", "rain_left", "rain_cd", "sun_cd",
-              "boost_left", "song", "song_left",
+              "boost_left", "song", "song_left", "lucky_left", "clover_left",
               "money", "run_earned", "levels", "fert", "farmers", "progress", "ready", "stash",
               "a_levels", "a_feed", "a_prog", "a_store", "a_keeper",
               "peasants", "m_levels", "m_workers", "hopper", "flour", "bread", "oven_load", "oven_prog"]

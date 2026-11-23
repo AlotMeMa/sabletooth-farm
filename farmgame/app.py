@@ -63,6 +63,8 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
         self.fullscreen = False
         self.edge_fill = True         # 3.10: в полном экране по краям — размытый фон вместо чёрных полос
         self.wide = None              # окно в пропорциях экрана: dict(display, frame, offset, ...) — см. enter_wide
+        self.was_minimized = False    # 3.16.4: полный экран свернули — при возврате пересоздаём его
+        self.wide_refresh = False
         pygame.display.set_caption(f"Весёлая ферма {GAME_VERSION}")
         self.clock = pygame.time.Clock()
         self.farm = Farm()
@@ -684,6 +686,10 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
                     self.try_collect(self.lpos(e.pos))
                 elif e.type == pygame.KEYDOWN:
                     self.on_key(e.key)
+                else:
+                    self.on_window_event(e)
+            if self.wide_refresh:
+                self.refresh_wide()
             self.update(dt)
             self.t_real = time.time() - self.t_start
             self.track_mouse()

@@ -72,7 +72,7 @@ def _layout_procedural():
         talkers=[[x, BALCONY_FLOOR - 72] for x, _l, _f in BALCONY_PEOPLE],
         occluders=[],
         music=dict(MUSIC_TIMING), music_girl=dict(MUSIC_GIRL_TIMING),
-        trophies=[[190, 268], [232, 268], [292, 268], [328, 268]],
+        trophies=[[640, 236, "hang"], [700, 338, "stand", "front"], [190, 268, "stand"], [300, 250, "shelf"]],
         fx=dict(fire=[256, 424], candles=[[342, 460], [598, 460], [360, 250], [560, 250]],
                 steam=[[778, 592], [180, 506]], motes=[400, 30, 860, 120], barman_mug=None),
     )
@@ -103,9 +103,9 @@ CUSTOM_LAYOUT = dict(
     occluders=[[[604, 362], [662, 365], [796, 404], [796, 526], [698, 528], [604, 440]]],   # стойка
     # 3.5: живой зал — где на фоне огонь, свечи, что парит (хлеб, кружки), где пылинки в свете окон, кружка бармена
     music=dict(MUSIC_TIMING), music_girl=dict(MUSIC_GIRL_TIMING),
-    # 3.15.2: трофеи казино — низ по центру: подкова висит на трубе над свечой, кубок и статуэтка — на каминной
-    # полке, хрустальный колос — на стене справа от трубы (на маленькой полочке)
-    trophies=[[205, 312], [246, 347], [163, 351], [305, 342]],
+    # 3.16.2: трофеи казино (порядок: подкова, кубок, крестьянин, колос) — подкова висит на стене за стойкой,
+    # кубок стоит на стойке у бармена, золотой крестьянин — на каминной полке, колос — на полочке у трубы
+    trophies=[[652, 336, "hang"], [690, 377, "stand", "front"], [163, 351, "stand"], [305, 342, "shelf"]],
     fx=dict(fire=[219, 444], candles=[[205, 335], [359, 393], [564, 393]],
             steam=[[870, 572], [960, 561], [210, 483]], motes=[330, 36, 720, 128], barman_mug=[731, 372]),
 )
@@ -956,6 +956,7 @@ class TavernUI:
                 hands = draw_person(s, x, 520, 1.05, look, tt, cheers, arms=(0.3, -1.0 if cheers else 0.5), face=face)
                 draw_mug(s, hands[1][0] + 2, hands[1][1] - 5, 0.75)
             s.blit(self.tavern_fg, (0, 0))
+        self.draw_tavern_trophies(s, front=True)  # то, что лежит на стойке перед барменом
         for img, pos in self.tavern_occ:          # стойка и всё, что стоит перед персонажами
             s.blit(img, pos)
         # бард на сцене
@@ -1161,52 +1162,61 @@ class TavernUI:
             rounded(s, (248, 236, 200), r, 8, 3)
             for y in (r.y, r.bottom):                         # деревянные валики свитка
                 rounded(s, (130, 85, 50), (r.x - 7, y - 8, r.w + 14, 16), 8, 3)
-        sx, sy = r.right - 28, r.y + 34
-        if not blit_sprite(s, "ui/wax_seal", sx, sy, 0.75, "center"):     # сургучная печать
-            blob(s, (200, 45, 50), [(sx + math.cos(a) * 8, sy + math.sin(a) * 8, 6)
-                                    for a in [i * math.pi / 4 for i in range(8)]] + [(sx, sy, 10)], 2)
-            draw_star(s, sx, sy, 7, (250, 205, 70))
-        draw_text(s, "ЗАДАНИЕ", 18, (r.centerx - 14, r.y + 26), (190, 60, 50), outline=None)
-        draw_text(s, "НЕДЕЛИ", 18, (r.centerx - 14, r.y + 46), (190, 60, 50), outline=None)
-        draw_text_fit(s, q["title"], 19, (r.centerx, r.y + 76), r.w - 24, BROWN, outline=None)
-        for n, line in enumerate(wrap(q["text"], 14, r.w - 24, 3)):
-            draw_text(s, line, 14, (r.centerx, r.y + 100 + n * 18), SOFT, outline=None)
-        bar = pygame.Rect(r.x + 14, r.y + 152, r.w - 28, 18)
+        # 3.16.2: всё — внутри бумаги между валиками (раньше текст налезал на валики, печать — на заголовок,
+        # строки награды вылезали за край свитка)
+        y0 = r.y + 40
+        sx, sy = r.right - 34, y0 + 8
+        if not blit_sprite(s, "ui/wax_seal", sx, sy, 0.6, "center"):     # сургучная печать
+            blob(s, (200, 45, 50), [(sx + math.cos(a) * 7, sy + math.sin(a) * 7, 5)
+                                    for a in [i * math.pi / 4 for i in range(8)]] + [(sx, sy, 9)], 2)
+            draw_star(s, sx, sy, 6, (250, 205, 70))
+        draw_text(s, "ЗАДАНИЕ", 15, (r.centerx - 16, y0), (190, 60, 50), outline=None)
+        draw_text(s, "НЕДЕЛИ", 15, (r.centerx - 16, y0 + 17), (190, 60, 50), outline=None)
+        inner = r.w - 40
+        draw_text_fit(s, q["title"], 17, (r.centerx, y0 + 42), inner, BROWN, outline=None)
+        for n, line in enumerate(wrap(q["text"], 13, inner, 2)):
+            draw_text_fit(s, line, 13, (r.centerx, y0 + 62 + n * 15), inner, SOFT, outline=None)
+        bar = pygame.Rect(r.x + 20, y0 + 90, r.w - 40, 16)
         draw_bar(s, bar, q["progress"] / max(1, q["target"]), (230, 170, 60))
-        draw_text(s, f"{fmt(q['progress'])} / {fmt(q['target'])}", 13, bar.center)
+        draw_text(s, f"{fmt(q['progress'])} / {fmt(q['target'])}", 12, bar.center)
         minutes, tokens, prestige, boost = self.tavern.reward_of(q)
-        draw_text(s, "Награда:", 15, (r.centerx, r.y + 188), BROWN, outline=None)
-        rows = [(lambda x, y: draw_coin(s, x, y, 9), "$" + fmt(self.quest_money(minutes)) + f" ({minutes // 60} ч дохода)"),
-                (lambda x, y: draw_token(s, x, y, 0.6), f"{tokens} жетонов"),
-                (lambda x, y: draw_cur_icon(s, x, y, 0.55), f"{prestige} {CUR['gen']}"),
-                (lambda x, y: draw_text(s, "x2", 13, (x, y), GOLD), f"доход x2 на {boost} мин")]
+        draw_text(s, "Награда:", 14, (r.centerx, y0 + 124), BROWN, outline=None)
+        rows = [(lambda x, y: draw_coin(s, x, y, 8), "$" + fmt(self.quest_money(minutes)) + f" ({minutes // 60} ч дохода)"),
+                (lambda x, y: draw_token(s, x, y, 0.55), f"{tokens} жетонов"),
+                (lambda x, y: draw_cur_icon(s, x, y, 0.5), f"{prestige} {CUR['gen']}"),
+                (lambda x, y: draw_text(s, "x2", 12, (x, y), GOLD), f"доход x2 на {boost} мин")]
         for n, (icon, text) in enumerate(rows):
-            y = r.y + 212 + n * 24
-            icon(r.x + 24, y)
-            draw_text_fit(s, text, 14, (r.x + 42, y), r.w - 52, BROWN, anchor="midleft", outline=None)
-        self.draw_claim_area(q, pygame.Rect(r.x + 14, r.y + 300, r.w - 28, 30), 15)
-        low = r.bottom - (21 if img is not None else 14)          # над нижним валиком картинки
-        draw_text(s, "новое через " + fmt_long(tv.seconds_to_monday()), 12, (r.centerx, low), SOFT, outline=None)
+            y = y0 + 144 + n * 20
+            icon(r.x + 30, y)
+            draw_text_fit(s, text, 13, (r.x + 46, y), r.w - 66, BROWN, anchor="midleft", outline=None)
+        self.draw_claim_area(q, pygame.Rect(r.x + 20, y0 + 222, r.w - 40, 28), 14)
+        draw_text_fit(s, "новое через " + fmt_long(tv.seconds_to_monday()), 11, (r.centerx, y0 + 266), inner, SOFT,
+                      outline=None)
 
     # ---------- HUD ----------
-    def draw_tavern_trophies(self, s):
-        """3.15.2: купленные в казино трофеи стоят в таверне (места — "trophies" в разметке, низ по центру)."""
+    def draw_tavern_trophies(self, s, front=False):
+        """Купленные в казино трофеи в таверне. Места — "trophies" в разметке: [x, y, как, слой]
+        (x, y — низ по центру; как: "hang" — висит на гвозде, "stand" — стоит, "shelf" — на своей полочке;
+        слой "front" — рисуется после бармена, перед стойкой: вещь лежит на стойке перед ним)."""
         from .casino_ui import draw_prize_icon
         spots = self.tl.get("trophies") or []
         trophies = [p for p in PRIZES if p["kind"] == "trophy"]
         for p, spot in zip(trophies, spots):
-            if not self.tavern.prizes.get(p["id"]):
+            x, y = spot[0], spot[1]
+            how = spot[2] if len(spot) > 2 else "stand"
+            if (len(spot) > 3 and spot[3] == "front") != front or not self.tavern.prizes.get(p["id"]):
                 continue
-            x, y = spot
-            if p["id"] == "horseshoe":                           # висит на гвозде
-                pygame.draw.circle(s, OUT, (int(x), int(y) - 36), 2)
+            if how == "hang":                                    # висит на гвозде
+                pygame.draw.line(s, (90, 70, 60), (int(x), int(y) - 38), (int(x) - 9, int(y) - 26), 1)
+                pygame.draw.line(s, (90, 70, 60), (int(x), int(y) - 38), (int(x) + 9, int(y) - 26), 1)
+                pygame.draw.circle(s, OUT, (int(x), int(y) - 38), 2)
                 draw_prize_icon(s, p, x, y - 18, 0.9)
             else:
-                if p["id"] == "crystal":                         # маленькая полочка на стене
+                if how == "shelf":                               # маленькая полочка на стене
                     rounded(s, (140, 92, 54), (int(x) - 20, int(y), 40, 7), 2, 2, skin=None)
                 blit_light(s, x, y - 18, 50, (255, 236, 170), 70, 0.0)
                 draw_prize_icon(s, p, x, y - 19, 0.95)
-            self.tip(pygame.Rect(int(x) - 18, int(y) - 36, 36, 38), f"Трофей из казино: {p['name']}")
+            self.tip(pygame.Rect(int(x) - 18, int(y) - 38, 36, 40), f"Трофей из казино: {p['name']}")
 
     def draw_garland(self, s, tt):
         """3.14, приз казино: гирлянда огоньков провисает под балконом, лампочки мигают по очереди."""

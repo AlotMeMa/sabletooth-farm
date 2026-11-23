@@ -70,7 +70,7 @@ class WidgetsUI:
             elif in_barn:
                 y = 126 - n * 38
             elif self.tut_visible():               # 3.9: над окошком бармена (в прокачке — наверху: внизу таблички)
-                y = 100 + n * 40 if self.mode == "upgrade" else self.tut_box().y - 28 - n * 40
+                y = 100 + n * 40 if self.mode == "upgrade" else self.tut_box().y - 46 - n * 40   # выше таблички «Бармен»
             else:
                 y = 512 - n * 40
             r = img.get_rect(center=(W // 2 - (60 if in_barn else 0), y))

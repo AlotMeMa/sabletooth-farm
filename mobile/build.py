@@ -27,6 +27,8 @@ import asyncio
 import os
 import sys
 
+import pygame  # noqa: F401  pygbag ставит pygame-ce только по import в самом main.py
+
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
 
 from farmgame.app import main_async  # noqa: E402

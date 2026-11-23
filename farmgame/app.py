@@ -802,6 +802,9 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
         elif t == pygame.KEYDOWN:
             self.on_key(e.key)
         else:
+            if device.WEB and t in (_ev("VIDEORESIZE"), _ev("WINDOWRESIZED"), _ev("WINDOWSIZECHANGED")):
+                print("Окно браузера:", pygame.event.event_name(t), getattr(e, "x", ""), getattr(e, "y", ""),
+                      getattr(e, "w", ""), getattr(e, "h", ""), "SDL:", self.window_size())
             self.on_window_event(e)
 
     def run(self):

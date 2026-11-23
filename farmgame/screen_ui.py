@@ -89,6 +89,8 @@ class ScreenUI:
         self.shade_fade = None
         self.fullscreen = True
         self.hh_screen = scr
+        if device.WEB:
+            print(f"Экран телефона: страница {scr}, картинка {ww}×{wh}, окно SDL {self.window_size()}")
 
     def toggle_hd(self):
         """Чёткость меняется со следующего запуска: все картинки подгоняются под новый размер."""

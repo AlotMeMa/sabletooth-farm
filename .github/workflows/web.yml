@@ -1,0 +1,90 @@
+# 3.17: веб-версия (pygbag) -> ветка gh-pages -> https://alotmema.github.io/sabletooth-farm/
+#   iPhone: открыть в Safari -> «Поделиться» -> «На экран Домой».
+# Запускается сам после push в main (если менялись код, картинки или mobile/), и вручную: Actions -> web -> Run workflow.
+name: web
+
+on:
+  push:
+    branches: [main, mobile]
+    paths:
+      - "farmgame/**"
+      - "assets/**"
+      - "mobile/**"
+      - "devtools/bake_sprites.py"
+      - ".github/workflows/web.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: web-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  bake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: pygame-ce
+        run: pip install pygame-ce
+      - name: Тесты
+        run: python -m unittest discover -s tests -t .
+      - name: Картинки под телефон
+        run: python devtools/bake_sprites.py build/baked
+      - name: Иконки
+        run: python mobile/build.py icons build/icons --baked build/baked
+      - uses: actions/upload-artifact@v4
+        with:
+          name: baked
+          path: |
+            build/baked
+            build/icons
+          retention-days: 7
+
+  web:
+    needs: bake
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - uses: actions/download-artifact@v4
+        with:
+          name: baked
+          path: build
+      - name: pygbag
+        run: |
+          pip install pygbag pygame-ce
+          python -m pygbag --version || true
+      - name: Сборка
+        run: |
+          python mobile/build.py stage web build/web_src --baked build/baked
+          cp build/icons/favicon.png build/web_src/favicon.png
+          python -m pygbag --build --app_name vesyolaya-ferma --title "Vesyolaya ferma" build/web_src
+          cp build/icons/icon*.png build/web_src/build/web/
+          python mobile/build.py webpatch build/web_src/build/web
+          ls -la build/web_src/build/web
+          head -c 3000 build/web_src/build/web/index.html
+      - uses: actions/upload-artifact@v4
+        with:
+          name: web
+          path: build/web_src/build/web
+          retention-days: 7
+      - name: На GitHub Pages (ветка gh-pages)
+        if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/mobile'
+        working-directory: build/web_src/build/web
+        run: |
+          rm -f *.tar.gz
+          touch .nojekyll
+          git init -q -b gh-pages
+          git add -A
+          git -c user.name="github-actions[bot]" -c user.email="41898282+github-actions[bot]@users.noreply.github.com" \
+            commit -q -m "Веб-версия из ${GITHUB_SHA::7} (${GITHUB_REF_NAME})"
+          git push -q -f "https://x-access-token:${{ github.token }}@github.com/${{ github.repository }}" gh-pages
+          echo "Готово: https://alotmema.github.io/sabletooth-farm/"
+

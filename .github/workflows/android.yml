@@ -1,9 +1,7 @@
-# 3.17: телефонные сборки.
-#   bake    — картинки под телефон (devtools/bake_sprites.py) + тесты
-#   web     — веб-версия (pygbag) -> GitHub Pages: https://alotmema.github.io/sabletooth-farm/
-#   android — APK (buildozer) -> релиз «android-latest» на GitHub (ссылка для телефона)
-# Запускается сам после push в main (если менялись код, картинки или mobile/), и вручную: Actions -> mobile -> Run workflow.
-name: mobile
+# 3.17: APK для Android (buildozer) -> релиз «android-latest»:
+#   https://github.com/AlotMeMa/sabletooth-farm/releases/tag/android-latest
+# Запускается сам после push в main (если менялись код, картинки или mobile/), и вручную: Actions -> android -> Run workflow.
+name: android
 
 on:
   push:
@@ -13,16 +11,14 @@ on:
       - "assets/**"
       - "mobile/**"
       - "devtools/bake_sprites.py"
-      - ".github/workflows/mobile.yml"
+      - ".github/workflows/android.yml"
   workflow_dispatch:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 concurrency:
-  group: mobile-${{ github.ref }}
+  group: android-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
@@ -48,51 +44,6 @@ jobs:
             build/baked
             build/icons
           retention-days: 7
-
-  web:
-    needs: bake
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: "3.12"
-      - uses: actions/download-artifact@v4
-        with:
-          name: baked
-          path: build
-      - name: pygbag
-        run: |
-          pip install pygbag pygame-ce
-          python -m pygbag --version || true
-      - name: Сборка
-        run: |
-          python mobile/build.py stage web build/web_src --baked build/baked
-          cp build/icons/favicon.png build/web_src/favicon.png
-          python -m pygbag --build --app_name vesyolaya-ferma --title "Vesyolaya ferma" build/web_src
-          cp build/icons/icon*.png build/web_src/build/web/
-          python mobile/build.py webpatch build/web_src/build/web
-          ls -la build/web_src/build/web
-      - uses: actions/upload-artifact@v4
-        with:
-          name: web
-          path: build/web_src/build/web
-          retention-days: 7
-      - uses: actions/upload-pages-artifact@v3
-        if: github.ref == 'refs/heads/main'
-        with:
-          path: build/web_src/build/web
-
-  pages:
-    needs: web
-    if: github.ref == 'refs/heads/main'
-    runs-on: ubuntu-latest
-    environment:
-      name: github-pages
-      url: ${{ steps.deploy.outputs.page_url }}
-    steps:
-      - id: deploy
-        uses: actions/deploy-pages@v4
 
   android:
     needs: bake

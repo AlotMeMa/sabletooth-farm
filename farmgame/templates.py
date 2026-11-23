@@ -184,6 +184,8 @@ def spec_list():
         lambda s: s.blit(tu.build_board_background(), (0, 0)))
     add("characters/barman", (150, 150), "низ по центру (75, 150) = край стойки", "бармен по пояс", 1, _draw_barman)
     add("characters/bard", (130, 180), "низ по центру (65, 178) = пол сцены", "бард с лютней", 1, _draw_bard)
+    add("characters/bard_girl", (130, 180), "низ по центру (65, 178) = пол сцены",
+        "певица Мила — приз казино, поёт вместо барда", 1, lambda s: None)
     add("icons/token", (40, 40), "центр", "жетон таверны", 1,
         lambda s: tu.draw_token(s, 20, 20, 1.0))
     add("backgrounds/loading", (W, H), "весь экран", "фон экрана загрузки (необязательно)", 0,

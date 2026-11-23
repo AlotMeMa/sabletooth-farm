@@ -302,7 +302,6 @@ class CasinoUI:
         rounded(s, WOOD, plate, 10, 3)
         draw_text(s, "РУЛЕТКА", 24, (plate.centerx, plate.centery - 1), GOLD)
         self.cs_draw_croupier(s)
-        self.cs_draw_trophies(s)
         self.cs_draw_wheel(s)
         busy = self.cs_spin is not None
         # поле ставок
@@ -380,30 +379,6 @@ class CasinoUI:
         q = pygame.Rect(x + 92, wy - 46, 32, 32)
         self.button(q, "?", self.cs_rules, BTN_BLUE, True, 16)
         self.tip(q, "Правила рулетки ещё раз")
-
-    def cs_draw_trophies(self, s):
-        """3.15.1: полка трофеев на стене справа от крупье. Купленные стоят и чуть светятся,
-        некупленные — бледные силуэты (видно, что ещё можно собрать)."""
-        sh = TROPHY_SHELF
-        x, y, w = sh["x"], sh["y"], sh["w"]
-        trophies = [p for p in PRIZES if p["kind"] == "trophy"]
-        for bx in (x + 14, x + w - 22):                      # кронштейны
-            poly(s, WOOD_DARK, [(bx, y + 8), (bx + 8, y + 8), (bx + 8, y + 22)], 2)
-        rounded(s, WOOD, (x, y, w, 10), 3, 2, skin=None)
-        step = w / len(trophies)
-        for i, p in enumerate(trophies):
-            cx, cy = int(x + step * (i + 0.5)), y - 22
-            owned = self.tavern.prizes.get(p["id"])
-            if owned:
-                blit_light(s, cx, cy, 64, (255, 236, 170), 120, 0.0)
-                draw_prize_icon(s, p, cx, cy, 1.1)
-                tip = f"{p['name']} — твой трофей"
-            else:
-                if not blit_tf(s, f"icons/prize_{p['id']}", cx, cy, 1.1, pivot="center", alpha=55):
-                    pygame.draw.circle(s, (150, 120, 100), (cx, cy + 4), 12, 2)
-                    draw_text(s, "?", 14, (cx, cy + 4), (150, 120, 100), outline=None)
-                tip = f"{p['name']}: {p['cost']} жетонов на стойке «Призы»"
-            self.tip(pygame.Rect(cx - 22, cy - 22, 44, 44), tip)
 
     # ------------------------------------------------------------ призовая стойка
     def draw_prizes(self):
@@ -487,14 +462,13 @@ class CasinoUI:
 # ----------------------------------------------------------------------
 #                      крупье и призы (3.14)
 # ----------------------------------------------------------------------
-TROPHY_SHELF = dict(x=654, y=190, w=268)       # 3.15.1: полка трофеев справа от крупье, над столом
 CROUPIER = dict(x=520, waist=232, k=2.1, sprite_scale=1.3)   # 3.14.2: посередине над столом, крупнее
 CROUPIER_INTRO = [      # 3.15.1: крупье со всеми на «вы» (было вперемешку), «Призы» — слева вверху (кнопку переносили)
     "Добро пожаловать в игорный зал! Я крупье и расскажу, как играть в рулетку.",
     "Выберите фишку внизу и щёлкните по полю: на число, цвет, чёт или нечет, половину или дюжину.",
     "Угадали число — выигрыш 35 к 1, ставка возвращается. Цвет, чёт или половина — 1 к 1, дюжина — 2 к 1.",
     "Зелёное зеро — счастье заведения: на нём проигрывают все ставки, кроме ставки на сам ноль.",
-    "Выигрыш меняйте на призы: кнопка «Призы» слева вверху. Трофеи встанут на полку справа. Удачи!",
+    "Выигрыш меняйте на призы: кнопка «Призы» слева вверху. Трофеи украсят таверну. Удачи!",
 ]
 CROUPIER_HELLO = ["Рад видеть вас снова! Ставки принимаются.", "Колесо ждёт, господин фермер.", "Чувствую, сегодня ваш день!"]
 CROUPIER_LINES = ["Ставок больше нет — шучу, ставьте!", "Зеро любит смелых.", "Красное или чёрное? Решать вам.",
@@ -583,6 +557,10 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
             pygame.draw.circle(s, (255, 212, 80), (int(x - 14 * k + i * 6 * k), int(y + 8 * k - i * 4 * k)),
                                max(1, int((1 + i) * k)))
         poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
+    elif pid == "bard_girl":
+        from .tavern_ui import draw_person
+        look = dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True)
+        draw_person(s, x, y + 16 * k, 0.42 * k, look)
     elif pid == "garland":
         pygame.draw.arc(s, OUT, pygame.Rect(x - 20 * k, y - 14 * k, 40 * k, 20 * k), math.pi, 2 * math.pi, 2)
         for i, col in enumerate(((255, 90, 80), (255, 210, 80), (110, 220, 120), (110, 170, 255))):

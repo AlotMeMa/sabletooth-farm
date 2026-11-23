@@ -45,7 +45,8 @@ ICON_SHEET_ORDER = ["coin", "coin_silver", "leaf", "seal", "peasant", "egg", "mi
 # лист кнопок 3×3 (assets/ui/buttons.png), порядок по строкам:
 BUTTON_SHEET_ORDER = ["shop", "upgrade", "tree", "barn", "mill", "move", "settings", "field", "close"]
 # 3.14.3: листы казино — несколько картинок одной генерацией
-PRIZE_SHEET_ORDER = [p["id"] for p in PRIZES]   # лист призов 3×3 (assets/icons/prizes.png), порядок как в config.PRIZES
+PRIZE_SHEET_ORDER = [p["id"] for p in PRIZES][:9]   # лист призов 3×3 (assets/icons/prizes.png): первые 9 из config.PRIZES
+                                                    # (новые призы — отдельными файлами icons/prize_<id>)
 CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "props/roulette_ball"]   # ряд из 5 (ui/chips.png)
 # 3.16: доска заданий и таблички (2×3), облачко и стрелка (1×3), частицы и лампочки гирлянды (3×3)
 BOARD_SHEET_ORDER = ["quest_note_1", "quest_note_2", "quest_note_3", "sign", "pin", "wax_seal"]
@@ -179,7 +180,7 @@ def _fit_spec_base(name):
         # жители таверны: бармен — по пояс (низ картинки = край стойки), бард — в полный рост (низ = сцена)
         if last == "barman":
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
-        if last == "bard":
+        if last in ("bard", "bard_girl"):    # 3.15.2: певица — скин барда из призов казино
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
         if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")

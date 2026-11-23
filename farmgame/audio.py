@@ -43,6 +43,15 @@ def find_music(farm_id, scene=None):
     return files.get(farm_id) or files.get("main")
 
 
+def has_scene_music(scene):
+    """Лежит ли свой трек для места scene (например "tavern_girl")."""
+    folder = music_dir()
+    if not os.path.isdir(folder):
+        return False
+    return any(os.path.splitext(fn)[0].lower() == scene and os.path.splitext(fn)[1].lower() in AUDIO_EXTS
+               for fn in os.listdir(folder))
+
+
 class Music:
     def __init__(self, volume=0.4):
         self.ok = False          # есть ли вообще звук (на компьютере без колонок его может не быть)

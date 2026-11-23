@@ -136,3 +136,23 @@ class PlayerCasino(unittest.TestCase):
         ok, why = self.t.buy_prize(self.f, "statue")
         self.assertFalse(ok)
         self.assertEqual(self.t.tokens, 10)
+
+
+class BardGirl(unittest.TestCase):
+    """3.15.2: певица Мила — украшение из призов, вкл/выкл; лист призов 3×3 — только первые 9."""
+
+    def test_buy_and_toggle(self):
+        from farmgame.logic import Farm
+        t = tv.Tavern()
+        t.tokens = 1000
+        self.assertTrue(t.buy_prize(Farm(), "bard_girl")[0])
+        self.assertTrue(t.prize_on("bard_girl"))
+        t.toggle_prize("bard_girl")
+        self.assertFalse(t.prize_on("bard_girl"))
+
+    def test_prize_sheet_keeps_old_order(self):
+        # лист призов 3×3 берёт первые 9 призов: новые призы добавляются только в конец списка
+        from farmgame.config import PRIZES
+        self.assertEqual([p["id"] for p in PRIZES][:9],
+                         ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail",
+                          "garland"])

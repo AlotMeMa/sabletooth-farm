@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.16"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.16.1"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -81,6 +81,8 @@ PRIZES = [
     dict(id="gold_notes", kind="cosmetic", name="Нарядные ноты", cost=80, text="ноты барда золотые и блестят"),
     dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
     dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
+    dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300,
+         text="крестьянка поёт свою песню вместо барда"),
 ]
 GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше
 # Ворона: реже белки, останавливает грядку, пока её не прогонят (только пока игра открыта)

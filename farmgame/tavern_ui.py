@@ -84,8 +84,9 @@ def _layout_procedural():
 # Сменил музыку — поправь эти числа в assets/backgrounds/tavern.json: "music": {"bpm": ..., "offset": ..., "loop": ...}
 MUSIC_TIMING = dict(bpm=86.68, offset=0.03, loop=56.31)    # под assets/music/tavern.ogg (джига 6/8, доля = ♩.)
 # 3.15.2: песня певицы Милы — assets/music/tavern_girl.ogg (нет файла — играет обычная музыка таверны).
-# Темп её трека — свой; пока трека нет, числа те же, что у таверны. Поменять — "music_girl" в tavern.json.
-MUSIC_GIRL_TIMING = dict(MUSIC_TIMING)
+# Темп её трека посчитан по файлу (23.11): ровно 120 долей в минуту всю песню, первая доля через 0.08 с,
+# длина 234.88 с. Поменял трек — поправь "music_girl" в tavern.json или попроси пересчитать.
+MUSIC_GIRL_TIMING = dict(bpm=120.0, offset=0.08, loop=234.88)
 NOTE_COLORS = [(255, 235, 150), (255, 200, 120), (190, 230, 255), (255, 190, 210)]
 
 

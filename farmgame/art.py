@@ -79,11 +79,11 @@ def _load_sprite(name):
         path = find_asset_file(base)
         if path and not is_template_copy(base, path):
             return spritefit.load_fitted(name, path)
-        for sheet_name, (prefix, order) in spritefit.SHEETS.items():
+        for sheet_name, (prefix, order, rows, cols) in spritefit.SHEETS.items():
             if base.startswith(prefix) and base[len(prefix):] in order:
                 sheet = find_asset_file(sheet_name)
                 if sheet:
-                    return spritefit.load_fitted(name, sheet, ("sheet", order.index(base[len(prefix):]), prefix, order))
+                    return spritefit.load_fitted(name, sheet, ("sheet", order.index(base[len(prefix):]), prefix, order, rows, cols))
         return None
     path = find_asset_file(name)
     if path and is_template_copy(name, path):
@@ -99,11 +99,11 @@ def _load_sprite(name):
         if strip and spritefit.is_strip(pygame.image.load(strip), strip):
             return spritefit.load_fitted(name, strip, ("strip", int(name[-1])))
         return None
-    for sheet_name, (prefix, order) in spritefit.SHEETS.items():   # иконка/кнопка из листа 3×3
+    for sheet_name, (prefix, order, rows, cols) in spritefit.SHEETS.items():   # иконка/кнопка/фишка из листа
         if name.startswith(prefix) and name[len(prefix):] in order:
             sheet = find_asset_file(sheet_name)
             if sheet:
-                return spritefit.load_fitted(name, sheet, ("sheet", order.index(name[len(prefix):]), prefix, order))
+                return spritefit.load_fitted(name, sheet, ("sheet", order.index(name[len(prefix):]), prefix, order, rows, cols))
     return None
 
 

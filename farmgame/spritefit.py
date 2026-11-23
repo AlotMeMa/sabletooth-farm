@@ -20,7 +20,7 @@ import re
 
 import pygame
 
-from .config import BASE_DIR, W, H
+from .config import BASE_DIR, W, H, PRIZES
 
 CACHE_VERSION = "fit7"   # 3.11.2: светлое (мука, дымка) у края на мадженте больше не розовеет — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
@@ -44,9 +44,14 @@ LINE_MIN = 0.4
 ICON_SHEET_ORDER = ["coin", "coin_silver", "leaf", "seal", "peasant", "egg", "milk", "truffle", "honey"]
 # лист кнопок 3×3 (assets/ui/buttons.png), порядок по строкам:
 BUTTON_SHEET_ORDER = ["shop", "upgrade", "tree", "barn", "mill", "move", "settings", "field", "close"]
-SHEETS = {   # имя листа -> (папка/префикс картинок, порядок)
-    "icons/sheet": ("icons/", ICON_SHEET_ORDER),
-    "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER),
+# 3.14.3: листы казино — несколько картинок одной генерацией
+PRIZE_SHEET_ORDER = [p["id"] for p in PRIZES]   # лист призов 3×3 (assets/icons/prizes.png), порядок как в config.PRIZES
+CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "props/roulette_ball"]   # ряд из 5 (ui/chips.png)
+SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
+    "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
+    "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER, 3, 3),
+    "icons/prizes": ("icons/prize_", PRIZE_SHEET_ORDER, 3, 3),
+    "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -700,7 +705,8 @@ def is_strip(img, path=None):
 
 def load_fitted(name, path, part=None):
     """Загружает картинку path для спрайта name, подгоняя её под нужный размер.
-    part: None — обычный файл; ("strip", stage) — стадия из полоски; ("sheet", i, префикс, порядок) — из листа."""
+    part: None — обычный файл; ("strip", stage) — стадия из полоски;
+    ("sheet", i, префикс, порядок, строк, столбцов) — из листа."""
     spec = fit_spec(name)
     if spec is None and part is None:
         return _upscale(_load(path))     # правила нет — картинка как есть (в HD — крупнее)
@@ -739,10 +745,10 @@ def load_fitted(name, path, part=None):
             if surf is not None and st != part[1]:
                 _save_cache(_cache_path(f"{base}_{st}", path), surf)
         out = outs[part[1] - 1]
-    else:  # sheet: ("sheet", номер, префикс, порядок)
-        _kind, idx, prefix, order = part
+    else:  # sheet: ("sheet", номер, префикс, порядок, строк, столбцов)
+        _kind, idx, prefix, order, rows, cols = part
         sfx = HI if name.endswith(HI) else ""
-        outs = fit_sheet(img, 3, 3, lambda i: fit_spec(prefix + order[i] + sfx))
+        outs = fit_sheet(img, rows, cols, lambda i: fit_spec(prefix + order[i] + sfx))
         for i, surf in enumerate(outs):
             if surf is not None and i != idx:
                 _save_cache(_cache_path(prefix + order[i] + sfx, path), surf)

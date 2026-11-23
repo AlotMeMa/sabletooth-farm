@@ -1458,7 +1458,7 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
         toasts = list(reversed(self.toasts))[:2 if self.view != "field" else 3]
         for n, (text, life) in enumerate(toasts):
             img = render_text(text, 16, WHITE, OUT)
-            if self.view in ("tavern", "board"):   # внизу: не мешают балкону, облачкам и запискам
+            if self.view in ("tavern", "board", "casino"):   # внизу: не мешают балкону, облачкам и запискам
                 y = 602 - n * 38
             elif in_barn:
                 y = 126 - n * 38

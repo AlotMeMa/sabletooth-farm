@@ -298,7 +298,7 @@ class CasinoUI:
                 self.zone_btn(r, lambda key=key: self.cs_place(key), 4)
             amt = self.roulette.bets.get(key)
             if amt:
-                draw_chip(s, r.centerx + 8, r.centery - 8, chip_for(amt), 0.8, str(amt))
+                draw_chip(s, r.right - 9, r.y + 9, chip_for(amt), 0.62, str(amt))   # в углу — число видно
             if self.cs_spin is None and self.roulette.history and key == ("num", self.roulette.history[0]):
                 pygame.draw.rect(s, GOLD, r.inflate(4, 4), 3, border_radius=5)
         # фишки

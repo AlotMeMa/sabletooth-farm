@@ -224,6 +224,16 @@ def spec_list():
         add(f"characters/{key}", (100, 150), "низ по центру = пол", desc + " — экран мельницы", 1, lambda s: None)
     for key, desc in (("grain", "мешочек зерна"), ("flour", "мешок муки"), ("bread", "буханка хлеба")):
         add(f"icons/{key}", (40, 40), "центр", desc + " (мельница)", 1, lambda s: None)
+    # 3.14: казино
+    add("backgrounds/casino", (W, H), "весь экран", "игорный зал (без колеса и разметки стола)", 1, lambda s: None)
+    add("props/roulette_wheel", (338, 338), "центр = ось", "колесо рулетки сверху, без цифр", 1, lambda s: None)
+    add("props/roulette_ball", (40, 40), "центр", "шарик рулетки", 1, lambda s: None)
+    for v in (5, 10, 25, 50):
+        add(f"ui/chip_{v}", (72, 72), "центр", f"фишка {v} (без числа)", 1, lambda s: None)
+    add("characters/croupier", (150, 150), "низ по центру = край стола", "крупье по пояс", 1, lambda s: None)
+    from .config import PRIZES
+    for p in PRIZES:
+        add(f"icons/prize_{p['id']}", (40, 40), "центр", f"приз казино: {p['name']}", 1, lambda s: None)
     for n in range(1, 5):
         add(f"icons/note_{n}", (30, 30), "центр", f"нота барда, вариант {n} (в таверне; необязательно)", 1,
             lambda s, n=n: tu.draw_note(s, 9, 22, color=tu.NOTE_COLORS[n - 1]))

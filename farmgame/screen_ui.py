@@ -96,7 +96,10 @@ class ScreenUI:
                 pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
         except pygame.error as e:
-            self.toast(f"Не получилось переключить экран: {e}", 3)
+            print("Переключение экрана:", e)
+            self.safe_window()
+            if not any(t[0].startswith("Не получилось переключить экран") for t in self.toasts):
+                self.toast("Не получилось переключить экран — игра осталась в окне", 3)
 
     # ---------- 3.10: полный экран без чёрных полос ----------
     def set_canvas(self, real):
@@ -122,7 +125,7 @@ class ScreenUI:
             self.restore_window()
             return False
         self.wide = dict(display=display, frame=frame, offset=(ox, oy), size=(ww, wh), edges=None, t=-1.0,
-                         win=None, check=self.t_real, refreshed=getattr(self, "_wide_refreshes", 0))
+                         win=None, check=self.t_real)
         self.set_canvas(frame)
         hd.set_offset(ox, oy)
         self.shade_fade = None
@@ -145,34 +148,45 @@ class ScreenUI:
         self.restore_window()
 
     def on_window_event(self, e):
-        """3.16.4: свернули полный экран (кнопкой, Alt+Tab, Win) — Windows при возврате отдаёт обычное окно размером
-        с монитор, а игра продолжала рисовать кадр полного экрана: слева размытая полоса, справа всё обрезано.
-        Запоминаем сворачивание и при возврате пересоздаём полный экран."""
-        gone = {getattr(pygame, n) for n in ("WINDOWMINIMIZED", "WINDOWHIDDEN") if hasattr(pygame, n)}
-        back = {getattr(pygame, n) for n in ("WINDOWRESTORED", "WINDOWSHOWN", "WINDOWFOCUSGAINED", "WINDOWEXPOSED",
-                                             "WINDOWMAXIMIZED") if hasattr(pygame, n)}
-        active = getattr(pygame, "ACTIVEEVENT", None)
-        if e.type in gone or (e.type == active and getattr(e, "gain", 1) == 0 and getattr(e, "state", 0) & 2):
+        """3.16.5: свернули полный экран (кнопкой, Alt+Tab, Win), а Windows вернул его обычным окном — пересоздаём.
+        Только по настоящему «свернули» → «развернули» и только если размер окна правда стал другим.
+        (В 3.16.4 срабатывало и на потерю фокуса: каждое пересоздание окна снова теряло фокус — окно пересоздавалось
+        по кругу, пока Windows не отказал: «failed to create renderer».)"""
+        mini = getattr(pygame, "WINDOWMINIMIZED", None)
+        back = getattr(pygame, "WINDOWRESTORED", None)
+        if mini is not None and e.type == mini:
             if self.wide:
                 self.was_minimized = True
-        elif e.type in back or (e.type == active and getattr(e, "gain", 0) == 1):
+        elif back is not None and e.type == back:
             if self.wide and self.was_minimized:
-                self.wide_refresh = True
+                self.was_minimized = False
+                now, was = self.window_size(), self.wide.get("win")
+                if was and now and now != was and getattr(self, "_wide_refreshes", 0) < 3:
+                    self.wide_refresh = True
 
     def refresh_wide(self):
-        """Пересоздать полный экран после сворачивания (или вернуться в окно, если не вышло)."""
+        """Пересоздать полный экран после сворачивания (не вышло — спокойно вернуться в окно)."""
         self.wide_refresh = False
-        self.was_minimized = False
         if not self.wide:
             return
-        self._wide_refreshes = getattr(self, "_wide_refreshes", 0) + 1     # от зацикливания: не больше 20 раз за игру
+        self._wide_refreshes = getattr(self, "_wide_refreshes", 0) + 1
         try:
             self.restore_window()
             if not self.enter_wide():
                 self.fullscreen = False
         except pygame.error as e:
             print("Полный экран после сворачивания:", e)
-            self.fullscreen = False
+            self.safe_window()
+
+    def safe_window(self):
+        """Что-то пошло не так с полным экраном — вернуться в обычное окно (без сообщений по кругу)."""
+        self.wide = None
+        self.fullscreen = False
+        hd.set_offset(0, 0)
+        try:
+            self.restore_window()
+        except pygame.error as e:
+            print("Окно не пересоздалось:", e)
 
     def set_edge_fill(self, on):
         """Переключить края полного экрана (размытый фон / чёрные полосы); в полном экране — сразу."""
@@ -214,16 +228,8 @@ class ScreenUI:
         wd = self.wide
         if wd is None:
             return
-        # 3.16.4: страховка — раз в секунду сверяем размер окна: стал другим (полный экран превратился в окно,
-        # а событие о сворачивании не пришло) — пересоздаём полный экран со следующего кадра
-        if self.t_real - wd["check"] >= 1.0 or self.t_real < wd["check"]:
-            wd["check"] = self.t_real
-            now = self.window_size()
-            if wd["win"] is None:                    # размер запоминаем через секунду: окно успело встать
-                wd["win"] = now
-            elif now and now != wd["win"] and getattr(self, "_wide_refreshes", 0) < 20:
-                self.was_minimized = True
-                self.wide_refresh = True
+        if wd["win"] is None and self.t_real - wd["check"] >= 1.0:    # размер полного экрана — когда окно встало
+            wd["win"] = self.window_size()
         if wd["edges"] is None or self.t_real - wd["t"] >= 0.2 or self.t_real < wd["t"]:
             wd["t"] = self.t_real
             try:

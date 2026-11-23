@@ -1155,11 +1155,11 @@ class TavernUI:
         s.blit(img, img.get_rect(midleft=(r.x + 44, r.centery)))
         return r
 
-    def draw_tavern_back(self, label, cb, width=134):
+    def draw_tavern_back(self, label, cb, width=134, pos=(16, 560), h=56):
         if label == "На поле" and has_sprite("ui/btn_field"):
             self.icon_button(pygame.Rect(16, 560, 62, 56), "field", None, cb, label)
             return
-        back = pygame.Rect(16, 560, width, 56)
+        back = pygame.Rect(pos[0], pos[1], width, h)
         rounded(self.screen, BTN_GREEN, back, 10, 3)
         draw_text(self.screen, "<  " + label, 18, back.center)
         self.zone_btn(back, cb)

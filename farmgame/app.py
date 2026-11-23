@@ -1314,7 +1314,10 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI):
             self.draw_tavern_back("На поле", self.leave_tavern)
             return
         if board:
-            self.draw_tavern_back("В таверну", lambda: setattr(self, "view", "tavern"), 170)
+            if self.view == "casino":       # 3.14.2: в казино — над столом слева, а не на краю стола
+                self.draw_tavern_back("В таверну", lambda: setattr(self, "view", "tavern"), 170, (14, 60), 46)
+            else:
+                self.draw_tavern_back("В таверну", lambda: setattr(self, "view", "tavern"), 170)
             return
 
         if DEV:

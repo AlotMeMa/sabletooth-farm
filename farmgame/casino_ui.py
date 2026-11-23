@@ -25,11 +25,16 @@ FELT, FELT_DARK = (40, 120, 70), (30, 92, 54)
 WOOD, WOOD_DARK = (120, 70, 40), (86, 48, 28)
 CS_RED, CS_BLACK, CS_GREEN = (196, 52, 48), (38, 34, 36), (40, 150, 80)
 SPIN_TIME = 5.5
+# 3.14.2: всё на столе — внутри зелёного сукна фона (у фона пользователя сукно x 76–933, y 239–587)
 CASINO_LAYOUT = dict(
-    wheel=(250, 318), wheel_r=165,
-    board=pygame.Rect(470, 178, 520, 222),        # зеро + 12x3 чисел + дюжины + ставки 1 к 1
-    chips_y=452, spin=pygame.Rect(800, 428, 186, 52), clear=pygame.Rect(712, 434, 82, 40),
+    felt=pygame.Rect(76, 239, 857, 348),
+    wheel=(236, 413), wheel_r=148,
+    ring=(0.46, 0.86),                             # кольцо ячеек: доли радиуса колеса (внутр., внешн.)
+    board=pygame.Rect(410, 252, 513, 178),        # зеро + 12x3 чисел + дюжины + ставки 1 к 1
+    chips_y=466, chips_x=510, spin=pygame.Rect(748, 442, 175, 48), clear=pygame.Rect(652, 447, 88, 38),
+    msg=(668, 532), history=(520, 566),
 )
+WHEEL_SPRITE_R = 168      # радиус колеса на картинке props/roulette_wheel после подгонки (холст 338)
 
 
 def cell_color(n):
@@ -39,7 +44,7 @@ def cell_color(n):
 def board_cells():
     """[(ключ ставки, Rect, подпись, цвет)] — поле ставок по раскладке."""
     b = CASINO_LAYOUT["board"]
-    zw, cw, ch = 40, 40, 48
+    zw, cw, ch = 33, 40, 38
     cells = [(("num", 0), pygame.Rect(b.x, b.y, zw, ch * 3), "0", CS_GREEN)]
     for c in range(12):
         for r in range(3):
@@ -47,11 +52,11 @@ def board_cells():
             cells.append((("num", n), pygame.Rect(b.x + zw + c * cw, b.y + r * ch, cw, ch), str(n), cell_color(n)))
     y = b.y + ch * 3 + 4
     for d in range(3):
-        cells.append((("dozen", d + 1), pygame.Rect(b.x + zw + d * 160, y, 160, 34), cs.bet_name(("dozen", d + 1)), FELT))
-    y += 38
+        cells.append((("dozen", d + 1), pygame.Rect(b.x + zw + d * 160, y, 160, 28), cs.bet_name(("dozen", d + 1)), FELT))
+    y += 32
     for i, kind in enumerate(("low", "even", "red", "black", "odd", "high")):
         col = CS_RED if kind == "red" else CS_BLACK if kind == "black" else FELT
-        cells.append(((kind,), pygame.Rect(b.x + zw + i * 80, y, 80, 34), cs.BET_NAMES[kind], col))
+        cells.append(((kind,), pygame.Rect(b.x + zw + i * 80, y, 80, 28), cs.BET_NAMES[kind], col))
     return cells
 
 
@@ -174,7 +179,9 @@ class CasinoUI:
         rel = rel_end - 2 * math.pi * 6 * (1 - anim.ease_out_cubic(u))      # шарик бежит против колеса
         r = CASINO_LAYOUT["wheel_r"]
         drop = max(0.0, (u - 0.7) / 0.3)
-        radius = r * (0.9 - 0.13 * anim.ease_out_cubic(drop)) + 3 * math.sin(sp["t"] * 30) * drop * (1 - drop)
+        r0, r1 = CASINO_LAYOUT["ring"]
+        rest = (r0 + r1) / 2 - 0.04                # шарик ложится в ячейку, ближе к внутреннему краю
+        radius = r * (0.93 - (0.93 - rest) * anim.ease_out_cubic(drop)) + 3 * math.sin(sp["t"] * 30) * drop * (1 - drop)
         self.cs_ball = (rel, radius)
         if u >= 1.0:
             self.cs_finish()
@@ -208,8 +215,9 @@ class CasinoUI:
             pygame.draw.rect(bg, (104, 32, 42), (x, 0, 25, 150))
         pygame.draw.rect(bg, WOOD_DARK, (0, 140, W, 14))
         pygame.draw.rect(bg, GOLD, (0, 140, W, 3))
-        rounded(bg, WOOD, (16, 150, W - 32, 470), 40, 4)           # стол
-        rounded(bg, FELT, (34, 166, W - 68, 438), 32, 3)
+        felt = CASINO_LAYOUT["felt"]
+        rounded(bg, WOOD, felt.inflate(76, 80), 40, 4)              # стол (сукно — там же, где у картинки фона)
+        rounded(bg, FELT, felt, 26, 3)
         for i in range(3):                                          # лампы над столом
             x = 220 + i * 280
             pygame.draw.line(bg, OUT, (x, 0), (x, 46), 3)
@@ -218,7 +226,8 @@ class CasinoUI:
 
     def build_wheel_image(self, numbers_only=False):
         """Колесо без поворота (ноль сверху): обод, ячейки с числами, конус посередине.
-        numbers_only — только цифры на прозрачном (поверх своей картинки колеса без цифр)."""
+        numbers_only — только кольцо ячеек с цифрами на прозрачном: кладётся поверх своей картинки колеса
+        (у картинки из нейросети ячеек не ровно 37 и цвета не по порядку — кольцо игры их закрывает)."""
         R = CASINO_LAYOUT["wheel_r"]
         size = 2 * R + 8
         img = hd.Surface((size, size), pygame.SRCALPHA)
@@ -229,19 +238,24 @@ class CasinoUI:
             pygame.draw.circle(img, WOOD, (P(c), P(c)), R)
             pygame.draw.circle(img, WOOD_DARK, (P(c), P(c)), int(R * 0.9), 3)
         step = 2 * math.pi / len(cs.WHEEL)
-        r0, r1 = R * 0.62, R * 0.86
+        r0, r1 = R * CASINO_LAYOUT["ring"][0], R * CASINO_LAYOUT["ring"][1]
         for i, n in enumerate(cs.WHEEL):
             a0, a1 = -math.pi / 2 + (i - 0.5) * step, -math.pi / 2 + (i + 0.5) * step
             pts = [(c + math.cos(a0) * r0, c + math.sin(a0) * r0), (c + math.cos(a0) * r1, c + math.sin(a0) * r1),
                    (c + math.cos(a1) * r1, c + math.sin(a1) * r1), (c + math.cos(a1) * r0, c + math.sin(a1) * r0)]
-            if not numbers_only:
-                poly(img, cell_color(n), pts, 1)
+            poly(img, cell_color(n), pts, 1)
+            if numbers_only:                                 # золотая перегородка между ячейками
+                pygame.draw.line(img, (220, 180, 90), (P(pts[0][0]), P(pts[0][1])), (P(pts[1][0]), P(pts[1][1])), 2)
             am = -math.pi / 2 + i * step
-            t = render_text(str(n), 12, WHITE, OUT if numbers_only else None)
+            t = render_text(str(n), 10, WHITE, None)
             t = pygame.transform.rotate(t, -math.degrees(am + math.pi / 2))
-            rm = R * 0.78
+            rm = r0 + (r1 - r0) * 0.74
             img.blit(t, t.get_rect(center=(int(c + math.cos(am) * rm), int(c + math.sin(am) * rm))))
-        if numbers_only:
+        if numbers_only:                                     # золотые края кольца
+            pygame.draw.circle(img, OUT, (P(c), P(c)), int(r1) + 3, 4)
+            pygame.draw.circle(img, (220, 180, 90), (P(c), P(c)), int(r1) + 2, 2)
+            pygame.draw.circle(img, OUT, (P(c), P(c)), int(r0) + 1, 3)
+            pygame.draw.circle(img, (220, 180, 90), (P(c), P(c)), int(r0), 1)
             return img
         pygame.draw.circle(img, OUT, (P(c), P(c)), int(r0) + 1, 2)
         pygame.draw.circle(img, (150, 95, 55), (P(c), P(c)), int(r0 - 2))
@@ -258,7 +272,7 @@ class CasinoUI:
         R = CASINO_LAYOUT["wheel_r"]
         deg = -math.degrees(self.cs_angle)
         blit_light(s, wx, wy, 2 * R + 120, (255, 236, 170), 70)
-        if blit_tf(s, "props/roulette_wheel", wx, wy, 1.0, angle=deg, pivot="center"):
+        if blit_tf(s, "props/roulette_wheel", wx, wy, (R + 3) / WHEEL_SPRITE_R, angle=deg, pivot="center"):
             # своё колесо — без цифр: цифры рисует игра поверх и крутит вместе с колесом
             if getattr(self, "cs_numbers_img", None) is None:
                 self.cs_numbers_img = self.build_wheel_image(numbers_only=True)
@@ -271,7 +285,7 @@ class CasinoUI:
             s.blit(rot, rot.get_rect(center=(wx, wy)))
         # шарик
         if self.cs_spin or self.cs_ball:
-            rel, rad = self.cs_ball if self.cs_ball else (0.0, R * 0.77)
+            rel, rad = self.cs_ball if self.cs_ball else (0.0, R * (sum(CASINO_LAYOUT["ring"]) / 2 - 0.04))
             a = -math.pi / 2 + self.cs_angle + rel
             bx, by = wx + math.cos(a) * rad, wy + math.sin(a) * rad
             if not blit_sprite(s, "props/roulette_ball", bx, by, 0.4, "center"):
@@ -284,9 +298,9 @@ class CasinoUI:
         if self.cs_bg is None:
             self.cs_bg = self.build_casino_background()
         s.blit(self.cs_bg, (0, 0))
-        plate = pygame.Rect(W // 2 - 210, 74, 300, 50)       # 3.14: левее — справа стоит крупье
+        plate = pygame.Rect(196, 120, 230, 48)               # 3.14.2: слева — посередине стоит крупье
         rounded(s, WOOD, plate, 10, 3)
-        draw_text(s, "РУЛЕТКА", 26, (plate.centerx, plate.centery - 1), GOLD)
+        draw_text(s, "РУЛЕТКА", 24, (plate.centerx, plate.centery - 1), GOLD)
         self.cs_draw_croupier(s)
         self.cs_draw_wheel(s)
         busy = self.cs_spin is not None
@@ -302,10 +316,10 @@ class CasinoUI:
             if self.cs_spin is None and self.roulette.history and key == ("num", self.roulette.history[0]):
                 pygame.draw.rect(s, GOLD, r.inflate(4, 4), 3, border_radius=5)
         # фишки
-        y = CASINO_LAYOUT["chips_y"]
-        draw_text(s, "Фишка:", 16, (476, y), WHITE, anchor="midleft")
+        y, x0 = CASINO_LAYOUT["chips_y"], CASINO_LAYOUT["chips_x"]
+        draw_text(s, "Фишка:", 16, (x0 - 100, y), WHITE, anchor="midleft")
         for i, v in enumerate(cs.CHIPS):
-            x = 566 + i * 40
+            x = x0 + i * 38
             rect = pygame.Rect(x - 19, y - 19, 38, 38)
             if v == self.cs_chip:
                 blit_light(s, x, y, 64, (255, 230, 140), 200)
@@ -319,27 +333,27 @@ class CasinoUI:
                   WHITE)
         # сообщение и история
         text, col = self.cs_msg
-        draw_text(s, text, 18, (250, 520), col)
+        mx, my = CASINO_LAYOUT["msg"]
+        draw_text_fit(s, text, 17, (mx, my), CASINO_LAYOUT["felt"].right - 420 - 10, col)
+        hx, hy = CASINO_LAYOUT["history"]
         for i, n in enumerate(self.roulette.history[:10]):
-            x = 486 + i * 32
-            pygame.draw.circle(s, OUT, (x, 530), 13)
-            pygame.draw.circle(s, cell_color(n), (x, 530), 11)
-            draw_text(s, str(n), 11, (x, 530))
+            x = hx + i * 30
+            pygame.draw.circle(s, OUT, (x, hy), 13)
+            pygame.draw.circle(s, cell_color(n), (x, hy), 11)
+            draw_text(s, str(n), 11, (x, hy))
         if self.roulette.history:
-            draw_text(s, "последние", 12, (486 - 16, 552), (220, 230, 210), anchor="midleft", outline=None)
+            draw_text(s, "последние:", 13, (hx - 20, hy), (220, 230, 210), anchor="midright", outline=None)
         for x, yy, t, life, color in self.floaters:
             draw_text(s, t, 18, (x, yy), color)
         # жетоны, призы, облачко крупье
-        pb = pygame.Rect(198, 560, 170, 56)
-        self.button(pb, "Призы", lambda: self.open_modal("prizes"), (245, 175, 50), True, 20)
-        draw_token(s, pb.x + 28, pb.centery, 0.75)
+        pb = pygame.Rect(14, 112, 170, 46)                  # 3.14.2: над столом, под «В таверну»
+        self.button(pb, "Призы", lambda: self.open_modal("prizes"), (245, 175, 50), True, 19)
+        draw_token(s, pb.x + 28, pb.centery, 0.7)
         self.tip(pb, "Призовая стойка: трофеи, удача и украшения за жетоны")
         if self.cs_say:
-            cx, wy = CROUPIER["x"], CROUPIER["waist"]
-            draw_bubble(s, cx - 48, wy - 150 * CROUPIER["k"] / 1.6, self.cs_say[0], 14, 250)
-            if not self.tavern.casino_intro:
-                draw_text(s, f"щёлкни по крупье — дальше  ({self.cs_intro + 1}/{len(CROUPIER_INTRO)})", 14,
-                          (250, 546), (255, 236, 190))
+            hint = None if self.tavern.casino_intro else \
+                f"щёлкни по крупье — дальше ({self.cs_intro + 1}/{len(CROUPIER_INTRO)})"
+            draw_side_bubble(s, CROUPIER["x"] + 62, CROUPIER["waist"] - 150, self.cs_say[0], hint)
 
     def cs_draw_croupier(self, s):
         """Крупье по пояс за столом (справа от надписи): своя картинка characters/croupier или кодом."""
@@ -359,10 +373,10 @@ class CasinoUI:
             bx, by = x, wy - 70 * c["k"]
             poly(s, (190, 40, 50), [(bx, by), (bx - 9, by - 5), (bx - 9, by + 5)], 2)
             poly(s, (190, 40, 50), [(bx, by), (bx + 9, by - 5), (bx + 9, by + 5)], 2)
-        zone = pygame.Rect(x - 70, wy - 170, 140, 170)
+        zone = pygame.Rect(x - 75, wy - 185, 150, 185)
         self.zone_btn(zone, self.poke_croupier, 12)
         self.tip(zone, "Крупье: щёлкни, чтобы поговорить" if self.tavern.casino_intro else "Крупье рассказывает правила")
-        q = pygame.Rect(x + 70, wy - 44, 32, 32)
+        q = pygame.Rect(x + 66, wy - 46, 32, 32)
         self.button(q, "?", self.cs_rules, BTN_BLUE, True, 16)
         self.tip(q, "Правила рулетки ещё раз")
 
@@ -448,7 +462,7 @@ class CasinoUI:
 # ----------------------------------------------------------------------
 #                      крупье и призы (3.14)
 # ----------------------------------------------------------------------
-CROUPIER = dict(x=760, waist=180, k=1.6, sprite_scale=0.9)
+CROUPIER = dict(x=520, waist=232, k=2.1, sprite_scale=1.3)   # 3.14.2: посередине над столом, крупнее
 CROUPIER_INTRO = [
     "Добро пожаловать в игорный зал! Я крупье. Расскажу, как играть в рулетку.",
     "Выбери фишку внизу и щёлкни по полю: на число, цвет, чёт или нечет, половину или дюжину.",
@@ -462,6 +476,26 @@ CROUPIER_LINES = ["Ставок больше нет — шучу, ставьте
                   "Призы на стойке не кусаются.", "Колесо честное, клянусь своей бабочкой."]
 CROUPIER_WIN = ["Поздравляю!", "Удача на вашей стороне!", "Браво! Жетоны ваши."]
 CROUPIER_LOSE = ["В следующий раз повезёт.", "Колесо капризное сегодня.", "Не грустите — ещё спин?"]
+
+
+def draw_side_bubble(s, x, y, text, hint=None, size=14, maxw=230):
+    """Облачко справа от говорящего: (x, y) — кончик хвостика слева. Не закрывает самого крупье."""
+    from .tavern_ui import wrap
+    lines = wrap(text, size, maxw, 5)
+    imgs = [render_text(line, size, (90, 70, 60), None) for line in lines]
+    himg = render_text(hint, 11, (150, 120, 100), None) if hint else None
+    w = max([i.get_width() for i in imgs] + ([himg.get_width()] if himg else [])) + 24
+    h = len(imgs) * (size + 4) + 16 + (16 if himg else 0)
+    bx = min(W - w - 8, x + 12)
+    by = max(70, min(y - h // 2, H - h - 8))
+    rounded(s, WHITE, (bx, by, w, h), 12, 2, skin=None)
+    ty = max(by + 12, min(y, by + h - 12))
+    poly(s, WHITE, [(bx + 2, ty - 8), (bx + 2, ty + 8), (x, ty)], 2)
+    pygame.draw.polygon(s, WHITE, [(bx + 3, ty - 6), (bx + 3, ty + 6), (x + 3, ty)])
+    for n, img in enumerate(imgs):
+        s.blit(img, img.get_rect(midleft=(bx + 12, by + 8 + (size + 4) * n + (size + 4) // 2)))
+    if himg:
+        s.blit(himg, himg.get_rect(midleft=(bx + 12, by + h - 14)))
 
 
 def skin_max(s, rect, label):

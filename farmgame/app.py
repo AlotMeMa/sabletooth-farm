@@ -71,6 +71,8 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
         os.environ.setdefault("SDL_RENDER_SCALE_QUALITY", "1")
         os.environ.setdefault("SDL_TOUCH_MOUSE_EVENTS", "0")   # 3.17: пальцы — отдельными событиями, без «мыши» из них
+        if device.WEB:      # 3.17: в браузере размер картинки на странице подгоняет pygbag; «HighDPI» SDL её увеличивал
+            os.environ.setdefault("SDL_VIDEO_HIGHDPI_DISABLED", "1")
         if device.WEB and savefile.STORE is None:            # 3.17: сохранение из хранилища браузера — в файл
             savefile.STORE = device.web_store()
             savefile.restore(cfg.SAVE_FILE)

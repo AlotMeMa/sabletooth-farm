@@ -20,7 +20,8 @@ fullscreen = 1
 
 # --- Android ---
 android.api = 34
-android.minapi = 24
+# Python 3.12 на Android собирается с API 26+ (setgrent и др.) — это Android 8.0 и новее
+android.minapi = 26
 android.ndk = 25b
 android.archs = arm64-v8a
 android.accept_sdk_license = True

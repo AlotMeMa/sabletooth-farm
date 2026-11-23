@@ -515,6 +515,11 @@ class WindowsUI:
             if self.tavern.unlocked:
                 self.modal = None
                 self.open_tavern()
+        def tokens():
+            t = self.tavern
+            t.unlocked = True
+            t.tokens += 500
+            self.toast(f"+500 жетонов (стало {t.tokens})", 2)
         def new_day():
             t = self.tavern
             t.unlocked = True
@@ -532,7 +537,7 @@ class WindowsUI:
             ("Разбойник", bandit), ("Мельница и пекарня ур.3", mill),
             ("Таверна: все задания готовы", quests_done), ("Таверна: новый день и неделя", new_day),
             ("Таверна: показать разметку" + (" (вкл)" if self.tavern_debug else ""), tavern_debug),
-            ("Казино", self.open_casino),
+            ("Казино", self.open_casino), ("Жетоны +500", tokens),
         ]
 
     def draw_dev(self):
@@ -542,7 +547,7 @@ class WindowsUI:
                   (r.centerx, r.y + 70), (140, 110, 95), outline=None)
         for n, (label, cb) in enumerate(self.dev_actions()):
             col, row = n % 2, n // 2
-            self.button((r.x + 30 + col * 300, r.y + 86 + row * 46, 280, 40), label, cb, (230, 110, 110), True, 15)
+            self.button((r.x + 30 + col * 300, r.y + 86 + row * 40, 280, 34), label, cb, (230, 110, 110), True, 15)
 
     def draw_offline(self):
         s = self.screen

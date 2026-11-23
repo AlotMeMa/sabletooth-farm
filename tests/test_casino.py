@@ -156,3 +156,15 @@ class BardGirl(unittest.TestCase):
         self.assertEqual([p["id"] for p in PRIZES][:9],
                          ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail",
                           "garland"])
+
+
+class KnownMusic(unittest.TestCase):
+    def test_every_scene_track_is_known(self):
+        # проверка картинок не должна называть «неузнанной» музыку, которую игра сама играет
+        import re, os
+        root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        audio = open(os.path.join(root, "farmgame", "audio.py"), encoding="utf-8").read()   # без pygame
+        MUSIC_NAMES = re.search(r"^MUSIC_NAMES = (\([^)]*\))", audio, re.M).group(1)
+        src = open(os.path.join(root, "farmgame", "tavern_ui.py"), encoding="utf-8").read()
+        for name in set(re.findall(r'has_scene_music\\("(\\w+)"\\)', src)) | {"tavern"}:
+            self.assertIn(f'"{name}"', MUSIC_NAMES)

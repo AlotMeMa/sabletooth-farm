@@ -366,7 +366,7 @@ def check_assets():
                 elif os.path.basename(stem).lower() in SFX_NAMES:
                     unknown.append((rel, f"это звук, а не музыка — перенеси в assets/sfx/{fn}"))
                 else:
-                    unknown.append((rel, "музыку клади в assets/music/ с именем main, summer, medieval, winter или tavern"))
+                    unknown.append((rel, "музыку клади в assets/music/ с именем " + ", ".join(MUSIC_NAMES)))
                 continue
             if ext.lower() not in IMAGE_EXTS:
                 unknown.append((rel, "нужен формат PNG (можно JPG)"))

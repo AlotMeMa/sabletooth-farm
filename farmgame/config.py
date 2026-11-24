@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.22"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.23"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -84,8 +84,14 @@ PRIZES = [
     dict(id="rug", kind="cosmetic", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
     dict(id="kettle", kind="cosmetic", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
     dict(id="cat", kind="cosmetic", name="Кот у камина", cost=150, text="спит у огня; его можно погладить"),
-    dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300,
+    dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300, stage="tavern_girl", timing="music_girl",
          text="крестьянка поёт свою песню вместо барда"),
+    # 3.23: ещё артисты на сцену. stage — имя своей песни (assets/music/<имя>.ogg; нет файла — музыка таверны),
+    # timing — ключ темпа в разметке таверны. На сцене один артист: включил одного — остальные выключились.
+    dict(id="fiddler", kind="cosmetic", name="Скрипач Тимоха", cost=400, stage="tavern_fiddler", timing="music_fiddler",
+         text="весёлый парень со скрипкой вместо барда"),
+    dict(id="bagpiper", kind="cosmetic", name="Волынщик Ерёма", cost=500, stage="tavern_bagpipe", timing="music_bagpipe",
+         text="старый волынщик с бородой до пояса"),
 ]
 # лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES
 PRIZE_SHEET_IDS = ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail", "garland"]

@@ -7,6 +7,7 @@ from .board_ui import BoardUI
 from .songs_ui import SongsUI
 from .tavern_life_ui import TavernLifeUI
 from .fireside_ui import FiresideUI
+from .move_ui import MoveUI, MAP_GAP
 from .tavern_hud_ui import TavernHudUI
 from .mill_ui import MillUI
 from .tutorial_ui import TutorialUI
@@ -53,7 +54,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
           ScreenUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
@@ -139,6 +140,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, Mil
         self.show_fps = False
         self.show_tips = True
         self.init_tavern()
+        self.init_move_map()           # 3.23: карта глав в окне «Переезд»
         self.init_mill()
         self.init_tutorial()
         self.init_casino()
@@ -354,6 +356,8 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, Mil
         if name == "shop":
             self.shop_page = 0
             self.tut_event("shop")
+        if name == "move":
+            self.open_move_map()
 
     # ------------------------------------------------------------ input
     def on_click(self, pos):
@@ -383,6 +387,8 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, Mil
             self.toggle_fullscreen()
         elif key == pygame.K_m:
             self.toggle_music()
+        elif self.modal == "move" and key in (getattr(pygame, "K_LEFT", -1), getattr(pygame, "K_RIGHT", -1)):
+            self.map_scroll(-MAP_GAP if key == getattr(pygame, "K_LEFT", -1) else MAP_GAP)
         elif key == pygame.K_F1 and DEV:
             self.modal = None if self.modal == "dev" else "dev"
         elif self.modal is None:
@@ -483,6 +489,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, Mil
         if self.volume_drag and self.volume_drag[1] == "sfx":
             self.sfx.play("click")        # услышать новую громкость звуков
         self.volume_drag = None
+        self.map_drag_last = None
 
     def quit_game(self):
         self.save()
@@ -690,6 +697,10 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, Mil
                 elif (e.type == pygame.MOUSEMOTION and e.buttons[0] and self.modal is None
                       and self.mode == "normal" and self.view == "field"):
                     self.try_collect(self.lpos(e.pos))
+                elif e.type == pygame.MOUSEMOTION and e.buttons[0] and self.modal == "move":
+                    self.map_drag(self.lpos(e.pos))          # 3.23: карту глав тянут мышью
+                elif e.type == getattr(pygame, "MOUSEWHEEL", -1):
+                    self.map_wheel(e)
                 elif e.type == pygame.KEYDOWN:
                     self.on_key(e.key)
                 else:

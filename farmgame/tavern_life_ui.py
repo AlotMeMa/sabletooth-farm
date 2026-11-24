@@ -12,9 +12,11 @@ class TavernLifeUI:
         """Сколько долей музыки таверны прошло (дробное число): по времени самой музыки, а если звука нет —
         по часам игры. Целая часть — номер доли, дробная — где мы внутри доли."""
         m = self.tl["music"]
-        if self.audio_scene == "tavern_girl":
-            m = self.tl.get("music_girl", m)
-        pos = self.music.position() if self.audio_scene in ("tavern", "tavern_girl") else None
+        artist = self.tavern.stage_artist()
+        if artist and self.audio_scene == artist["stage"]:          # своя песня артиста — свой темп
+            m = self.tl.get(artist["timing"], m)
+        tavern_audio = self.audio_scene is not None and self.audio_scene.startswith("tavern")
+        pos = self.music.position() if tavern_audio else None
         if pos is None:
             pos = self.t_real
         elif m.get("loop", 0) > 0:

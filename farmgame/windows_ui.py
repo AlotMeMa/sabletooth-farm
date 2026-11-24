@@ -151,9 +151,11 @@ class WindowsUI:
                 if skin.plate(s, look, nr):          # 3.20: своя карточка (assets/ui/tree_sheet или ui/tree_node_*)
                     if selected:
                         pygame.draw.rect(s, (230, 90, 60), nr.inflate(6, 6), 3, border_radius=12)
+                    # 3.23: в левом верхнем углу картинки — листик/замок: название правее и не шире рамки
+                    draw_text_fit(s, node["name"], 13, (nr.centerx + 6, nr.y + 16), nr.w - 40, brown, outline=None)
                 else:
                     rounded(s, color, nr, 10, 4 if selected else 2, (230, 90, 60) if selected else OUT)
-                draw_text(s, node["name"], 13, (nr.centerx, nr.y + 15), brown, outline=None)
+                    draw_text(s, node["name"], 13, (nr.centerx, nr.y + 15), brown, outline=None)
                 for k in range(mx):  # точки уровней
                     px = nr.x + 12 + k * min(12, (nr.w - 80) // max(1, mx))
                     if not blit_sprite(s, "ui/tree_pip_on" if k < lvl else "ui/tree_pip_off", px, nr.bottom - 15, 0.34,
@@ -414,33 +416,6 @@ class WindowsUI:
         for n, line in enumerate(lines):
             draw_text_fit(s, line, 17, (r.x + 34, r.y + 84 + n * 32), r.w - 68, brown, anchor="midleft", outline=None)
         self.button((r.centerx - 100, r.bottom - 72, 200, 46), "<  Назад", lambda: self.open_modal("settings"), BTN_BLUE)
-
-    def draw_move(self):
-        s, f = self.screen, self.farm
-        nxt = FARMS[f.farm_index + 1]
-        trophy = self.farm_info()["trophy"]
-        r = self.panel(640, 440, "ПЕРЕЕЗД")
-        brown, soft = (90, 70, 60), (140, 110, 95)
-        draw_text(s, f"{self.farm_info()['name']}  ->  {nxt['name']}", 22, (r.centerx, r.y + 86), (70, 120, 190))
-        lines = [
-            ("Новая глава: всё начинается с нуля — деньги, грядки, здания,", (190, 80, 70)),
-            (f"{CUR['title'].lower()} и дерево улучшений.", (190, 80, 70)),
-            (f"С собой: доход x{FARM_BONUS} навсегда за каждую пройденную ферму", brown),
-            (f"и трофей «{trophy['name']}»: {trophy['text']}.", brown),
-        ]
-        if nxt["peasants"]:
-            lines.append(("Там: крестьяне, мельница с пекарней, разбойники, печати и привилегии короля.", soft))
-        elif nxt["frost"]:
-            lines.append(("Там: вместо дождя оттепель, вместо вороны мороз — лёд разбивай кликами.", soft))
-        for n, (line, col) in enumerate(lines):
-            draw_text_fit(s, line, 15, (r.centerx, r.y + 128 + n * 26), r.w - 56, col, outline=None)
-        need = f.move_threshold()
-        have = f.run_total()
-        draw_text(s, f"Нужно заработать за забег: ${fmt(need)}", 16, (r.centerx, r.y + 270), brown, outline=None)
-        draw_bar(s, (r.x + 60, r.y + 288, r.w - 120, 18), have / need, (120, 200, 255))
-        draw_text(s, f"${fmt(have)}", 13, (r.centerx, r.y + 297))
-        self.button((r.centerx - 230, r.bottom - 76, 250, 50), "Переехать!", self.do_move, (245, 175, 50), f.can_move(), 20)
-        self.button((r.centerx + 40, r.bottom - 76, 190, 50), "Позже", self.close_modal, BTN_BLUE, True, 18)
 
     # ------------------------------------------------------------ режим разработчика
     def dev_actions(self):

@@ -84,6 +84,8 @@ BARMAN_EXTRA = {
     "cat": "Кот? Это Рыжик. Пришёл погреться разок — да так и остался.",
     "kettle": "В котелке над огнём — похлёбка по бабушкиному рецепту. Рецепт не скажу!",
     "bard_girl": "Мила поёт — и даже Рыжик у очага ухом ведёт.",
+    "fiddler": "Тимоха как заиграет — у меня кружки сами в пляс идут.",
+    "bagpiper": "Ерёма играл ещё на свадьбе моего деда. И на моей сыграет!",
     "trophies": "Твои трофеи стоят у камина — садись погреться, полюбуйся. Гости всё спрашивают, где взял!",
 }
 
@@ -93,7 +95,7 @@ def barman_lines(tavern):
     from .config import PRIZES
     out = list(BARMAN_LINES)
     out.insert(4, BARMAN_EXTRA["casino_open" if tavern.casino_open else "casino_closed"])
-    for key in ("cat", "kettle", "bard_girl"):
+    for key in ("cat", "kettle", "bard_girl", "fiddler", "bagpiper"):
         if tavern.prize_on(key):
             out.append(BARMAN_EXTRA[key])
     if any(tavern.prizes.get(p["id"]) for p in PRIZES if p["kind"] == "trophy"):
@@ -101,6 +103,15 @@ def barman_lines(tavern):
     return out
 
 
+FIDDLER_LINES = [   # 3.23: скрипач Тимоха
+    "Эх, раз, ещё раз! Танцуют все!", "Струна лопнула? Не беда, у меня их четыре!", "Эту плясовую я сочинил сам!",
+    "Кто быстрее: я или ваши ноги?",
+]
+BAGPIPE_LINES = [   # 3.23: волынщик Ерёма
+    "Волынка, внучек, — это тебе не дудка!", "Эту песню мой дед играл на свадьбе короля.",
+    "Тише, тише... сейчас будет громко!", "Борода мешает? Ни капли!",
+]
+ARTIST_LINES = {"bard_girl": "GIRL_LINES", "fiddler": "FIDDLER_LINES", "bagpiper": "BAGPIPE_LINES"}
 GIRL_LINES = [   # 3.15.2: певица Мила (скин барда из призов казино)
     "Ой, люли-люли, поле золотое!", "Спою вам про луга и речку!", "Подпевайте, кто знает слова!",
     "Эту песню пела ещё моя бабушка.", "Для вас — самая весёлая!",
@@ -194,9 +205,24 @@ class Tavern:
             return False
         if pid in self.prize_off:
             self.prize_off.remove(pid)
+            self._one_on_stage(pid)
         else:
             self.prize_off.append(pid)
         return True
+
+    def _one_on_stage(self, pid):
+        """3.23: на сцене один артист — включили pid, остальных артистов выключаем."""
+        from .config import PRIZES
+        if not any(p["id"] == pid and p.get("stage") for p in PRIZES):
+            return
+        for p in PRIZES:
+            if p.get("stage") and p["id"] != pid and self.prizes.get(p["id"]) and p["id"] not in self.prize_off:
+                self.prize_off.append(p["id"])
+
+    def stage_artist(self):
+        """Кто сейчас на сцене вместо барда: приз-артист (dict) или None — поёт бард."""
+        from .config import PRIZES
+        return next((p for p in PRIZES if p.get("stage") and self.prize_on(p["id"])), None)
 
     def buy_prize(self, farm, pid, today=None):
         """Купить приз за жетоны. Возвращает (получилось, причина отказа)."""
@@ -211,6 +237,7 @@ class Tavern:
             return False, f"Нужно жетонов: {prize['cost']}"
         self.tokens -= prize["cost"]
         self.prizes[pid] = True
+        self._one_on_stage(pid)            # купленный артист сразу выходит на сцену
         return True, ""
 
     # ---------- генерация ----------

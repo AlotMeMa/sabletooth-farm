@@ -38,12 +38,39 @@ class CosmeticShop(unittest.TestCase):
     def test_every_cosmetic_is_visible_somewhere(self):
         code = "".join(source(n) for n in os.listdir(GAME) if n.endswith(".py"))
         for p in PRIZES:
-            if p["kind"] == "cosmetic":
+            if p["kind"] == "cosmetic" and not p.get("stage"):     # артисты сцены рисуются через stage_artist()
                 self.assertTrue(f'prize_on("{p["id"]}")' in code, f"украшение {p['id']} нигде не рисуется")
 
     def test_ids_unique(self):
         ids = [p["id"] for p in PRIZES]
         self.assertEqual(len(ids), len(set(ids)))
+
+
+class StageArtists(unittest.TestCase):
+    def test_one_artist_on_stage(self):
+        from farmgame.tavern import Tavern
+        from farmgame.logic import Farm
+        t, f = Tavern(), Farm()
+        t.tokens = 10 ** 5
+        self.assertIsNone(t.stage_artist())
+        t.buy_prize(f, "bard_girl")
+        self.assertEqual(t.stage_artist()["id"], "bard_girl")
+        t.buy_prize(f, "fiddler")                         # купил нового — он сразу на сцене, Мила ушла
+        self.assertEqual(t.stage_artist()["id"], "fiddler")
+        self.assertFalse(t.prize_on("bard_girl"))
+        t.toggle_prize("bard_girl")                       # вернул Милу — скрипач ушёл
+        self.assertEqual(t.stage_artist()["id"], "bard_girl")
+        self.assertFalse(t.prize_on("fiddler"))
+        t.toggle_prize("bard_girl")                       # выключил — снова бард
+        self.assertIsNone(t.stage_artist())
+
+    def test_artists_have_code_look_and_lines(self):
+        from farmgame import tavern as tv
+        art = source("tavern_art.py")
+        for p in PRIZES:
+            if p.get("stage"):
+                self.assertIn(f'"{p["id"]}": dict(', art)
+                self.assertTrue(getattr(tv, tv.ARTIST_LINES[p["id"]]))
 
 
 class FiresideSound(unittest.TestCase):

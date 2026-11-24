@@ -196,7 +196,7 @@ def _fit_spec_base(name):
         # жители таверны: бармен — по пояс (низ картинки = край стойки), бард — в полный рост (низ = сцена)
         if last == "barman":
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
-        if last in ("bard", "bard_girl"):    # 3.15.2: певица — скин барда из призов казино
+        if last in ("bard", "bard_girl", "fiddler", "bagpiper"):    # 3.15.2 / 3.23: артисты сцены — скины барда
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
         if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
@@ -231,6 +231,8 @@ def _fit_spec_base(name):
     if folder == "decor" and last in DECOR_SIZE:      # 3.19: украшения у камина
         w, h, align = DECOR_SIZE[last]
         return _spec(*_box(w, h, 1, 1, 1, 1), align)
+    if folder == "ui" and last == "move_map":          # 3.23: карта глав в окне «Переезд» (длинная полоса)
+        return _spec((1240, 278), (0, 0, 1240, 278), "full")
     if folder == "ui" and last in ("tree_pip_off", "tree_pip_on"):    # 3.20: кружки уровней на карточке дерева
         return _spec(*_box(32, 32, 1, 1, 1, 1), "center")
     if folder == "ui" and last == "slider_knob":

@@ -89,6 +89,13 @@ MUSIC_TIMING = dict(bpm=86.68, offset=0.03, loop=56.31)    # под assets/music
 # Темп её трека посчитан по файлу (23.11): ровно 120 долей в минуту всю песню, первая доля через 0.08 с,
 # длина 234.88 с. Поменял трек — поправь "music_girl" в tavern.json или попроси пересчитать.
 MUSIC_GIRL_TIMING = dict(bpm=120.0, offset=0.08, loop=234.88)
+# 3.23: как рисовать артиста кодом, пока нет картинки characters/<id>
+ARTIST_LOOKS = {
+    "bard": dict(top=(60, 140, 90), legs=(150, 60, 60), hair=(170, 110, 60), style="bard"),
+    "bard_girl": dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True),
+    "fiddler": dict(top=(200, 120, 60), legs=(80, 90, 130), hair=(240, 200, 110), style="short"),
+    "bagpiper": dict(top=(90, 110, 70), legs=(120, 90, 60), hair=(210, 210, 215), style="short", beard=True),
+}
 NOTE_COLORS = [(255, 235, 150), (255, 200, 120), (190, 230, 255), (255, 190, 210)]
 
 

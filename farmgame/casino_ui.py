@@ -554,10 +554,9 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
             pygame.draw.circle(s, (255, 212, 80), (int(x - 14 * k + i * 6 * k), int(y + 8 * k - i * 4 * k)),
                                max(1, int((1 + i) * k)))
         poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
-    elif pid == "bard_girl":
-        from .tavern_ui import draw_person
-        look = dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True)
-        draw_person(s, x, y + 16 * k, 0.42 * k, look)
+    elif pid in ("bard_girl", "fiddler", "bagpiper"):              # 3.23: артисты сцены
+        from .tavern_ui import draw_person, ARTIST_LOOKS
+        draw_person(s, x, y + 16 * k, 0.42 * k, ARTIST_LOOKS[pid])
     elif pid in ("flowers", "rug", "kettle", "cat"):        # 3.19: украшения у камина
         from .fireside_art import draw_cat, draw_kettle, draw_flowers, draw_rug
         if pid == "flowers":

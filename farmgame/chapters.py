@@ -1,0 +1,33 @@
+# -*- coding: utf-8 -*-
+"""3.23: главы игры для карты переезда — какие пройдены, где игрок, что откроется дальше. Без pygame."""
+from .config import FARMS
+
+# что ждёт на каждой ферме (подпись на карте)
+CHAPTER_TEXT = {
+    "summer": "Грядки, удобрения и фермеры, сарай со зверями, белки и вороны, скупщик урожая. "
+              "Копи листья — Дерево листьев даёт постоянные бонусы.",
+    "medieval": "Крестьяне, мельница с пекарней, разбойники и Праздник урожая, сборщик податей. "
+                "Печати и Привилегии короля. Здесь открывается таверна.",
+    "winter": "Заснеженные поля: оттепель вместо дождя, мороз вместо вороны. "
+              "А в казино таверны — новая игра, блэкджек.",
+}
+SECRET = dict(id="secret", name="???", text="Дальше — тайна: эта часть карты ещё не нарисована.", ready=False)
+
+
+def chapters(farm_index):
+    """Главы по порядку: [{id, name, text, n, state}] — state: done (пройдена), here (ты здесь),
+    next (следующая, открыта), soon (следующая, но ещё готовится), locked (дальше)."""
+    out = []
+    items = list(FARMS) + [SECRET]
+    for n, fm in enumerate(items):
+        if n < farm_index:
+            state = "done"
+        elif n == farm_index:
+            state = "here"
+        elif n == farm_index + 1:
+            state = "next" if fm.get("ready") else "soon"
+        else:
+            state = "locked"
+        out.append(dict(id=fm["id"], name=fm["name"], text=CHAPTER_TEXT.get(fm["id"], fm.get("text", "")), n=n + 1,
+                        state=state, ready=bool(fm.get("ready"))))
+    return out

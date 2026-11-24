@@ -84,8 +84,9 @@ class TavernUI:
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
         want = "tavern" if self.view in ("tavern", "board", "casino", "fireside") else None
-        if want and self.tavern.prize_on("bard_girl") and has_scene_music("tavern_girl"):
-            want = "tavern_girl"            # 3.15.2: певица поёт свою песню
+        artist = self.tavern.stage_artist() if want else None
+        if artist and has_scene_music(artist["stage"]):
+            want = artist["stage"]           # 3.15.2 / 3.23: артист на сцене поёт свою песню
         fire = self.view == "fireside"
         if want != self.audio_scene or fire != self.audio_fire:
             if want != self.audio_scene:
@@ -174,7 +175,8 @@ class TavernUI:
     def poke_bard(self):
         """Клик по барду — соло: 8 долей ноты летят на каждую полудолю, бард качается сильнее."""
         d = self.tl["bard"]
-        lines = tv.GIRL_LINES if self.tavern.prize_on("bard_girl") else tv.BARD_LINES
+        artist = self.tavern.stage_artist()
+        lines = getattr(tv, tv.ARTIST_LINES.get(artist["id"], "BARD_LINES")) if artist else tv.BARD_LINES
         self.tv_bubble = [d["x"], d["y"] - 135 * d["k"], random.choice(lines), 3.5]
         self.tv_solo = 8 * 60.0 / self.tl["music"]["bpm"]
         for _ in range(3):
@@ -286,11 +288,11 @@ class TavernUI:
         bob = 2.5 * hit * (1.6 if solo else 1.0)
         bx, by, k = d["x"], d["y"], d["k"]
         sway = math.sin(beat * math.pi) * (5.0 if solo else 2.5)   # туда-сюда за две доли
-        girl = self.tavern.prize_on("bard_girl")
-        if not blit_tf(s, "characters/bard_girl" if girl else "characters/bard", bx, by, d["sprite_scale"],
+        artist = self.tavern.stage_artist()           # 3.23: на сцене может быть Мила, скрипач, волынщик
+        who = artist["id"] if artist else "bard"
+        if not blit_tf(s, f"characters/{who}", bx, by, d["sprite_scale"],
                        sx=1 + 0.02 * hit, sy=1 - 0.035 * hit * (1.5 if solo else 1.0), angle=sway):
-            look = (dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True)
-                    if girl else dict(top=(60, 140, 90), legs=(150, 60, 60), hair=(170, 110, 60), style="bard"))
+            look = ARTIST_LOOKS.get(who, ARTIST_LOOKS["bard"])
             talking = self.tv_bubble is not None and self.tv_bubble[0] == bx
             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)

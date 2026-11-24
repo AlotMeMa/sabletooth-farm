@@ -139,7 +139,8 @@ class HudUI:
                          "Мельница" if mill else "Сарай", badge=self.barn_attention(),
                          tip=("Мельница и пекарня: зерно — мука — хлеб" if mill
                               else "Сарай: звери едят урожай и дают продукты дороже") + "   (B)")
-        if f.has_next_farm():
-            self.icon_button(pygame.Rect(304, 560, 62, 56), "move", move_icon, lambda: self.open_modal("move"), "Переезд",
-                             badge=f.can_move(), active=f.can_move(),
-                             tip="Переезд на новую ферму: всё с нуля, но доход x2 и трофей")
+        # 3.23: кнопка есть всегда — открывает карту глав (на последней готовой ферме — посмотреть, что дальше)
+        self.icon_button(pygame.Rect(304, 560, 62, 56), "move", move_icon, lambda: self.open_modal("move"), "Переезд",
+                         badge=f.can_move(), active=f.can_move(),
+                         tip=("Карта глав и переезд на новую ферму: всё с нуля, но доход x2 и трофей"
+                              if f.has_next_farm() else "Карта глав: где ты и что будет дальше"))

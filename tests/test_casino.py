@@ -166,6 +166,8 @@ class KnownMusic(unittest.TestCase):
         scenes = {"tavern"}
         for path in glob.glob(os.path.join(root, "farmgame", "*.py")):
             scenes |= set(re.findall(r'has_scene_music\("(\w+)"\)', open(path, encoding="utf-8").read()))
+        from farmgame.config import PRIZES                   # 3.23: песни артистов сцены — в призах (stage=...)
+        scenes |= {p["stage"] for p in PRIZES if p.get("stage")}
         self.assertIn("tavern_girl", scenes)                 # шаблон поиска правда что-то находит
         for name in scenes:
             self.assertIn(f'"{name}"', known)

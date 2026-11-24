@@ -28,10 +28,10 @@ FIRESIDE_LAYOUT = dict(
 # 3.20: под свой фон пользователя assets/backgrounds/fireside (камин по центру, на углях лежат два полена).
 # Огонь горит над поленьями фона; свои угли и поленья код не рисует.
 FIRESIDE_CUSTOM = dict(
-    fire=[508, 456], fire_w=175, fire_h=225, painted_logs=True,
-    # поленья фона рисуются ПОВЕРХ огня (огонь — из-за поленьев): многоугольники переднего и заднего полена
-    front=[[[416, 452], [552, 380], [570, 388], [575, 404], [446, 481], [419, 478]],
-           [[456, 392], [470, 380], [598, 448], [601, 468], [586, 480], [470, 416]]],
+    fire=[508, 462], fire_w=185, fire_h=235, painted_logs=True,
+    # 3.22: огонь горит ПЕРЕД поленьями (за ними его было почти не видно). "front" — многоугольники фона,
+    # которые рисуются поверх огня, если что-то надо спрятать за предметом (сейчас пусто)
+    front=[],
     kettle=[508, 352], kettle_k=1.7, chain_top=252,
     # 3.21: трофеи на камине (порядок: подкова, кубок, крестьянин, колос): подкова — на трубе над полкой,
     # остальные стоят на полке (её верх y≈142; свеча слева, x≈267). [x, низ, "hang"|"stand", масштаб]
@@ -130,14 +130,15 @@ class Fire:
 
     def update(self, dt, power=1.0):
         rnd = self.rnd
-        self.acc += dt * 170 * power
+        self.acc += dt * 75 * power
         while self.acc >= 1:
             self.acc -= 1
             off = max(-1.0, min(1.0, rnd.gauss(0, 0.42))) * self.w * 0.5
             edge = 1 - abs(off) / (self.w * 0.5 + 1)    # у краёв языки ниже и мельче
             tongue = rnd.random() < 0.12                 # изредка — длинный язык, выше остальных
-            life = rnd.uniform(0.5, 1.0) * (0.55 + 0.45 * edge) * (self.h / 200) * (1.5 if tongue else 1.0)
-            speed = rnd.uniform(170, 260) * (self.h / 200) * (0.8 + 0.3 * power)
+            # 3.22: огонь медленнее и спокойнее — языки поднимаются вдвое-втрое дольше
+            life = rnd.uniform(1.1, 2.0) * (0.55 + 0.45 * edge) * (self.h / 200) * (1.4 if tongue else 1.0)
+            speed = rnd.uniform(80, 125) * (self.h / 200) * (0.85 + 0.25 * power)
             self.parts.append([off, self.y + rnd.uniform(0, 10), -speed, 0.0, life,
                                rnd.uniform(18, 30) * (self.w / 170) * (0.7 + 0.3 * edge) * (0.8 if tongue else 1.0),
                                rnd.uniform(0, 6.3), rnd.uniform(0.55, 0.9)])
@@ -147,15 +148,16 @@ class Fire:
             p[1] += p[2] * dt
             if p[1] < top:                               # выше пламени не поднимается — гаснет
                 p[3] = p[4]
-        self.parts = [p for p in self.parts if p[3] < p[4]][-260:]
+        self.parts = [p for p in self.parts if p[3] < p[4]][-420:]
 
     def draw(self, s, t):
         add = pygame.BLEND_RGB_ADD
         for x0, y, _vy, age, life, size, ph, pull in self.parts:
             u = age / life
-            x = self.x + x0 * (1 - pull * u) + math.sin(t * 6 + ph + u * 3) * 6 * u
-            r = size * (1 - 0.75 * u) * (0.85 + 0.15 * math.sin(t * 11 + ph))
-            img = fire_dot(r, u, 0.7 * (1 - u) ** 0.7 + 0.1)
+            x = self.x + x0 * (1 - pull * u) + math.sin(t * 2.4 + ph + u * 2.5) * 7 * u
+            r = size * (1 - 0.72 * u) * (0.9 + 0.1 * math.sin(t * 3.5 + ph))
+            grow = min(1.0, u / 0.18)                    # у самых углей язык ещё тусклый — поленья видны
+            img = fire_dot(r, u, (0.5 * (1 - u) ** 0.8 + 0.08) * (0.35 + 0.65 * grow))
             s.blit(img, (int(x - img.get_width() / 2), int(y - img.get_height() / 2)), special_flags=add)
 
 

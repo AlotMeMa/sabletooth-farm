@@ -138,9 +138,11 @@ class BarnUI:
 
         if lvl == 0:
             if not f.animal_crop_ready(a):
-                draw_text(s, f"Сначала посади: {CROPS[crop]['name']}", 14, (r.centerx, r.y + 220), (190, 80, 70), outline=None)
+                draw_text_fit(s, f"Сначала посади: {CROPS[crop]['name']}", 14, (r.centerx, r.y + 220), r.w - 16,
+                              (190, 80, 70), outline=None)   # 3.26.1: длинные зимние имена («Фиолетовый кейл»)
             else:
-                draw_text(s, f"Будет есть: {CROPS[crop]['name']}", 14, (r.centerx, r.y + 210), brown, outline=None)
+                draw_text_fit(s, f"Будет есть: {CROPS[crop]['name']}", 14, (r.centerx, r.y + 210), r.w - 16, brown,
+                              outline=None)
                 draw_text_fit(s, f"продукт в {an['ratio']:g} раза дороже корма", 12, (r.centerx, r.y + 232), r.w - 20,
                               soft, outline=None)
                 draw_text_fit(s, "с уровнем ест меньше, а продукт дороже", 11, (r.centerx, r.y + 252), r.w - 20,

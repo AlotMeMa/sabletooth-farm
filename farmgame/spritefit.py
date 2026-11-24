@@ -22,7 +22,7 @@ import pygame
 
 from .config import BASE_DIR, W, H, PRIZE_SHEET_IDS
 
-CACHE_VERSION = "fit7"   # 3.11.2: светлое (мука, дымка) у края на мадженте больше не розовеет — картинки пересчитаются
+CACHE_VERSION = "fit8"   # 3.26.1: крошки (след значка нейросети в углу) убираются — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
@@ -30,6 +30,7 @@ SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне:
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
 EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
 MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
+SPECK_SHARE, SPECK_MIN = 0.00006, 6   # 3.26.1: крошка — отдельный кусочек меньше этой доли площади (не меньше 6 px)
 CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
 CURSOR_HOVER_SIZE = 32   # курсор над кнопкой, px
 HOLE_TOL = 34    # «дырка» внутри рисунка — пиксели почти точно цвета фона
@@ -546,6 +547,34 @@ class Pix:
             is_bg[p] = 1
         return len(found)
 
+    def drop_specks(self):
+        """3.26.1: убрать крошки — крохотные отдельные кусочки (обычно след значка нейросети в углу картинки
+        или точка шума). Один такой пиксель в углу полоски делил её как «четвёртый рисунок»: стадии 2 и 3
+        склеивались, а первая уменьшалась. Крошка — кусок меньше SPECK_SHARE площади картинки."""
+        b, w, h = self.buf, self.w, self.h
+        limit = max(SPECK_MIN, int(w * h * SPECK_SHARE))
+        seen = bytearray(w * h)
+        for start in range(w * h):
+            if seen[start] or b[start * 4 + 3] <= MIN_ALPHA:
+                continue
+            comp, stack = [start], [start]
+            seen[start] = 1
+            big = False
+            while stack:
+                p = stack.pop()
+                x = p % w
+                for q in ((p - 1) if x > 0 else -1, (p + 1) if x < w - 1 else -1,
+                          p - w if p >= w else -1, p + w if p < (h - 1) * w else -1):
+                    if q >= 0 and not seen[q] and b[q * 4 + 3] > MIN_ALPHA:
+                        seen[q] = 1
+                        stack.append(q)
+                        if not big:
+                            comp.append(q)
+                            big = len(comp) > limit
+            if not big:
+                for p in comp:
+                    b[p * 4 + 3] = 0
+
     def bbox(self, rect=None):
         """Границы непрозрачного рисунка внутри rect (x0, y0, x1, y1) или None."""
         x0, y0, x1, y1 = rect or (0, 0, self.w, self.h)
@@ -598,8 +627,8 @@ def split_by_gaps(occ, n):
 # ----------------------------------------------------------------------
 #                              подгонка
 # ----------------------------------------------------------------------
-def _prepare(img, work_max):
-    """Уменьшает огромную картинку до рабочего размера, убирает фон. -> Pix."""
+def _prepare(img, work_max, specks=True):
+    """Уменьшает огромную картинку до рабочего размера, убирает фон (и крошки). -> Pix."""
     w, h = img.get_size()
     k = min(1.0, work_max / max(w, h))
     if k < 1.0:
@@ -609,6 +638,8 @@ def _prepare(img, work_max):
         bg = px.background_color()
         if bg is not None:
             px.remove_background(bg)
+            if specks:
+                px.drop_specks()
     return px
 
 
@@ -689,7 +720,7 @@ def fit_sheet(img, rows, cols, spec_for):
     """Лист иконок rows×cols. spec_for(i) — spec для i-й иконки. -> список поверхностей."""
     specs = [spec_for(i) for i in range(rows * cols)]      # None — клетка не нужна (пропуск в порядке листа)
     biggest = max(max(sp["canvas"]) for sp in specs if sp)
-    px = _prepare(img, _work(biggest * max(rows, cols)))
+    px = _prepare(img, _work(biggest * max(rows, cols)), specks=False)   # в листах мелочь бывает нужной (искорки)
     whole = px.bbox()
     if whole is None:
         return [None] * (rows * cols)

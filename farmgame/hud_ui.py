@@ -33,7 +33,7 @@ class HudUI:
         if not board:
             self.zone_btn(leaf_rect, lambda: self.open_modal("tree"), 18)
             self.tip(leaf_rect, f"{CUR['title']}: множитель дохода. Щёлкни — дерево улучшений")
-        if self.farm_info()["peasants"] and not board:
+        if self.farm_info()["peasants"] and not board and self.view != "barn":   # 3.26.1: в сарае налезала на карточку
             pr = pill(142, 32, f"свободно {f.free_peasants()} из {f.peasants}", 15,
                       lambda x, y: draw_helper_head(s, x, y + 1, 1.1))
             self.zone_btn(pr, lambda: (self.open_modal("shop"), setattr(self, "shop_tab", "farm")), 16)

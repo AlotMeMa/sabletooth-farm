@@ -151,6 +151,14 @@ def spec_list():
     add("props/cloud", (150, 100), "центр", "тучка", 0, lambda s: art.draw_cloud_body(s, 75, 45, False))
     add("props/cloud_rain", (150, 100), "центр", "тучка во время дождя", 0, lambda s: art.draw_cloud_body(s, 75, 45, True))
     keys = ["chicken", "cow", "pig", "bees"]
+    from .config import ANIMALS_WINTER
+    for a, an in enumerate(ANIMALS_WINTER):              # 3.24: зимние звери (глава 3)
+        add(f"animals/{an['key']}", (160, 130), "низ по центру (80, 126)", an["name"] + " (зимний сарай)", 1,
+            lambda s: None)
+        add(f"icons/{an['icon']}", (30, 30), "центр", an["product"] + " (зима)", 1, lambda s: None)
+    add("icons/frostleaf", (40, 40), "центр", "голубой листочек (валюта зимы)", 1, lambda s: None)
+    for v in ("sled", "sled_0", "sled_1", "sled_2"):
+        add(f"vehicles/{v}", (270, 124), "низ по центру = снег", "собачья упряжка (зима)", 1, lambda s: None)
     for a, key in enumerate(keys):
         for winter in (False, True):
             add(f"animals/{key}" + ("_winter" if winter else ""), (160, 130), "низ по центру (80, 126)",

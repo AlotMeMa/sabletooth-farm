@@ -270,9 +270,19 @@ def draw_seal_icon(surf, x, y, s=1.0):
                                 (x + 3.5 * s, y - 1 * s), (x + 7 * s, y - 5 * s), (x + 7 * s, y + 4 * s)], 1)
 
 
+def draw_frostleaf_icon(surf, x, y, s=1.0):
+    """3.24: голубой листочек — валюта зимы."""
+    if blit_sprite(surf, "icons/frostleaf", x, y, s, "center"):
+        return
+    pygame.draw.circle(surf, OUT, (P(x), P(y)), P(16 * s) + 2)
+    pygame.draw.circle(surf, (170, 215, 245), (P(x), P(y)), P(16 * s))
+    leaf(surf, x - 7 * s, y + 7 * s, 45, 19 * s, 11 * s, (70, 150, 220), vein=(40, 95, 160))
+
+
 def draw_cur_icon(surf, x, y, s=1.0):
-    """Иконка валюты престижа текущей фермы (лист или печать)."""
-    (draw_seal_icon if CUR.get("icon") == "seal" else draw_leaf_icon)(surf, x, y, s)
+    """Иконка валюты престижа текущей фермы (лист, печать или голубой листочек)."""
+    icon = CUR.get("icon")
+    (draw_seal_icon if icon == "seal" else draw_frostleaf_icon if icon == "frostleaf" else draw_leaf_icon)(surf, x, y, s)
 
 
 def draw_bar(surf, rect, frac, color=(255, 200, 40)):

@@ -351,7 +351,7 @@ class FieldUI:
         """Покачивание машины -> (подскок, наклон°, sy). Едет — трясётся на кочках; остановилась — клюёт носом
         и покачивается на рессорах; трогается — приседает на зад; стоит — еле заметно «дышит» мотором."""
         t, e = self.t, self.t - self.truck_t
-        cart = self.farm_info()["vehicle"] == "cart"
+        cart = self.farm_info()["vehicle"] in ("cart", "sled")     # упряжка качается, как телега
         if self.truck_state == "parked":
             spring = math.exp(-5 * e) * math.cos(10 * e) if e < 1.2 else 0.0
             idle = 0.004 * math.sin(t * (2.2 if cart else 3.1))

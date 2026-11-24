@@ -132,7 +132,7 @@ class HudUI:
                          lambda: setattr(self, "mode", "normal" if self.mode == "upgrade" else "upgrade"), "Прокачка",
                          active=upgrade_on, tip="Прокачка грядок: по 1, по 10, до вехи или на все деньги   (U)")
         self.icon_button(pygame.Rect(160, 560, 62, 56), "tree", lambda r: draw_cur_icon(s, r.centerx, r.centery, 1.2),
-                         lambda: self.open_modal("tree"), CUR["title"], badge=f.any_tree_affordable(),
+                         lambda: self.open_modal("tree"), CUR.get("short", CUR["title"]), badge=f.any_tree_affordable(),
                          tip=f"Дерево улучшений: постоянные бонусы за {CUR['title'].lower()}")
         mill = self.farm_info()["barn"] == "mill"
         self.icon_button(pygame.Rect(232, 560, 62, 56), "mill" if mill else "barn", barn_icon, self.toggle_barn,

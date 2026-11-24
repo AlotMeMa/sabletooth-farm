@@ -206,7 +206,7 @@ def _fit_spec_base(name):
     if folder == "vehicles":
         if last.startswith("truck"):
             return _spec(*_box(240, 124, 4, 2, 4, 0), "bottom")
-        if last.startswith("cart"):
+        if last.startswith("cart") or last.startswith("sled"):    # 3.24: упряжка — того же размера, что телега
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
         return None
     if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):
@@ -259,7 +259,7 @@ def _fit_spec_base(name):
             s = 40
         elif last.startswith("note_"):    # ноты барда (3.6): icons/note_1 ... note_4
             s = 30
-        elif last in ("egg", "milk", "truffle", "honey"):
+        elif last in ("egg", "milk", "truffle", "honey", "down", "wool", "cheese", "jam"):
             s = 30
         elif last == "sheet":
             return None

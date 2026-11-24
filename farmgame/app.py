@@ -426,7 +426,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         if self.truck_state == "away" and f.truck_ready():
             self.truck_state = "arriving"
             self.toast(self.farm_info()["arrive"], 4)
-            self.sfx.play("truck" if self.farm_info()["vehicle"] == "truck" else "fanfare")
+            self.sfx.play("truck" if self.farm_info()["vehicle"] == "truck" else "fanfare")   # упряжка — фанфары
         elif self.truck_state == "arriving":            # 3.3: подъезжает и плавно тормозит
             self.truck_v = max(60.0, min(280.0, (self.truck_x - TRUCK_PARK_X) * 2.4))
             self.truck_x -= self.truck_v * dt

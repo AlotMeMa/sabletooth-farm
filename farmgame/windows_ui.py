@@ -123,8 +123,10 @@ class WindowsUI:
         draw_cur_icon(s, r.x + 40, r.y + 80, 0.9)
         draw_text(s, f"{f.leaves} {CUR['gen']}   доход {fmt_mult(f.home_leaves)}", 18, (r.x + 64, r.y + 80), brown,
                   anchor="midleft", outline=None)
-        draw_text(s, f"Каждая непотраченная {CUR['one']} даёт +2% к доходу" if CUR["icon"] == "seal" else "Каждый непотраченный лист даёт +2% к доходу", 13, (r.right - 24, r.y + 80), soft,
-                  anchor="midright", outline=None)
+        note = {"seal": f"Каждая непотраченная {CUR['one']} даёт +2% к доходу",
+                "frostleaf": "Каждый непотраченный листочек даёт +2% к доходу"}.get(CUR["icon"],
+                                                                              "Каждый непотраченный лист даёт +2% к доходу")
+        draw_text_fit(s, note, 13, (r.right - 24, r.y + 80), r.w * 0.42, soft, anchor="midright", outline=None)
         col_w = (r.w - 40) // len(TREE)
         for bi, (bname, nodes) in enumerate(TREE):
             cx = r.x + 20 + bi * col_w + col_w // 2

@@ -552,11 +552,25 @@ def draw_hive(s, x, y, k=1.0, t=0.0, active=True, winter=False):
             pygame.draw.line(s, (225, 65, 75), (P(bx + 3 * k), P(by - 4 * k)), (P(bx + 3 * k), P(by + 4 * k)), 3)
 
 
-ANIMAL_DRAW = [draw_chicken, draw_cow, draw_pig, draw_hive]
+_ANIMAL_CODE = [draw_chicken, draw_cow, draw_pig, draw_hive]   # летние звери кодом (запасной рисунок)
+
+
+def _animal_drawer(a):
+    """3.24: зверь a текущей фермы: своя картинка animals/<key> (зимние — гусь, як, олень, медвежонок),
+    без неё — летний зверь кодом (временно, пока нет картинки)."""
+    def draw(s, x, y, k=1.0, t=0.0, active=True, winter=False):
+        key = ANIMALS[a].get("key")
+        if key and key != ("chicken", "cow", "pig", "bees")[a] and _animal_sprite(s, key, x, y, k, t, active, False):
+            return
+        _ANIMAL_CODE[a](s, x, y, k, t, active, winter)
+    return draw
+
+
+ANIMAL_DRAW = [_animal_drawer(a) for a in range(len(_ANIMAL_CODE))]
 
 
 def draw_product(s, a, x, y, k=1.0):
-    if blit_sprite(s, "icons/" + ("egg", "milk", "truffle", "honey")[a], x, y, k, "center"):
+    if blit_sprite(s, "icons/" + ANIMALS[a].get("icon", ("egg", "milk", "truffle", "honey")[a]), x, y, k, "center"):
         return
     if a == 0:    # яйцо
         ellipse(s, (252, 246, 228), x, y, 15 * k, 19 * k)
@@ -602,6 +616,9 @@ PLANT_FUNCS = {
     "garlic": plant_garlic, "parsnip": plant_parsnip, "turnip": plant_turnip, "cranberry": plant_cranberry,
     "leek": plant_leek, "kohlrabi": plant_kohlrabi, "kale": plant_kale, "brussels": plant_brussels,
     "icepumpkin": plant_icepumpkin,
+    # 3.24: зимнее поле — пока кодом похожими растениями (до картинок crops/winter/<ключ>)
+    "ginger": plant_parsnip, "frostmint": plant_leek, "pinkradish": plant_radish, "cloudberry": plant_cranberry,
+    "seabuckthorn": plant_cranberry, "bluepotato": plant_potato,
     "peas": plant_peas, "rye": plant_rye, "barley": plant_barley, "spelt": plant_spelt,
     "flax": plant_flax, "hops": plant_hops, "grapes": plant_grapes,
 }
@@ -620,6 +637,9 @@ def apply_farm(idx):
     CUR.clear()
     CUR.update(CURRENCIES[fm["cur"]])
     TREE[:] = TREES[fm["tree"]]
+    for i, an in enumerate(ANIMAL_SETS[fm.get("animals", "summer")]):   # 3.24: звери — свои у фермы
+        ANIMALS[i].clear()
+        ANIMALS[i].update(an)
     TREE_NODES.clear()
     TREE_NODES.update(TREE_NODE_MAP[fm["tree"]])
     for i, name in enumerate(fm["tiers"]):

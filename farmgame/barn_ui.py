@@ -95,7 +95,10 @@ class BarnUI:
 
     def draw_pen_caption(self, r, text, active):
         """Подпись «Ест: ... -> ...» поверх картинки зверя, на плашке — чтобы её не закрывал крупный спрайт."""
-        img = render_text(text, 12, (140, 110, 95), None)
+        size = 12
+        while size > 8 and render_text(text, size, (140, 110, 95), None).get_width() > r.w - 16:   # 3.24: длинные
+            size -= 1                                                                            # зимние названия
+        img = render_text(text, size, (140, 110, 95), None)
         box = img.get_rect(center=(r.centerx, r.y + 46)).inflate(12, 4)
         plate = hd.Surface(box.size, pygame.SRCALPHA)
         plate.fill((238, 220, 186, 215) if active else (205, 190, 170, 215))

@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.23"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.24"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -189,12 +189,25 @@ def fmt_time(sec):
 # crop — какую грядку ест (индекс в CROPS), ratio — во сколько раз продукт дороже корма,
 # time — цикл производства, cost — цена покупки (каждый уровень дороже в ANIMAL_LVL_MULT раз),
 # keeper — цена скотника (сам перекладывает урожай с грядки в кормушку)
-ANIMALS = [
-    dict(name="Курица", product="Яйца",    crop=0, ratio=2.0, time=6.0,  cost=500,           keeper=25_000),
-    dict(name="Корова", product="Молоко",  crop=2, ratio=2.5, time=10.0, cost=100_000,       keeper=5_000_000),
-    dict(name="Свинья", product="Трюфели", crop=5, ratio=3.0, time=15.0, cost=200_000_000,   keeper=5_000_000_000),
-    dict(name="Пчёлы",  product="Мёд",     crop=6, ratio=4.0, time=20.0, cost=3_000_000_000, keeper=100_000_000_000),
+ANIMALS_SUMMER = [   # key — имя картинки animals/<key>, icon — картинка продукта icons/<icon>
+    dict(key="chicken", icon="egg", name="Курица", product="Яйца", crop=0, ratio=2.0, time=6.0, cost=500,
+         keeper=25_000),
+    dict(key="cow", icon="milk", name="Корова", product="Молоко", crop=2, ratio=2.5, time=10.0, cost=100_000,
+         keeper=5_000_000),
+    dict(key="pig", icon="truffle", name="Свинья", product="Трюфели", crop=5, ratio=3.0, time=15.0, cost=200_000_000,
+         keeper=5_000_000_000),
+    dict(key="bees", icon="honey", name="Пчёлы", product="Мёд", crop=6, ratio=4.0, time=20.0, cost=3_000_000_000,
+         keeper=100_000_000_000),
 ]
+# 3.24: зимний сарай (глава 3) — звери едят зимние грядки 0, 2, 5, 6; цены и время — как летом
+ANIMALS_WINTER = [
+    dict(ANIMALS_SUMMER[0], key="goose", icon="down", name="Гусь", product="Гусиный пух"),           # ест клюкву
+    dict(ANIMALS_SUMMER[1], key="yak", icon="wool", name="Як", product="Шерсть яка"),                # ест кейл
+    dict(ANIMALS_SUMMER[2], key="reindeer", icon="cheese", name="Северный олень", product="Олений сыр"),  # морошку
+    dict(ANIMALS_SUMMER[3], key="bearcub", icon="jam", name="Медвежонок", product="Облепиховое варенье"),  # облепиху
+]
+ANIMAL_SETS = {"summer": ANIMALS_SUMMER, "winter": ANIMALS_WINTER}
+ANIMALS = [dict(a) for a in ANIMALS_SUMMER]   # звери текущей фермы (меняет apply_farm, на месте)
 N_ANIMALS = len(ANIMALS)
 ANIMAL_MAX_LVL = 10
 ANIMAL_LVL_MULT = 1.8
@@ -307,7 +320,16 @@ def _index_tree(tree):
     return nodes
 
 
-TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL}
+def _winter_tree():
+    """3.24: Зимнее дерево — пока как Дерево листьев (те же эффекты), ветка погоды — «Оттепель»."""
+    out = []
+    for bname, nodes in TREE_SUMMER:
+        out.append(("Оттепель" if bname == "Погода" else bname, [dict(n) for n in nodes]))
+    return out
+
+
+TREE_WINTER = _winter_tree()
+TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL, "winter": TREE_WINTER}
 TREE_NODE_MAP = {key: _index_tree(t) for key, t in TREES.items()}
 TREE = list(TREE_SUMMER)                      # дерево текущей фермы (переключает apply_farm)
 TREE_NODES = dict(TREE_NODE_MAP["summer"])
@@ -338,6 +360,9 @@ THEME_WINTER = dict(ground=(228, 238, 250), ground2=(244, 249, 255), path=(205, 
 CURRENCIES = {
     "leaf": dict(icon="leaf", title="Листья", gen="листьев", one="лист", tree="ДЕРЕВО ЛИСТЬЕВ"),
     "seal": dict(icon="seal", title="Печати", gen="печатей", one="печать", tree="ПРИВИЛЕГИИ КОРОЛЯ"),
+    # 3.24: зима — голубые листочки и Зимнее дерево (решение пользователя 24.11)
+    "frost": dict(icon="frostleaf", title="Голубые листочки", gen="голубых листочков", one="голубой листочек",
+                  tree="ЗИМНЕЕ ДЕРЕВО", short="Листочки"),   # short — подпись кнопки внизу (полное не влезает)
 }
 _SUMMER_BUYER = dict(buyer="скупщик", buyer_cap="Скупщик", arrive="Би-би! Приехал скупщик урожая!",
                      tiers=["Пикап скупщика", "Грузовик скупщика", "Золотая фура"], vehicle="truck")
@@ -355,12 +380,18 @@ FARMS = [
          trophy=dict(name="Королевский штандарт", text="(для следующей главы)"),
          buyer="сборщик податей", buyer_cap="Сборщик податей", arrive="Трубы трубят! Прибыл сборщик податей!",
          tiers=["Телега сборщика", "Обоз сборщика", "Королевский обоз"], vehicle="cart"),
-    dict(id="winter", name="Зимняя ферма",   # будущая 3-я глава: пока закрыта (ready=False)
-         names=["Чеснок", "Пастернак", "Репа", "Клюква", "Лук-порей", "Кольраби", "Кейл", "Брюсселька", "Ледяная тыква"],
-         plants=["garlic", "parsnip", "turnip", "cranberry", "leek", "kohlrabi", "kale", "brussels", "icepumpkin"],
+    # 3-я глава (решения пользователя 24.11): зимнее поле, яркие зимние растения, сарай остаётся (звери под
+    # зимние грядки), голубые листочки и Зимнее дерево, за урожаем приезжает собачья упряжка. Пока закрыта.
+    dict(id="winter", name="Зимнее поле",
+         names=["Клюква", "Имбирь", "Фиолетовый кейл", "Морозная мята", "Арбузная редиска", "Морошка", "Облепиха",
+                "Голубой картофель", "Ледяная тыква"],
+         plants=["cranberry", "ginger", "kale", "frostmint", "pinkradish", "cloudberry", "seabuckthorn", "bluepotato",
+                 "icepumpkin"],
          theme=THEME_WINTER, weather="Оттепель", crow=False, frost=True, bandits=False, peasants=False,
-         barn="animals", tree="summer", cur="leaf", ready=False,
-         trophy=dict(name="Снежинка", text=""), **_SUMMER_BUYER),
+         barn="animals", animals="winter", tree="winter", cur="frost", ready=False,
+         trophy=dict(name="Снежинка", text=""),
+         buyer="каюр", buyer_cap="Каюр", arrive="Гав-гав! Примчалась собачья упряжка!",
+         tiers=["Упряжка из трёх лаек", "Упряжка из шести лаек", "Королевская упряжка"], vehicle="sled"),
 ]
 THEME = dict(THEME_SUMMER)
 CUR = dict(CURRENCIES["leaf"])

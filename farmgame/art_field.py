@@ -305,7 +305,7 @@ def draw_cloud_body(s, x, y, raining):
     face(s, x - 4, y + 4, 2.0)
 
 
-VEHICLE_OFFSET = {"truck": -5, "cart": -30}   # где середина низа картинки относительно точки (x, y) машины
+VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30}   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
 
 
 def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0.0, sy=1.0):
@@ -313,7 +313,7 @@ def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0
     names = ([f"vehicles/{vehicle}_{tier}_cargo"] if cargo else []) + [f"vehicles/{vehicle}_{tier}", f"vehicles/{vehicle}"]
     if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle], y + 4 - bob, 1, sy=sy, angle=angle):
         return
-    (draw_cart if vehicle == "cart" else draw_truck)(s, x, y, color, cargo, bob)
+    (draw_cart if vehicle in ("cart", "sled") else draw_truck)(s, x, y, color, cargo, bob)   # упряжка: пока телегой
 
 
 def draw_cursor_template(s, hover=False):

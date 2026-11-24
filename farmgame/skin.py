@@ -35,7 +35,7 @@ SLICE = {"panel": ("9", 0.17, 36), "card": ("9", 0.22, 14), "panel_header": ("3"
          "quest_note_1": ("9", 0.12, 14), "quest_note_2": ("9", 0.12, 14), "quest_note_3": ("9", 0.12, 14),
          "quest_weekly": ("9", 0.14, 30), "sign": ("9", 0.2, 12), "bubble": ("9", 0.3, 14),
          # 3.18: плашки счёта, сообщения, баннер, полоски, указатели таверны
-         "pill": ("3", 0.45, None), "toast": ("3", 0.45, None), "banner": ("3", 0.3, None),
+         "pill": ("3", 0.45, None), "toast": ("3", 0.45, None), "banner": ("3", 1.0, None),   # у ленты концы-«хвосты» широкие
          "bar_frame": ("3", 0.5, None), "bar_fill": ("3", 0.5, None),
          "sign_board": ("1", 0, None), "sign_casino": ("1", 0, None)}
 
@@ -166,7 +166,7 @@ def bar(surf, rect, frac, color):
         return False
     surf.blit(frame, rect.topleft)
     frac = max(0.0, min(1.0, frac))
-    inset = max(2, int(round(rect.h * 0.22)))
+    inset = max(2, int(round(rect.h * 0.15)))   # толщина деревянного края рамки
     inner = rect.inflate(-2 * inset, -2 * inset)
     if frac <= 0 or inner.w < 3 or inner.h < 2:
         return True

@@ -274,7 +274,7 @@ class FieldUI:
         self.zone_btn(b, lambda k=k: self.do_buy(k), 6)
         # плашка "+N"
         tag = render_text(f"+{n}", 12, WHITE, OUT)
-        tr = tag.get_rect(center=(P(cx), P(board.y - 6)))
+        tr = tag.get_rect(center=(P(cx), P(board.y - 9)))   # 3.17.1: выше — не закрывает название культуры
         rounded(s, (90, 70, 60), tr.inflate(10, 2), 6, 2)
         s.blit(tag, tr)
 

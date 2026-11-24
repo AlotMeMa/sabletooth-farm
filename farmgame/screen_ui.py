@@ -87,6 +87,12 @@ class ScreenUI:
             self.cursors = {}
 
     def toggle_fullscreen(self):
+        # 3.16.8: F11 быстро несколько раз подряд — окно пересоздавалось, не успев встать, и SDL падал.
+        # Между переключениями — не меньше 0.7 с (лишние нажатия просто пропускаются).
+        now = time.time()
+        if now - getattr(self, "_fs_toggled", 0.0) < 0.7:
+            return
+        self._fs_toggled = now
         try:
             if self.fullscreen and self.wide:
                 self.leave_wide()
@@ -95,7 +101,7 @@ class ScreenUI:
             else:
                 pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
-        except pygame.error as e:
+        except Exception as e:                 # любая ошибка окна — не закрывать игру, а вернуться в окно
             print("Переключение экрана:", e)
             self.safe_window()
             if not any(t[0].startswith("Не получилось переключить экран") for t in self.toasts):

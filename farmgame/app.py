@@ -695,8 +695,12 @@ class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, 
             self.track_mouse()
             self.draw()
             self.update_cursor()
-            self.present_wide()
-            pygame.display.flip()
+            try:
+                self.present_wide()
+                pygame.display.flip()
+            except pygame.error as e:          # 3.16.8: окно поменялось посреди кадра (выход из полного экрана)
+                print("Кадр не показан:", e)
+                self.safe_window()
 
 
 def main():

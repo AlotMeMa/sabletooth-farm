@@ -51,8 +51,10 @@ CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "prop
 # 3.16: доска заданий и таблички (2×3), облачко и стрелка (1×3), частицы и лампочки гирлянды (3×3)
 BOARD_SHEET_ORDER = ["quest_note_1", "quest_note_2", "quest_note_3", "sign", "pin", "wax_seal"]
 TALK_SHEET_ORDER = ["bubble", "bubble_tail", "arrow"]
-# 3.18: лист плашек 2×3 — плашка счёта, сообщение, баннер; рамка полоски, белая заливка полоски, вывеска казино
-PLATE_SHEET_ORDER = ["pill", "toast", "banner", "bar_frame", "bar_fill", "sign_casino"]
+# 3.18: лист плашек. 3.19.1: Gemini нарисовал его 3 ряда × 2 столбца, по рядам: светлая плашка счёта,
+# тёмная плашка сообщения; лента-баннер, вторая лента (не нужна — пропуск); рамка полоски, вывеска казино.
+# Белой заливки полоски на листе нет — заливку рисует код (или свой файл ui/bar_fill.png).
+PLATE_SHEET_ORDER = ["pill", "toast", "banner", "_unused", "bar_frame", "sign_casino"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -62,7 +64,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
     "fx/sheet": ("fx/", FX_SHEET_ORDER, 3, 3),
-    "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 2, 3),
+    "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 3, 2),
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -661,7 +663,8 @@ def fit_strip(img, specs):
 
 def fit_sheet(img, rows, cols, spec_for):
     """Лист иконок rows×cols. spec_for(i) — spec для i-й иконки. -> список поверхностей."""
-    biggest = max(max(spec_for(i)["canvas"]) for i in range(rows * cols))
+    specs = [spec_for(i) for i in range(rows * cols)]      # None — клетка не нужна (пропуск в порядке листа)
+    biggest = max(max(sp["canvas"]) for sp in specs if sp)
     px = _prepare(img, _work(biggest * max(rows, cols)))
     whole = px.bbox()
     if whole is None:
@@ -672,7 +675,7 @@ def fit_sheet(img, rows, cols, spec_for):
         for ca, cb in split_by_gaps(px.occupancy("x", band), cols):
             bb = px.bbox((band[0] + ca, band[1], band[0] + cb, band[3]))
             i = len(out)
-            out.append(_fit_piece(px.surface(bb), spec_for(i)) if bb else None)
+            out.append(_fit_piece(px.surface(bb), specs[i]) if bb and specs[i] else None)
     return out
 
 
@@ -691,10 +694,12 @@ def _fit_piece(piece, spec):
 # ----------------------------------------------------------------------
 #                 загрузка с подгонкой и кэшем на диске
 # ----------------------------------------------------------------------
-def _cache_path(name, src):
+def _cache_path(name, src, part=None):
     st = os.stat(src)
     # в ключе и правила подгонки: поменялся размер в игре — картинка пересчитается сама
     key = f"{CACHE_VERSION}|{name}|{fit_spec(name)}|{os.path.abspath(src)}|{st.st_mtime_ns}|{st.st_size}"
+    if part and part[0] == "sheet":     # 3.19.1: и клетка листа (поменялась сетка листа — вырежется заново)
+        key += f"|sheet{part[1]}:{part[4]}x{part[5]}"
     return os.path.join(CACHE_DIR, hashlib.md5(key.encode("utf-8")).hexdigest() + ".png")
 
 
@@ -760,7 +765,7 @@ def load_fitted(name, path, part=None):
     spec = fit_spec(name)
     if spec is None and part is None:
         return _upscale(_load(path))     # правила нет — картинка как есть (в HD — крупнее)
-    cache = _cache_path(name, path)
+    cache = _cache_path(name, path, part)
     if os.path.exists(cache):
         try:
             return _load(cache)
@@ -801,7 +806,7 @@ def load_fitted(name, path, part=None):
         outs = fit_sheet(img, rows, cols, lambda i: fit_spec(prefix + order[i] + sfx))
         for i, surf in enumerate(outs):
             if surf is not None and i != idx:
-                _save_cache(_cache_path(prefix + order[i] + sfx, path), surf)
+                _save_cache(_cache_path(prefix + order[i] + sfx, path, (_kind, i, prefix, order, rows, cols)), surf)
         out = outs[idx]
     if out is None:
         return None

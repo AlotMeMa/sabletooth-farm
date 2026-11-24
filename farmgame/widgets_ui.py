@@ -75,7 +75,7 @@ class WidgetsUI:
                 y = 100 + n * 40 if self.mode == "upgrade" else self.tut_box().y - 46 - n * 40   # выше таблички «Бармен»
             else:
                 y = 512 - n * 40
-            r = img.get_rect(center=(W // 2 - (60 if in_barn else 0), y))
+            r = img.get_rect(center=(W // 2 + (40 if in_barn else 0), y))
             if not skin.plate(self.screen, "toast", r.inflate(34, 12)):   # 3.18: своя плашка ui/toast
                 rounded(self.screen, (90, 70, 60), r.inflate(26, 12), 12, 3)
             self.screen.blit(img, r)

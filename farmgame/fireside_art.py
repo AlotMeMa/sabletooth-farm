@@ -23,6 +23,7 @@ FIRESIDE_LAYOUT = dict(
     chain_top=150,                # где висит цепь котелка
     rug=[440, 566],               # коврик: центр
     cat=[392, 566],               # кот: низ по центру
+    trophies=[[500, 84, "hang", 1.5], [560, 118, "stand", 1.6], [250, 121, "stand", 1.6], [624, 116, "stand", 1.6]],
 )
 # 3.20: под свой фон пользователя assets/backgrounds/fireside (камин по центру, на углях лежат два полена).
 # Огонь горит над поленьями фона; свои угли и поленья код не рисует.
@@ -32,6 +33,9 @@ FIRESIDE_CUSTOM = dict(
     front=[[[416, 452], [552, 380], [570, 388], [575, 404], [446, 481], [419, 478]],
            [[456, 392], [470, 380], [598, 448], [601, 468], [586, 480], [470, 416]]],
     kettle=[508, 352], kettle_k=1.7, chain_top=252,
+    # 3.21: трофеи на камине (порядок: подкова, кубок, крестьянин, колос): подкова — на трубе над полкой,
+    # остальные стоят на полке (её верх y≈142; свеча слева, x≈267). [x, низ, "hang"|"stand", масштаб]
+    trophies=[[508, 96, "hang", 1.5], [648, 143, "stand", 1.6], [378, 143, "stand", 1.6], [738, 143, "stand", 1.6]],
     rug=[506, 592], rug_k=1.25,
     cat=[436, 590],
 )
@@ -70,6 +74,89 @@ def draw_flames(s, x, y, w, h, t, power=1.0):
                 right.append((cx + hw, yy))
             bottom = [(x + off + tw * 0.32, y + tw * 0.12), (x + off, y + tw * 0.18), (x + off - tw * 0.32, y + tw * 0.12)]
             pygame.draw.polygon(s, col, left + right[::-1] + bottom)
+
+
+# ---------- 3.21: огонь из частиц-«языков» со светом (вместо плоских многоугольников) ----------
+# Каждая частица — мягкое светящееся пятно; цвет по возрасту: белое ядро -> жёлтый -> оранжевый -> красный -> тает.
+# Пятна кладутся «светом» (BLEND_RGB_ADD): где их много, огонь раскаляется до белого, края мягкие.
+FIRE_COLORS = [(0.0, (255, 222, 140)), (0.15, (255, 180, 70)), (0.4, (245, 112, 28)), (0.7, (196, 48, 14)),
+               (1.0, (110, 20, 8))]
+_fire_dots = {}
+FIRE_TALL = 1.7          # во сколько раз пятно выше, чем шире
+
+
+def _fire_color(u):
+    for (u0, c0), (u1, c1) in zip(FIRE_COLORS, FIRE_COLORS[1:]):
+        if u <= u1:
+            k = (u - u0) / (u1 - u0)
+            return tuple(int(a + (b - a) * k) for a, b in zip(c0, c1))
+    return FIRE_COLORS[-1][1]
+
+
+def fire_dot(r, u, power):
+    """Мягкое пятно огня радиуса r (логические px) цвета возраста u (0..1), яркость power (0..1). Из кэша:
+    радиус округляется до 2 px, возраст — до 1/12, яркость — до 1/8."""
+    r = max(2, int(round(r / 2)) * 2)
+    ub = min(11, int(u * 12))
+    pb = max(1, min(8, int(round(power * 8))))
+    key = (r, ub, pb)
+    img = _fire_dots.get(key)
+    if img is None:
+        col = _fire_color((ub + 0.5) / 12)
+        hgt = int(r * FIRE_TALL)                        # пятно вытянуто вверх — похоже на язык пламени
+        img = hd.Surface((2 * r, 2 * hgt), pygame.SRCALPHA)
+        img.fill((0, 0, 0, 0))
+        steps = max(4, r)
+        for i in range(steps):                          # от края к центру, каждый эллипс ярче
+            t = 1 - i / steps
+            k = (1 - t) ** 1.3 * pb / 8
+            ew, eh = max(1, int(2 * r * t)), max(1, int(2 * hgt * t))
+            pygame.draw.ellipse(img, (int(col[0] * k), int(col[1] * k), int(col[2] * k), int(255 * k)),
+                                (r - ew // 2, hgt - eh // 2, ew, eh))
+        if len(_fire_dots) > 2500:                    # все размеры×цвета×яркости ≈ 1500 — помещаются
+            _fire_dots.clear()
+        _fire_dots[key] = img
+    return img
+
+
+class Fire:
+    """Огонь камина: частицы рождаются вдоль углей, поднимаются, сужаются к середине, остывают и тают."""
+
+    def __init__(self, x, y, w, h):
+        self.x, self.y, self.w, self.h = x, y, w, h
+        self.parts = []          # [x0, y, vy, возраст, жизнь, размер, фаза, сдвиг к середине]
+        self.acc = 0.0
+        self.rnd = random.Random(5)
+
+    def update(self, dt, power=1.0):
+        rnd = self.rnd
+        self.acc += dt * 170 * power
+        while self.acc >= 1:
+            self.acc -= 1
+            off = max(-1.0, min(1.0, rnd.gauss(0, 0.42))) * self.w * 0.5
+            edge = 1 - abs(off) / (self.w * 0.5 + 1)    # у краёв языки ниже и мельче
+            tongue = rnd.random() < 0.12                 # изредка — длинный язык, выше остальных
+            life = rnd.uniform(0.5, 1.0) * (0.55 + 0.45 * edge) * (self.h / 200) * (1.5 if tongue else 1.0)
+            speed = rnd.uniform(170, 260) * (self.h / 200) * (0.8 + 0.3 * power)
+            self.parts.append([off, self.y + rnd.uniform(0, 10), -speed, 0.0, life,
+                               rnd.uniform(18, 30) * (self.w / 170) * (0.7 + 0.3 * edge) * (0.8 if tongue else 1.0),
+                               rnd.uniform(0, 6.3), rnd.uniform(0.55, 0.9)])
+        top = self.y - self.h
+        for p in self.parts:
+            p[3] += dt
+            p[1] += p[2] * dt
+            if p[1] < top:                               # выше пламени не поднимается — гаснет
+                p[3] = p[4]
+        self.parts = [p for p in self.parts if p[3] < p[4]][-260:]
+
+    def draw(self, s, t):
+        add = pygame.BLEND_RGB_ADD
+        for x0, y, _vy, age, life, size, ph, pull in self.parts:
+            u = age / life
+            x = self.x + x0 * (1 - pull * u) + math.sin(t * 6 + ph + u * 3) * 6 * u
+            r = size * (1 - 0.75 * u) * (0.85 + 0.15 * math.sin(t * 11 + ph))
+            img = fire_dot(r, u, 0.7 * (1 - u) ** 0.7 + 0.1)
+            s.blit(img, (int(x - img.get_width() / 2), int(y - img.get_height() / 2)), special_flags=add)
 
 
 def draw_coals(s, x, y, w, t):

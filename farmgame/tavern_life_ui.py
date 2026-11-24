@@ -128,17 +128,15 @@ class TavernLifeUI:
             self.tip(pygame.Rect(int(x) - 18, int(y) - 38, 36, 40), f"Трофей из казино: {p['name']}")
 
     def draw_tavern_decor(self, s, tt):
-        """3.19: купленные украшения в зале: котелок над огнём, кот у камина, цветы на столах.
+        """3.19: купленные украшения в зале: котелок над огнём, цветы на столе (3.21: кот — только у камина).
         Места — "decor" в разметке (поправить можно в tavern.json)."""
-        from .fireside_art import draw_cat, draw_kettle, draw_flowers
+        from .fireside_art import draw_kettle, draw_flowers
         t, d = self.tavern, self.tl.get("decor") or {}
         if t.prize_on("kettle") and d.get("kettle"):
             draw_kettle(s, d["kettle"][0], d["kettle"][1], 0.36, tt, top=d.get("kettle_top"))
-        if t.prize_on("cat") and d.get("cat"):
-            draw_cat(s, d["cat"][0], d["cat"][1], 0.62, tt, 1.0 if math.sin(tt * 0.7) > 0.97 else 0.0)
         if t.prize_on("flowers"):
             for x, y in d.get("flowers") or []:
-                draw_flowers(s, x, y, 0.55, tt)
+                draw_flowers(s, x, y, 1.0, tt)          # 3.21: крупнее — стоит на столе
 
     def draw_garland(self, s, tt):
         """3.14, приз казино: гирлянда огоньков провисает под балконом, лампочки мигают по очереди."""

@@ -74,7 +74,7 @@ def _layout_procedural():
         music=dict(MUSIC_TIMING), music_girl=dict(MUSIC_GIRL_TIMING),
         trophies=[[640, 236, "hang"], [700, 338, "stand", "front"], [190, 268, "stand"], [300, 250, "shelf"]],
         fireside=[214, 378, 84, 60],
-        decor=dict(cat=[196, 452], kettle=[256, 412], kettle_top=384, flowers=[[342, 452]]),
+        decor=dict(kettle=[256, 412], kettle_top=384, flowers=[[342, 452]]),
         fx=dict(fire=[256, 424], candles=[[342, 460], [598, 460], [360, 250], [560, 250]],
                 steam=[[778, 592], [180, 506]], motes=[400, 30, 860, 120], barman_mug=None),
     )
@@ -113,7 +113,7 @@ CUSTOM_LAYOUT = dict(
     trophies=[[205, 316, "hang"], [229, 351, "stand"], [161, 356, "stand"], [258, 349, "stand"]],
     # 3.19: камин (клик — посидеть у огня) и где в зале стоят купленные украшения
     fireside=[188, 362, 82, 98],
-    decor=dict(cat=[226, 485], kettle=[222, 424], kettle_top=372, flowers=[[172, 497]]),
+    decor=dict(kettle=[222, 424], kettle_top=372, flowers=[[176, 512]]),
     fx=dict(fire=[219, 444], candles=[[205, 335], [359, 393], [564, 393]],
             steam=[[870, 572], [960, 561], [210, 483]], motes=[330, 36, 720, 128], barman_mug=[717, 372]),
 )

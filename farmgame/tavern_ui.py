@@ -239,8 +239,7 @@ class TavernUI:
         s, tt = self.screen, self.t_real
         s.blit(self.tavern_bg, (0, 0))
         self.draw_tavern_life(s, tt)
-        self.draw_tavern_trophies(s)
-        self.draw_tavern_decor(s, tt)
+        self.draw_tavern_decor(s, tt)        # 3.21: трофеи — не в зале, а на камине в «посиделках у камина»
         if not self.tavern_custom:
             # огонь в камине
             for i in range(5):
@@ -276,7 +275,6 @@ class TavernUI:
                 hands = draw_person(s, x, 520, 1.05, look, tt, cheers, arms=(0.3, -1.0 if cheers else 0.5), face=face)
                 draw_mug(s, hands[1][0] + 2, hands[1][1] - 5, 0.75)
             s.blit(self.tavern_fg, (0, 0))
-        self.draw_tavern_trophies(s, front=True)  # то, что лежит на стойке перед барменом
         for img, pos in self.tavern_occ:          # стойка и всё, что стоит перед персонажами
             s.blit(img, pos)
         # бард на сцене

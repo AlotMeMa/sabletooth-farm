@@ -313,6 +313,15 @@ class Surface:
         if special_flags:
             _stat("blit_special_flags")
         base = self.img.crop((r.x, r.y, r.right, r.bottom))
+        if special_flags in (BLEND_RGB_ADD, BLEND_RGBA_ADD):
+            # как в pygame: цвета источника прибавляются к цветам картинки (свет), прозрачность не смешивается
+            from PIL import ImageChops
+            src = piece if src._alpha_px else piece
+            added = ImageChops.add(base.convert("RGB"), src.convert("RGB"))
+            out = added.convert("RGBA")
+            out.putalpha(base.getchannel("A"))
+            self.img.paste(out, (r.x, r.y))
+            return r
         out = Image.alpha_composite(base, piece)
         if not self._alpha_px:
             out.putalpha(255)

@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.25"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.25.1"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py

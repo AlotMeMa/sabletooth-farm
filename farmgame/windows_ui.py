@@ -458,6 +458,14 @@ class WindowsUI:
             self.set_theme()
             self.modal = None
             self.toast("Вернулись на летнюю ферму (для тестов)", 2)
+        def to_winter():
+            """3.26: зимняя глава ещё закрыта для игроков — сюда можно только из режима разработчика."""
+            f.farm_index = next(n for n, fm in enumerate(FARMS) if fm["id"] == "winter")
+            f.home_leaves = f.leaves
+            f.reset_run()
+            self.set_theme()
+            self.view, self.modal = "field", None
+            self.toast("Зимнее поле (заготовка, только для тестов): гномы — в магазине, оттепель — справа вверху", 4)
         def all_crops():
             for i in range(N_CROPS):
                 f.levels[i] += 50
@@ -524,6 +532,7 @@ class WindowsUI:
             ("Деньги x1000", money), (f"+1000 {CUR['gen']}", leaves),
             ("Заработать до грузовика", to_truck), ("Заработать до переезда", to_move),
             ("Переехать сейчас", move_now), ("Назад на летнюю", back_summer),
+            ("Зимнее поле (заготовка)", to_winter),
             ("Все грядки +50 ур.", all_crops), ("Сарай: всё ур.5 + скотники", barn),
             ("Дерево на максимум", tree_max), (f"Скорость времени: x{self.time_scale}", speed),
             ("Белка", lambda: squirrel(False)), ("Золотая белка", lambda: squirrel(True)),

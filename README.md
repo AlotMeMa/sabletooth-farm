@@ -149,7 +149,12 @@ python farm_idle.py
 | `farmgame/hud_ui.py` | плашки сверху, кнопки снизу, шестерёнка |
 | `farmgame/widgets_ui.py` | общие детали: кнопки, окна-панели, подсказки, сообщения |
 | `farmgame/screen_ui.py` | окно, HD, полный экран без полос, курсор |
-| `farmgame/art.py` | вся графика: загрузка спрайтов и рисунки кодом |
+| `farmgame/art.py` | вся графика одним именем (`from .art import ...`); по частям: |
+| `farmgame/art_sprites.py` | поиск картинок в `assets/`, загрузка с подгонкой, рисование с масштабом и поворотом |
+| `farmgame/art_base.py` | цвета, сетка поля, текст и шрифты, примитивы, монетки, полоски |
+| `farmgame/art_plants.py` | растения кодом |
+| `farmgame/art_world.py` | декор, здания, существа, звери, повозки, экран загрузки, смена фермы |
+| `farmgame/art_field.py` | поле, забор, солнце, тучка, свет и подсветка, шлейф курсора |
 | `farmgame/skin.py` | оформление окон и кнопок «дерево + пергамент» из `assets/ui/` |
 | `farmgame/spritefit.py` | автоподгонка картинок: убрать фон, обрезать, вписать в размер |
 | `farmgame/hd.py`, `farmgame/screenfit.py` | HD-режим; полный экран без чёрных полос |
@@ -157,7 +162,10 @@ python farm_idle.py
 | `farmgame/audio.py` | музыка и звуки (встроенный синтез + свои файлы) |
 | `farmgame/savefile.py` | запись сохранения, запасная копия, спасение повреждённого файла |
 | `farmgame/templates.py` | выгрузка шаблонов спрайтов (`--export-templates`) |
-| `farmgame/tavern.py`, `farmgame/tavern_ui.py` | таверна: задания, жетоны, песни барда (без графики) / зал и доска на экране |
+| `farmgame/tavern.py` | таверна без графики: задания, жетоны, песни, призы |
+| `farmgame/tavern_ui.py` | экран таверны: переходы, задания и награды, жители, звук, зал |
+| `farmgame/tavern_art.py` | разметка зала, рисунки людей, кружек, жетонов, нот, облачков; фоны зала и доски |
+| `farmgame/board_ui.py`, `songs_ui.py`, `tavern_life_ui.py`, `tavern_hud_ui.py` | доска заданий; песни барда и плашки бафов; живой зал (такт, огонь, трофеи, гирлянда); кнопки таверны |
 | `farmgame/mill_ui.py` | экран мельницы и пекарни |
 | `farmgame/tutorial.py`, `farmgame/tutorial_ui.py` | обучение с барменом на первой ферме |
 | `farmgame/casino.py`, `farmgame/casino_ui.py` | казино: рулетка на жетоны, крупье, призовая стойка |

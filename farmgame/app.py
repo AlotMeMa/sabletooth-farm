@@ -3,6 +3,10 @@
 from .ui_common import *  # noqa: F401,F403
 from .ui_common import _rain_time, _rain_cd, _rain_speed  # noqa: F401
 from .tavern_ui import TavernUI
+from .board_ui import BoardUI
+from .songs_ui import SongsUI
+from .tavern_life_ui import TavernLifeUI
+from .tavern_hud_ui import TavernHudUI
 from .mill_ui import MillUI
 from .tutorial_ui import TutorialUI
 from .casino_ui import CasinoUI
@@ -48,7 +52,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
           ScreenUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).

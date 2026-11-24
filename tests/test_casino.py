@@ -161,10 +161,13 @@ class BardGirl(unittest.TestCase):
 class KnownMusic(unittest.TestCase):
     def test_every_scene_track_is_known(self):
         # проверка картинок не должна называть «неузнанной» музыку, которую игра сама играет
-        import re, os
+        import re, os, glob
         root = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
         audio = open(os.path.join(root, "farmgame", "audio.py"), encoding="utf-8").read()   # без pygame
-        MUSIC_NAMES = re.search(r"^MUSIC_NAMES = (\([^)]*\))", audio, re.M).group(1)
-        src = open(os.path.join(root, "farmgame", "tavern_ui.py"), encoding="utf-8").read()
-        for name in set(re.findall(r'has_scene_music\\("(\\w+)"\\)', src)) | {"tavern"}:
-            self.assertIn(f'"{name}"', MUSIC_NAMES)
+        known = re.search(r"^MUSIC_NAMES = (\([^)]*\))", audio, re.M).group(1)
+        scenes = {"tavern"}
+        for path in glob.glob(os.path.join(root, "farmgame", "*.py")):
+            scenes |= set(re.findall(r'has_scene_music\("(\w+)"\)', open(path, encoding="utf-8").read()))
+        self.assertIn("tavern_girl", scenes)                 # шаблон поиска правда что-то находит
+        for name in scenes:
+            self.assertIn(f'"{name}"', known)

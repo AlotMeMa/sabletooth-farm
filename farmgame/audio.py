@@ -58,6 +58,7 @@ class Music:
         self.current = None      # путь к файлу, который играет сейчас
         self.volume = volume
         self.muted = False
+        self.scene_k = 1.0       # 3.19: «приглушить» музыку в сцене (у камина ~0.3); ползунок громкости не трогает
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
@@ -66,7 +67,17 @@ class Music:
             print("Звук недоступен:", e)
 
     def effective_volume(self):
-        return 0.0 if self.muted else self.volume
+        return 0.0 if self.muted else self.volume * self.scene_k
+
+    def fade_scene(self, target, dt):
+        """Плавно ведёт множитель сцены к target (за ~1 с) и сразу применяет громкость."""
+        if abs(self.scene_k - target) < 0.002:
+            if self.scene_k != target:
+                self.scene_k = target
+                self.apply_volume()
+            return
+        self.scene_k += (target - self.scene_k) * min(1.0, dt * 2.5)
+        self.apply_volume()
 
     def play_for(self, farm_id, scene=None):
         """Включает музыку фермы (или места scene). Если играет та же — ничего не трогает."""
@@ -158,9 +169,11 @@ SFX_INFO = {   # имя -> когда играет
     "quest": "задание таверны выполнено",
     "claim": "награда за задание получена",
     "crowd": "гул голосов в таверне (фон, играет по кругу)",
+    "fire": "треск камина (фон у камина, играет по кругу)",
+    "spark": "подбросили полено — огонь вспыхнул и затрещал",
 }
 SFX_NAMES = tuple(SFX_INFO)
-MIN_GAP = {"coin": 0.06, "hover": 0.03, "feed": 0.1}   # чтобы при сборе «пачкой» не трещало
+MIN_GAP = {"coin": 0.06, "hover": 0.03, "feed": 0.1, "spark": 0.3}   # чтобы при сборе «пачкой» не трещало
 
 # --- маленький синтезатор: события (начало, вид, параметры) смешиваются в один звук ---
 NOTE = {"C5": 523.3, "E5": 659.3, "G5": 784.0, "A5": 880.0, "C6": 1046.5, "E6": 1318.5, "G6": 1568.0,
@@ -252,6 +265,10 @@ def _spec(name):
         return [(i * 0.05, T(f, f, 0.16, 0.18, "bright")) for i, f in enumerate((N["C6"], N["E6"], N["G6"], N["C7"], N["E7"]))]
     if name == "crowd":
         return [(0, _crowd)]
+    if name == "fire":
+        return [(0, _fire)]
+    if name == "spark":
+        return [(0, lambda rate: _crackles(rate, 0.9, 26, 0.7, seed=5))]
     if name == "sell":
         return [(i * 0.05, T(f, f, 0.14, 0.17, "bright"))
                 for i, f in enumerate((N["E6"], N["G6"], N["B6"], N["E6"], N["G6"], N["B6"], N["C7"]))]
@@ -314,6 +331,71 @@ def _crowd(rate, dur=8.0):
     mix = [v * 0.35 / peak for v in mix]
     full = []
     for v in mix:               # обратно на полную частоту
+        full.append(v)
+        full.append(v)
+    return full
+
+
+def _crackles(rate, dur, count, amp, seed=3, loop=False):
+    """Треск дров: короткие щелчки (2–12 мс) пачками и редкие «хлопки». loop=True — хвосты переносятся в начало."""
+    n = int(rate * dur)
+    out = [0.0] * n
+    rnd = random.Random(seed)
+    prev = 0.0
+    for _ in range(count):
+        start = rnd.randrange(n) if loop else int(rnd.uniform(0.0, 0.85) * n)
+        for _k in range(rnd.choice((1, 1, 2, 3, 4))):        # щелчки идут пачками
+            m = int(rate * rnd.uniform(0.002, 0.012))
+            a = amp * rnd.uniform(0.15, 1.0) ** 2
+            for j in range(m):
+                w = rnd.uniform(-1, 1)
+                v = (w - prev) * 0.5 * a * math.exp(-5.0 * j / m)   # разность — убирает гул, остаётся «щёлк»
+                prev = w
+                idx = start + j
+                if loop:
+                    out[idx % n] += v
+                elif idx < n:
+                    out[idx] += v
+            start += int(rate * rnd.uniform(0.008, 0.045))
+    for _ in range(max(1, count // 12)):                     # хлопки: ниже и сильнее
+        start = rnd.randrange(n) if loop else int(rnd.uniform(0.0, 0.6) * n)
+        m = int(rate * 0.03)
+        y = 0.0
+        for j in range(m):
+            y = 0.55 * y + 0.45 * rnd.uniform(-1, 1)
+            v = y * amp * 0.9 * math.exp(-6.0 * j / m)
+            idx = start + j
+            if loop:
+                out[idx % n] += v
+            elif idx < n:
+                out[idx] += v
+    return out
+
+
+def _fire(rate, dur=7.0):
+    """3.19: камин по кругу — мягкое гудение пламени и треск поленьев. Петля без шва."""
+    r2 = rate // 2
+    n = int(r2 * dur)
+    fade = int(r2 * 0.4)
+    rnd = random.Random(21)
+    hum = [0.0] * (n + fade)
+    y = y2 = 0.0
+    for i in range(n + fade):
+        y = 0.992 * y + 0.008 * rnd.uniform(-1, 1)            # низкое «ух-ух» пламени
+        y2 = 0.9 * y2 + 0.1 * rnd.uniform(-1, 1)              # шипение
+        hum[i] = y * 2.2 + y2 * 0.05
+    for i in range(fade):                                     # хвост плавно переходит в начало
+        u = i / fade
+        hum[i] = hum[i] * u + hum[n + i] * (1 - u)
+    mix = hum[:n]
+    for i in range(n):                                        # пламя «дышит»: целое число волн на петлю
+        mix[i] *= 0.75 + 0.25 * math.sin(2 * math.pi * 3 * i / n)
+    cr = _crackles(r2, dur, int(dur * 16), 0.55, seed=9, loop=True)
+    mix = [a + b for a, b in zip(mix, cr)]
+    peak = max(1e-6, max(abs(v) for v in mix))
+    mix = [v * 0.5 / peak for v in mix]
+    full = []
+    for v in mix:
         full.append(v)
         full.append(v)
     return full
@@ -386,43 +468,53 @@ class Sfx:
         except Exception:
             pass
 
-    # ---- фоновая петля (гул таверны) ----
-    AMBIENT_K = 0.55            # петля тише обычных звуков
+    # ---- фоновые петли (гул таверны, треск камина) ----
+    AMBIENT_K = 0.55            # петли тише обычных звуков
 
     def ambient(self, name):
-        """Включает фоновую петлю name (None — выключить). Громкость = «Звуки» x AMBIENT_K."""
-        cur = getattr(self, "amb", None)
-        if cur and cur[0] == name:
-            return
-        if cur and cur[1] is not None:
-            try:
-                cur[1].fadeout(600)
-            except Exception:
-                pass
-        self.amb = None
-        if name is None or not self.music.ok:
-            return
-        snd = self.get(name)
-        self.amb = (name, snd)
-        if snd is None:
-            return
-        try:
-            snd.set_volume(self.ambient_volume())
-            snd.play(loops=-1, fade_ms=800)
-        except Exception:
-            pass
+        """Одна фоновая петля name (None — выключить все)."""
+        self.ambients({name: 1.0} if name else {})
 
-    def ambient_volume(self):
-        return 0.0 if self.music.muted else self.volume * self.AMBIENT_K
+    def ambients(self, wanted):
+        """3.19: несколько петель сразу: {имя: громкость 0..2 относительно обычной}. Лишние затихают,
+        новые включаются плавно, у уже играющих громкость плавно меняется (update_ambient)."""
+        cur = getattr(self, "ambs", {})
+        for name in [n for n in cur if n not in wanted]:
+            snd = cur.pop(name)[0]
+            if snd is not None:
+                try:
+                    snd.fadeout(600)
+                except Exception:
+                    pass
+        if self.music.ok:
+            for name, gain in wanted.items():
+                if name in cur:
+                    cur[name][2] = gain
+                    continue
+                snd = self.get(name)
+                cur[name] = [snd, gain, gain]
+                if snd is None:
+                    continue
+                try:
+                    snd.set_volume(self.ambient_volume(gain))
+                    snd.play(loops=-1, fade_ms=800)
+                except Exception:
+                    pass
+        self.ambs = cur
+
+    def ambient_volume(self, gain=1.0):
+        return 0.0 if self.music.muted else min(1.0, self.volume * self.AMBIENT_K * gain)
 
     def update_ambient(self):
-        """Каждый кадр: ползунок «Звуки» и «Выключить звук» сразу действуют и на петлю."""
-        amb = getattr(self, "amb", None)
-        if amb and amb[1] is not None:
-            try:
-                amb[1].set_volume(self.ambient_volume())
-            except Exception:
-                pass
+        """Каждый кадр: ползунок «Звуки» и «Выключить звук» сразу действуют и на петли."""
+        for item in getattr(self, "ambs", {}).values():
+            snd, gain, target = item
+            item[1] = gain + (target - gain) * 0.06
+            if snd is not None:
+                try:
+                    snd.set_volume(self.ambient_volume(item[1]))
+                except Exception:
+                    pass
 
     def preload(self):
         for name in SFX_NAMES:      # и гул таверны (~0.5 с) — пока видна заставка

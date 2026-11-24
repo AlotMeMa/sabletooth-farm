@@ -169,6 +169,7 @@ python farm_idle.py
 | `farmgame/mill_ui.py` | экран мельницы и пекарни |
 | `farmgame/tutorial.py`, `farmgame/tutorial_ui.py` | обучение с барменом на первой ферме |
 | `farmgame/casino.py`, `farmgame/casino_ui.py` | казино: рулетка на жетоны, крупье, призовая стойка |
+| `farmgame/fireside_ui.py`, `fireside_art.py` | посиделки у камина (3.19): живой огонь, украшения (кот, котелок, цветы, коврик) |
 | `assets/` | твои картинки, музыка, шрифты. Как рисовать и называть — `docs/SPRITES.md` |
 | `tests/` | тесты логики (без pygame) |
 | `devtools/` | проверка без окна: заглушка pygame, кадры по сценариям, случайные клики |

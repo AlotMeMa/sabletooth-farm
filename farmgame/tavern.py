@@ -156,11 +156,7 @@ class Tavern:
         return False
 
     def prize_state(self, prize, today=None):
-        """owned — куплен (трофей/косметика), today — баф уже брали сегодня, can — можно купить."""
-        if prize["kind"] == "buff":
-            if self.prize_day.get(prize["id"]) == (today or day_key()):
-                return "today"
-            return "can"
+        """owned — куплен, can — можно купить (с 3.19 все призы — навсегда)."""
         return "owned" if self.prizes.get(prize["id"]) else "can"
 
     def prize_on(self, pid):
@@ -185,17 +181,10 @@ class Tavern:
         state = self.prize_state(prize, today)
         if state == "owned":
             return False, "Уже есть"
-        if state == "today":
-            return False, "Сегодня уже брали — приходи завтра"
         if self.tokens < prize["cost"]:
             return False, f"Нужно жетонов: {prize['cost']}"
         self.tokens -= prize["cost"]
-        if prize["kind"] == "buff":
-            self.prize_day[pid] = today or day_key()
-            attr = "lucky_left" if pid == "lucky_coin" else "clover_left"
-            setattr(farm, attr, prize["minutes"] * 60.0)
-        else:
-            self.prizes[pid] = True
+        self.prizes[pid] = True
         return True, ""
 
     # ---------- генерация ----------

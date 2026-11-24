@@ -234,9 +234,18 @@ def spec_list():
     for v in (5, 10, 25, 50):
         add(f"ui/chip_{v}", (72, 72), "центр", f"фишка {v} (без числа)", 1, lambda s: None)
     add("characters/croupier", (150, 150), "низ по центру = край стола", "крупье по пояс", 1, lambda s: None)
+    # 3.19: посиделки у камина
+    add("backgrounds/fireside", (W, H), "весь экран", "камин крупным планом: пустой очаг с углями и поленьями, без огня "
+        "(огонь рисует игра; разметка — backgrounds/fireside.json)", 1, lambda s: None)
+    from .spritefit import DECOR_SIZE
+    decor_desc = {"cat": "рыжий кот спит клубком (вид сбоку)", "kettle": "чугунный котелок с крышкой, без цепи",
+                  "flowers": "глиняный кувшин с полевыми цветами", "rug": "круглый тканый коврик на полу (вид сбоку, сплющен)"}
+    for key, (w, h, align) in DECOR_SIZE.items():
+        add(f"decor/{key}", (w, h), "низ по центру" if align == "bottom" else "центр", decor_desc[key] + " — приз таверны",
+            1, lambda s: None)
     from .config import PRIZES
     for p in PRIZES:
-        add(f"icons/prize_{p['id']}", (40, 40), "центр", f"приз казино: {p['name']}", 1, lambda s: None)
+        add(f"icons/prize_{p['id']}", (40, 40), "центр", f"приз таверны: {p['name']}", 1, lambda s: None)
     # 3.16: доска заданий, табличка на поле, облачко, стрелка обучения, частицы и лампочки гирлянды
     for d in (1, 2, 3):
         add(f"ui/quest_note_{d}", (245, 167), "растягивается", f"записка дня на доске, сложность {d}", 1, lambda s: None)

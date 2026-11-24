@@ -61,7 +61,7 @@ class TavernHudUI:
         cheapest = min(p["cost"] for p in _P if t.prize_state(p) == "can") if any(
             t.prize_state(p) == "can" for p in _P) else None
         badge = cheapest is not None and t.tokens >= cheapest
-        tip = f"Призы за жетоны: трофеи, удача, украшения (у тебя {t.tokens})"
+        tip = f"Призы за жетоны: трофеи и украшения (у тебя {t.tokens})"
         if not has_sprite("ui/btn_prizes") and has_sprite("ui/btn_shop"):
             s = self.screen
             hov = self.modal is None and r.collidepoint(self.mouse)

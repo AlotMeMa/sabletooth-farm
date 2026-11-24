@@ -108,16 +108,15 @@ class PlayerCasino(unittest.TestCase):
         self.assertFalse(self.t.buy_prize(self.f, "cup")[0])
         self.assertEqual(self.t.tokens, 850)
 
-    def test_buff_once_a_day_and_works(self):
-        self.t.tokens = 1000
-        base = self.f.cycle_income(0) if self.f.levels[0] else None
+    def test_shop_is_cosmetic_only(self):
+        # 3.19: магазин таверны — только косметика: покупки не меняют доход и шанс урожая
+        from farmgame.config import PRIZES
+        self.assertTrue(all(p["kind"] in ("trophy", "cosmetic") for p in PRIZES))
         self.f.levels[0] = 10
         base = self.f.cycle_income(0)
-        self.assertTrue(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-23")[0])
-        self.assertAlmostEqual(self.f.cycle_income(0), base * 1.5)
-        self.assertFalse(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-23")[0])
-        self.assertTrue(self.t.buy_prize(self.f, "lucky_coin", today="2026-11-24")[0])
-        self.f.update(3601)
+        self.t.tokens = 10 ** 6
+        for p in PRIZES:
+            self.assertTrue(self.t.buy_prize(self.f, p["id"])[0], p["id"])
         self.assertAlmostEqual(self.f.cycle_income(0), base)
 
     def test_cosmetic_toggle_and_save(self):
@@ -151,11 +150,10 @@ class BardGirl(unittest.TestCase):
         self.assertFalse(t.prize_on("bard_girl"))
 
     def test_prize_sheet_keeps_old_order(self):
-        # лист призов 3×3 берёт первые 9 призов: новые призы добавляются только в конец списка
-        from farmgame.config import PRIZES
-        self.assertEqual([p["id"] for p in PRIZES][:9],
-                         ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail",
-                          "garland"])
+        # лист призов 3×3 пользователя — порядок клеток фиксирован, не зависит от списка призов
+        from farmgame.config import PRIZE_SHEET_IDS
+        self.assertEqual(PRIZE_SHEET_IDS, ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover",
+                                           "gold_notes", "gold_trail", "garland"])
 
 
 class KnownMusic(unittest.TestCase):

@@ -12,7 +12,9 @@ class TavernHudUI:
         img = render_text(str(self.tavern.tokens), 18, WHITE, OUT)
         w = 58 + img.get_width() + 14
         r = pygame.Rect(x - w if right else x, y, w, 40)
-        rounded(s, (235, 190, 130), r, 20, 3)
+        from . import skin
+        if not skin.plate(s, "pill", r):                          # 3.18: своя плашка ui/pill
+            rounded(s, (235, 190, 130), r, 20, 3)
         draw_token(s, r.x + 22, r.centery, 0.95)
         s.blit(img, img.get_rect(midleft=(r.x + 44, r.centery)))
         return r

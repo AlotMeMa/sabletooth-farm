@@ -313,11 +313,20 @@ class TavernUI:
             cx, cy = r.centerx + 8, r.centery
             k = 1.0 + 0.04 * grow
             arrow = [(cx + (x - cx) * k, cy + (y - cy) * k) for x, y in arrow]
-        if hover:
-            blit_light(s, r.centerx + 8, r.centery, r.w * 1.7, (255, 232, 140), 150)
-            halo = [(cx + (x - cx) * 1.08, cy + (y - cy) * 1.14) for x, y in arrow]
-            poly(s, (255, 236, 160), halo, 0)
-        poly(s, (190, 132, 78) if hover else (176, 120, 70), arrow, 3)
+        from . import skin
+        k = 1.0 + 0.04 * grow
+        pic = pygame.Rect(0, 0, int(r.w * k), int(r.h * k))
+        pic.center = r.center
+        if skin.has("sign_board"):                     # 3.18: свой указатель ui/sign_board (стрелка влево)
+            if hover:
+                blit_light(s, r.centerx + 8, r.centery, r.w * 1.7, (255, 232, 140), 150)
+            skin.plate(s, "sign_board", pic)
+        else:
+            if hover:
+                blit_light(s, r.centerx + 8, r.centery, r.w * 1.7, (255, 232, 140), 150)
+                halo = [(cx + (x - cx) * 1.08, cy + (y - cy) * 1.14) for x, y in arrow]
+                poly(s, (255, 236, 160), halo, 0)
+            poly(s, (190, 132, 78) if hover else (176, 120, 70), arrow, 3)
         draw_text(s, "Доска", 18, (r.x + 82, r.centery - 11))
         draw_text(s, "заданий", 16, (r.x + 82, r.centery + 10))
         self.zone_btn(r, self.open_board, 12, glow="sprite")
@@ -327,8 +336,11 @@ class TavernUI:
             draw_text(s, "!", 15, (r.right - 4, r.y + 24))
         # вывеска казино
         c, door = L["casino_sign"], L["casino_door"]
-        rounded(s, (176, 120, 70), c, 6, 3)
-        draw_text(s, "Казино  >", 17, c.center)
+        if skin.plate(s, "sign_casino", pygame.Rect(c).inflate(10, 8)):   # 3.18: своя вывеска ui/sign_casino
+            draw_text(s, "Казино", 17, (c.centerx - 6, c.centery))
+        else:
+            rounded(s, (176, 120, 70), c, 6, 3)
+            draw_text(s, "Казино  >", 17, c.center)
         if self.tavern.casino_open or DEV:
             draw_text(s, "открыто", 13, (door.centerx, door.y + 70), (190, 255, 170))
         else:

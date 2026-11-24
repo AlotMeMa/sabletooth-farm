@@ -4,6 +4,7 @@
 Примесь к App (3.17: вынесено из tavern_ui.py без изменений). Разметка и рисунки — tavern_art.
 """
 from .tavern_art import *  # noqa: F401,F403
+from . import skin
 
 
 class SongsUI:
@@ -74,7 +75,8 @@ class SongsUI:
         r = pygame.Rect(14, y, 50 + img.get_width() + 14, 30)
         if right is not None:
             r.right = right
-        rounded(s, (170, 140, 220), r, 15, 3)
+        if not skin.plate(s, "pill", r):                          # 3.18: своя плашка ui/pill
+            rounded(s, (170, 140, 220), r, 15, 3)
         draw_note_icon(s, r.x + 22, r.centery + 6, 0, 0.7)
         s.blit(img, img.get_rect(midleft=(r.x + 46, r.centery)))
         self.tip(r, f"Песня барда: {sg['effect']}")
@@ -89,7 +91,8 @@ class SongsUI:
         r = pygame.Rect(14, y, 58 + img.get_width() + 14, 32)
         if right is not None:
             r.right = right
-        rounded(s, (250, 200, 90), r, 16, 3)
+        if not skin.plate(s, "pill", r):                          # 3.18: своя плашка ui/pill
+            rounded(s, (250, 200, 90), r, 16, 3)
         draw_text(s, "x2", 15, (r.x + 30, r.centery), WHITE)
         s.blit(img, img.get_rect(midleft=(r.x + 54, r.centery)))
         return 38

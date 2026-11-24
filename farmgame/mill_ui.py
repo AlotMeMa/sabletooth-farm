@@ -408,7 +408,8 @@ class MillUI:
         s = self.screen
         s.blit(self.mill_bg, (0, 0))
         plate = pygame.Rect(W // 2 + 70, 26, 220, 44)
-        rounded(s, (240, 222, 212), plate, 8, 3)
+        if not skin.plate(s, "banner", plate.inflate(60, 8)):     # 3.18: свой баннер ui/banner
+            rounded(s, (240, 222, 212), plate, 8, 3)
         draw_text(s, "МЕЛЬНИЦА", 22, plate.center, BROWN, outline=None)
         self.card_mill()
         self.card_flour()

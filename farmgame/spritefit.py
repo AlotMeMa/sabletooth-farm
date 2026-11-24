@@ -51,6 +51,8 @@ CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "prop
 # 3.16: доска заданий и таблички (2×3), облачко и стрелка (1×3), частицы и лампочки гирлянды (3×3)
 BOARD_SHEET_ORDER = ["quest_note_1", "quest_note_2", "quest_note_3", "sign", "pin", "wax_seal"]
 TALK_SHEET_ORDER = ["bubble", "bubble_tail", "arrow"]
+# 3.18: лист плашек 2×3 — плашка счёта, сообщение, баннер; рамка полоски, белая заливка полоски, вывеска казино
+PLATE_SHEET_ORDER = ["pill", "toast", "banner", "bar_frame", "bar_fill", "sign_casino"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -60,6 +62,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
     "fx/sheet": ("fx/", FX_SHEET_ORDER, 3, 3),
+    "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 2, 3),
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -72,7 +75,10 @@ MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экра
 UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110),   # наибольший размер (3.4)
            # 3.16: растягиваемые записки доски, свиток недели, табличка на поле, облачко речи
            "quest_note_1": (490, 334), "quest_note_2": (490, 334), "quest_note_3": (490, 334),
-           "quest_weekly": (460, 720), "sign": (300, 170), "bubble": (360, 200)}
+           "quest_weekly": (460, 720), "sign": (300, 170), "bubble": (360, 200),
+           # 3.18: плашки, сообщение, баннер, полоска, указатели таверны
+           "pill": (360, 100), "toast": (480, 90), "banner": (520, 110), "bar_frame": (400, 60),
+           "bar_fill": (400, 60), "sign_board": (264, 208), "sign_casino": (300, 108)}
 FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 

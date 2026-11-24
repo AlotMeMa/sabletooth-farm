@@ -14,7 +14,8 @@ class HudUI:
         def pill(y, h, text, size, icon):
             img = render_text(text, size, WHITE, OUT)
             w = max(h + 30, 58 + img.get_width() + 14)
-            rounded(s, PILL, (14, y, w, h), h // 2, 3)
+            if not skin.plate(s, "pill", (14, y, w, h)):          # 3.18: своя плашка ui/pill
+                rounded(s, PILL, (14, y, w, h), h // 2, 3)
             icon(34, y + h / 2)
             s.blit(img, img.get_rect(midleft=(58, y + h // 2)))
             return pygame.Rect(14, y, w, h)

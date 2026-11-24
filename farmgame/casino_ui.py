@@ -452,7 +452,9 @@ class CasinoUI:
             r = pygame.Rect(14, y, 50 + img.get_width() + 14, 30)
             if right is not None:
                 r.right = right
-            rounded(s, (150, 200, 110) if pid == "clover" else (240, 196, 80), r, 15, 3)
+            from . import skin
+            if not skin.plate(s, "pill", r):                      # 3.18: своя плашка ui/pill
+                rounded(s, (150, 200, 110) if pid == "clover" else (240, 196, 80), r, 15, 3)
             draw_prize_icon(s, p, r.x + 24, r.centery, 0.55)
             s.blit(img, img.get_rect(midleft=(r.x + 46, r.centery)))
             self.tip(r, f"Приз казино: {p['text']}")

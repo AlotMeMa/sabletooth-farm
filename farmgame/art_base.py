@@ -277,6 +277,9 @@ def draw_cur_icon(surf, x, y, s=1.0):
 
 def draw_bar(surf, rect, frac, color=(255, 200, 40)):
     rect = pygame.Rect(rect)
+    from . import skin                       # 3.18: своя полоска ui/bar_frame + ui/bar_fill
+    if skin.bar(surf, rect, frac, color):
+        return
     pygame.draw.rect(surf, OUT, rect, border_radius=rect.h // 2)
     inner = rect.inflate(-4, -4)
     pygame.draw.rect(surf, (90, 70, 60), inner, border_radius=inner.h // 2)

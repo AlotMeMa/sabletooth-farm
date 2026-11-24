@@ -33,7 +33,11 @@ SLICE = {"panel": ("9", 0.17, 36), "card": ("9", 0.22, 14), "panel_header": ("3"
          "button": ("3", 0.45, None), "slider_knob": ("1", 0, None),
          # 3.16: записки доски заданий, свиток недели, табличка на поле, облачко речи
          "quest_note_1": ("9", 0.12, 14), "quest_note_2": ("9", 0.12, 14), "quest_note_3": ("9", 0.12, 14),
-         "quest_weekly": ("9", 0.14, 30), "sign": ("9", 0.2, 12), "bubble": ("9", 0.3, 14)}
+         "quest_weekly": ("9", 0.14, 30), "sign": ("9", 0.2, 12), "bubble": ("9", 0.3, 14),
+         # 3.18: плашки счёта, сообщения, баннер, полоски, указатели таверны
+         "pill": ("3", 0.45, None), "toast": ("3", 0.45, None), "banner": ("3", 0.3, None),
+         "bar_frame": ("3", 0.5, None), "bar_fill": ("3", 0.5, None),
+         "sign_board": ("1", 0, None), "sign_casino": ("1", 0, None)}
 
 PANEL_OUTSET = 10    # окно-картинка рисуется на столько px шире с каждой стороны (рамка не наезжает на содержимое)
 _cache = {}
@@ -127,6 +131,54 @@ def draw(surf, name, rect):
         draw_header_fallback(surf, rect)
     else:
         draw_card_fallback(surf, rect)
+    return True
+
+
+def plate(surf, name, rect):
+    """3.18: растянутая картинка ui/<name> в rect (плашка счёта, сообщение, баннер, указатель).
+    False — картинки нет: вызывающий рисует кодом."""
+    rect = pygame.Rect(rect)
+    img = stretched(name, rect.w, rect.h)
+    if img is None:
+        return False
+    surf.blit(img, rect.topleft)
+    return True
+
+
+def _tinted(img, color):
+    """Копия картинки, перекрашенная умножением на color (белая заливка полоски -> нужный цвет)."""
+    key = ("tint", id(img), tuple(color[:3]))
+    out = _cache.get(key)
+    if out is None:
+        out = img.copy()
+        hd.real(out).fill(tuple(color[:3]) + (255,), special_flags=pygame.BLEND_RGBA_MULT)
+        _cache[key] = out
+    return out
+
+
+def bar(surf, rect, frac, color):
+    """3.18: полоска прогресса картинками ui/bar_frame (пустая рамка) и ui/bar_fill (белая заливка,
+    красится в color). Заливка не пересчитывается каждый кадр: рисуется кусок полной полоски и её
+    закруглённый конец. False — рамки-картинки нет."""
+    rect = pygame.Rect(rect)
+    frame = stretched("bar_frame", rect.w, rect.h)
+    if frame is None:
+        return False
+    surf.blit(frame, rect.topleft)
+    frac = max(0.0, min(1.0, frac))
+    inset = max(2, int(round(rect.h * 0.22)))
+    inner = rect.inflate(-2 * inset, -2 * inset)
+    if frac <= 0 or inner.w < 3 or inner.h < 2:
+        return True
+    fw = max(inner.h, int(round(inner.w * frac)))
+    fill = stretched("bar_fill", inner.w, inner.h)
+    if fill is None:
+        pygame.draw.rect(surf, color, (inner.x, inner.y, fw, inner.h), border_radius=inner.h // 2)
+        return True
+    full = _tinted(fill, color)
+    cap = min(inner.h // 2 + 1, fw // 2)
+    surf.blit(full, inner.topleft, pygame.Rect(0, 0, fw - cap, inner.h))
+    surf.blit(full, (inner.x + fw - cap, inner.y), pygame.Rect(inner.w - cap, 0, cap, inner.h))
     return True
 
 

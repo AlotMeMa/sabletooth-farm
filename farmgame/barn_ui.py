@@ -227,7 +227,8 @@ class BarnUI:
         s = self.screen
         s.blit(self.barn_bg, (0, 0))
         plate = pygame.Rect(W // 2 + 70, 26, 200, 44)
-        rounded(s, PANEL, plate, 8, 3)
+        if not skin.plate(s, "banner", plate.inflate(60, 8)):     # 3.18: свой баннер ui/banner
+            rounded(s, PANEL, plate, 8, 3)
         draw_text(s, "САРАЙ", 22, plate.center, (90, 70, 60), outline=None)
         for a in range(N_ANIMALS):
             self.draw_pen(a)

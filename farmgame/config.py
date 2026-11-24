@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.24"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.25"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -366,6 +366,14 @@ CURRENCIES = {
 }
 _SUMMER_BUYER = dict(buyer="скупщик", buyer_cap="Скупщик", arrive="Би-би! Приехал скупщик урожая!",
                      tiers=["Пикап скупщика", "Грузовик скупщика", "Золотая фура"], vehicle="truck")
+# 3.25: помощники-артель (крестьяне в средневековье, гномы зимой): как их называть и какой значок
+HELPERS = {
+    "peasants": dict(title="Крестьяне", gen="крестьян", one="крестьянин", acc="крестьянина", icon="peasant",
+                     plural=("крестьянина", "крестьянина", "крестьян")),
+    "gnomes": dict(title="Гномы", gen="гномов", one="гном", acc="гнома", icon="gnome",
+                   plural=("гнома", "гнома", "гномов")),
+}
+WEATHER_BUTTON = {"Праздник урожая": "festival", "Оттепель": "thaw"}   # погода кнопкой (не тучкой): имя кнопки
 FARMS = [
     dict(id="summer", name="Летняя ферма", names=[c["name"] for c in CROPS],
          plants=["potato", "carrot", "wheat", "tomato", "cucumber", "corn", "beet", "cabbage", "pumpkin"],
@@ -376,6 +384,7 @@ FARMS = [
          names=["Репа", "Горох", "Рожь", "Капуста", "Ячмень", "Лён", "Хмель", "Полба", "Виноград"],
          plants=["turnip", "peas", "rye", "cabbage", "barley", "flax", "hops", "spelt", "grapes"],
          theme=THEME_MEDIEVAL, weather="Праздник урожая", crow=False, frost=False, bandits=True, peasants=True,
+         helpers="peasants",
          barn="mill", tree="medieval", cur="seal", ready=True,
          trophy=dict(name="Королевский штандарт", text="(для следующей главы)"),
          buyer="сборщик податей", buyer_cap="Сборщик податей", arrive="Трубы трубят! Прибыл сборщик податей!",
@@ -387,8 +396,10 @@ FARMS = [
                 "Голубой картофель", "Ледяная тыква"],
          plants=["cranberry", "ginger", "kale", "frostmint", "pinkradish", "cloudberry", "seabuckthorn", "bluepotato",
                  "icepumpkin"],
-         theme=THEME_WINTER, weather="Оттепель", crow=False, frost=True, bandits=False, peasants=False,
-         barn="animals", animals="winter", tree="winter", cur="frost", ready=False,
+         # 3.25 (решения пользователя): помощники — гномы, как крестьяне (общая артель); вместо дождя — кнопка
+         # «Оттепель», как «Праздник урожая» в средневековье
+         theme=THEME_WINTER, weather="Оттепель", crow=False, frost=True, bandits=False, peasants=True,
+         helpers="gnomes", barn="animals", animals="winter", tree="winter", cur="frost", ready=False,
          trophy=dict(name="Снежинка", text=""),
          buyer="каюр", buyer_cap="Каюр", arrive="Гав-гав! Примчалась собачья упряжка!",
          tiers=["Упряжка из трёх лаек", "Упряжка из шести лаек", "Королевская упряжка"], vehicle="sled"),

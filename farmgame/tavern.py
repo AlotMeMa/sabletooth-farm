@@ -242,7 +242,15 @@ class Tavern:
 
     # ---------- генерация ----------
     def _quest_text(self, tpl, n, fm):
-        text = re.sub(r"\{n\|([^|}]*)\|([^|}]*)\|([^|}]*)\}", lambda m: f"{n} {plural(n, *m.groups())}", tpl["text"])
+        from .config import HELPERS
+        forms = HELPERS.get(fm.get("helpers"), {}).get("plural")
+
+        def word(m):                       # 3.25: «крестьян» на зимнем поле — «гномов»
+            g = m.groups()
+            if forms and g == HELPERS["peasants"]["plural"]:
+                g = forms
+            return f"{n} {plural(n, *g)}"
+        text = re.sub(r"\{n\|([^|}]*)\|([^|}]*)\|([^|}]*)\}", word, tpl["text"])
         return text.format(n=n, weather=_weather_verb(fm), buyer=_buyer_dat(fm))
 
     def make_daily(self, fm, rnd=None, blocked=()):

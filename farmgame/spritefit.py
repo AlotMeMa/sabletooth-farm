@@ -253,7 +253,7 @@ def _fit_spec_base(name):
     if folder == "ui" and last == "cursor_hover":
         return _spec((40, 40), (0, 0, CURSOR_HOVER_SIZE, CURSOR_HOVER_SIZE), "topleft")
     if folder == "icons":
-        if last == "peasant":
+        if last in ("peasant", "gnome"):       # 3.25: гном — значок помощника зимы
             s = 26
         elif last.startswith("prize_"):   # 3.14: призы казино
             s = 40

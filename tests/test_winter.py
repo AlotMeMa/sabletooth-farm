@@ -36,6 +36,19 @@ class WinterData(unittest.TestCase):
             self.assertNotEqual(s["key"], w["key"])
         self.assertEqual([a["name"] for a in cfg.ANIMALS], [a["name"] for a in cfg.ANIMALS_SUMMER])  # сейчас лето
 
+    def test_gnomes_and_thaw(self):
+        w = self.winter()
+        self.assertTrue(w["peasants"])
+        self.assertEqual(cfg.HELPERS[w["helpers"]]["title"], "Гномы")
+        self.assertEqual(cfg.WEATHER_BUTTON[w["weather"]], "thaw")
+
+    def test_quest_says_gnomes(self):
+        from farmgame import tavern as tv
+        tpl = next(q for q in tv.QUESTS if q["id"] == "peasant")
+        t = tv.Tavern()
+        self.assertIn("гном", t._quest_text(tpl, 3, self.winter()))
+        self.assertIn("крестьян", t._quest_text(tpl, 3, cfg.FARMS[1]))
+
     def test_winter_still_closed(self):
         self.assertFalse(self.winter()["ready"])
 

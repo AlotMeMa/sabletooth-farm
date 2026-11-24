@@ -11,7 +11,8 @@ from .tavern_art import wrap
 
 MAP_GAP = 300                       # между главами на карте, px
 MAP_FIRST = 170                     # первая глава от левого края карты
-MAP_Y = [160, 132, 162, 134]        # высота каждой главы на карте (дорожка петляет; сверху место для флажка)
+MAP_Y = [152, 142, 156, 140]        # высота каждой главы на карте (дорожка петляет; сверху место для флажка)
+MAP_XS = [175, 478, 773, 1063]      # 3.25: под полянки карты пользователя ui/move_map (без неё — так же)
 NODE_R = 58                         # радиус кружка главы
 MAP_H = 278
 TINTS = {"summer": (150, 200, 110), "medieval": (205, 170, 110), "winter": (190, 215, 240), "secret": (170, 160, 175)}
@@ -25,7 +26,8 @@ def map_width(n):
 
 
 def node_pos(i):
-    return MAP_FIRST + i * MAP_GAP, MAP_Y[i % len(MAP_Y)]
+    x = MAP_XS[i] if i < len(MAP_XS) else MAP_FIRST + i * MAP_GAP
+    return x, MAP_Y[i % len(MAP_Y)]
 
 
 def build_map_background(n, ids):
@@ -169,7 +171,8 @@ class MoveUI:
         layer = hd.Surface((view.w, view.h))
         layer.blit(self.map_bg, (-int(self.map_x), 0))
         pts = [node_pos(i) for i in range(len(chs))]
-        for i in range(len(pts) - 1):                    # дорожка между главами: пройденная — сплошная
+        painted = has_sprite("ui/move_map")            # на своей карте дорожка уже нарисована
+        for i in range(len(pts) - 1 if not painted else 0):                    # дорожка между главами: пройденная — сплошная
             (x0, y0), (x1, y1) = pts[i], pts[i + 1]
             done = chs[i + 1]["state"] in ("done", "here")
             steps = 26

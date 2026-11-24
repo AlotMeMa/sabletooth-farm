@@ -459,7 +459,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                 self.toast(f"Заработано ${fmt(self.farm.move_threshold())}! Можно переехать: {FARMS[self.farm.farm_index + 1]['name']}", 5)
 
         # дождь (капли падают быстро и брызгают об землю) или конфетти праздника (падает медленно, кувыркаясь)
-        festival = self.farm_info()["weather"] == "Праздник урожая"
+        festival = self.farm_info()["weather"] in WEATHER_BUTTON   # праздник и оттепель: медленные «капли»
         if f.rain_left > 0:
             if festival:
                 if random.random() < min(1.0, 70 * dt):
@@ -636,7 +636,16 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.draw_front_fence()
         self.draw_truck_layer()
         if f.rain_left > 0:
-            if self.farm_info()["weather"] == "Праздник урожая":   # конфетти и тёплый свет
+            if self.farm_info()["weather"] == "Оттепель":          # 3.25: тёплый свет, с веток падают капли-искорки
+                s.blit(self.bless_tint, (0, 0))
+                tr = self.t_real
+                for x, y, _ in self.drops:
+                    sx = x + math.sin(tr * 1.6 + x * 0.1) * 4
+                    sh = 0.5 + 0.5 * math.sin(tr * 7 + x)
+                    poly(s, (150, 205, 245), [(sx, y - 5), (sx + 3, y + 1), (sx, y + 4), (sx - 3, y + 1)], 0)
+                    if sh > 0.85:
+                        pygame.draw.circle(s, WHITE, (P(sx - 1), P(y - 1)), 1)
+            elif self.farm_info()["weather"] == "Праздник урожая":   # конфетти и тёплый свет
                 s.blit(self.bless_tint, (0, 0))
                 colors = ((255, 215, 90), (235, 90, 80), (110, 190, 110), (110, 160, 235), (245, 245, 235))
                 tr = self.t_real

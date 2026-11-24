@@ -266,6 +266,24 @@ def draw_peasant_head(s, x, y, k=1.0):
     pygame.draw.circle(s, OUT, (P(x + 3 * k), P(y + 1 * k)), max(1, P(1.4 * k)))
 
 
+def draw_gnome_head(s, x, y, k=1.0):
+    """3.25: гном (помощник зимы) — лицо, белая борода, красный вязаный колпак с помпоном."""
+    if blit_icon(s, "icons/gnome", x, y, k):
+        return
+    blob(s, (250, 250, 248), [(x, y + 5 * k, 7 * k), (x - 4 * k, y + 3 * k, 5 * k), (x + 4 * k, y + 3 * k, 5 * k)], 2)
+    blob(s, (245, 205, 170), [(x, y - 1 * k, 6 * k)], 2)
+    poly(s, (210, 60, 60), [(x - 9 * k, y - 3 * k), (x + 9 * k, y - 3 * k), (x + 3 * k, y - 15 * k)], 2)
+    pygame.draw.circle(s, WHITE, (P(x + 3 * k), P(y - 16 * k)), max(2, P(2.6 * k)))
+    pygame.draw.circle(s, OUT, (P(x - 2.5 * k), P(y - 1 * k)), max(1, P(1.2 * k)))
+    pygame.draw.circle(s, OUT, (P(x + 2.5 * k), P(y - 1 * k)), max(1, P(1.2 * k)))
+
+
+def draw_helper_head(s, x, y, k=1.0):
+    """Значок помощника-артели текущей фермы: крестьянин или гном."""
+    hp = HELPERS.get(FARMS[min(FARM_INDEX[0], len(FARMS) - 1)].get("helpers", "peasants"), HELPERS["peasants"])
+    (draw_gnome_head if hp["icon"] == "gnome" else draw_peasant_head)(s, x, y, k)
+
+
 def draw_bandit(s, x, y, d, t=0.0, sack=0.0, running=False, pose=None):
     """Разбойник в капюшоне с мешком. (x, y) — точка у ног, d — куда смотрит.
     pose — (подскок, sx, sy, наклон) из App.bandit_pose (3.3); без него — старое покачивание."""
@@ -627,6 +645,7 @@ PLANT_FUNCS = {
 def apply_farm(idx):
     """Переключает названия, рисунки культур и цвета под ферму idx."""
     fm = FARMS[min(idx, len(FARMS) - 1)]
+    FARM_INDEX[0] = min(idx, len(FARMS) - 1)
     for i, name in enumerate(fm["names"]):
         CROPS[i]["name"] = name
     PLANTS[:] = [PLANT_FUNCS[key] for key in fm["plants"]]

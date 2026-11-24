@@ -10,6 +10,7 @@ class FieldUI:
     # ------------------------------------------------------------ монетки и плашка денег
     MONEY_ICON = (34, 32)             # где на экране монетка плашки денег
     FESTIVAL_RECT = (875, 116, 60, 60)    # кнопка праздника — на траве справа от замка
+    THAW_RECT = (825, 82, 60, 60)         # 3.25: кнопка «Оттепель» — там, где летом тучка
 
     def truck_tier(self):
         p = self.farm.potential_leaves()
@@ -123,7 +124,7 @@ class FieldUI:
         if f.start_rain():
             self.quest("weather")
             self.toast(f"{self.farm_info()['weather']}! Всё растёт быстрее")
-            self.sfx.play("fanfare" if self.farm_info()["weather"] == "Праздник урожая" else "rain")
+            self.sfx.play({"Праздник урожая": "fanfare", "Оттепель": "sun"}.get(self.farm_info()["weather"], "rain"))
         elif f.rain_left <= 0 and f.rain_cd > 0:
             self.toast(f"Ещё рано: {self.farm_info()['weather'].lower()} через {fmt_time(f.rain_cd)}", 1.5)
 
@@ -219,7 +220,7 @@ class FieldUI:
             if f.farmers[k]:
                 pygame.draw.circle(s, OUT, (ax, ay), 13)
                 pygame.draw.circle(s, (245, 175, 50), (ax, ay), 11)                 # занят — оранжевый
-                draw_peasant_head(s, ax, ay + 2, 0.85)
+                draw_helper_head(s, ax, ay + 2, 0.85)
             else:
                 free = f.free_peasants() > 0
                 pygame.draw.circle(s, OUT, (ax, ay), 12)
@@ -296,8 +297,8 @@ class FieldUI:
         x, y = 855, 108
         raining = f.rain_left > 0
         weather = self.farm_info()["weather"]
-        if weather == "Праздник урожая":
-            self.draw_festival_button()
+        if weather in WEATHER_BUTTON:          # 3.25: праздник урожая и оттепель — кнопкой
+            self.draw_festival_button(WEATHER_BUTTON[weather])
             return
         draw_cloud_body(s, x, y, raining)
         if raining:
@@ -316,10 +317,11 @@ class FieldUI:
             draw_text(s, "Вызвать дождь!" if self.farm_info()["weather"] == "Дождь" else "Вызвать оттепель!", 16, (x, y - 58), c)
             self.zone((x - 65, y - 45, 130, 90), self.click_rain)
 
-    def draw_festival_button(self):
-        """Средневековье: кнопка «Праздник урожая» рядом с замком (вместо часовни)."""
+    def draw_festival_button(self, kind="festival"):
+        """Кнопка погоды: «Праздник урожая» рядом с замком (средневековье) или «Оттепель» (зима, 3.25)."""
         s, f = self.screen, self.farm
-        rect = pygame.Rect(self.FESTIVAL_RECT)
+        thaw = kind == "thaw"
+        rect = pygame.Rect(self.THAW_RECT if thaw else self.FESTIVAL_RECT)
         active = f.rain_left > 0
         ready = not active and f.rain_cd <= 0
 
@@ -331,18 +333,34 @@ class FieldUI:
                 ellipse(s, (245, 205, 90), cx + dx * 1.2, cy - 16, 7, 14)
             rounded(s, (210, 60, 60), (cx - 11, cy + 2, 22, 7), 3, 2)
 
-        if ready and not has_sprite("ui/btn_festival"):
+        def sun_drop(r):   # солнышко и капля (если нет картинки ui/btn_thaw)
+            cx, cy = r.centerx - 5, r.centery - 3
+            for a in range(8):
+                ang = a * math.pi / 4
+                pygame.draw.line(s, OUT, (cx + math.cos(ang) * 9, cy + math.sin(ang) * 9),
+                                 (cx + math.cos(ang) * 16, cy + math.sin(ang) * 16), 4)
+                pygame.draw.line(s, (255, 210, 80), (cx + math.cos(ang) * 9, cy + math.sin(ang) * 9),
+                                 (cx + math.cos(ang) * 15, cy + math.sin(ang) * 15), 2)
+            pygame.draw.circle(s, OUT, (cx, cy), 10)
+            pygame.draw.circle(s, (255, 205, 70), (cx, cy), 8)
+            dx, dy = r.centerx + 12, r.centery + 12
+            poly(s, (120, 190, 240), [(dx, dy - 12), (dx + 7, dy), (dx, dy + 6), (dx - 7, dy)], 2)
+
+        name = "thaw" if thaw else "festival"
+        glow = (190, 230, 255) if thaw else (255, 235, 150)
+        if ready and not has_sprite(f"ui/btn_{name}"):
             pulse = 1 + 0.06 * math.sin(self.t * 5)
-            pygame.draw.circle(s, (255, 235, 150), rect.center, P(40 * pulse))
-        self.icon_button(rect, "festival", sheaf, self.click_rain, active=active or ready)
+            pygame.draw.circle(s, glow, rect.center, P(40 * pulse))
+        self.icon_button(rect, name, sun_drop if thaw else sheaf, self.click_rain, active=active or ready)
         below = rect.bottom + 14
         if active:
-            draw_text(s, f"Праздник! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15, (rect.centerx, below), (255, 235, 150))
+            draw_text(s, f"{'Оттепель' if thaw else 'Праздник'}! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15,
+                      (rect.centerx, below), glow)
         elif f.rain_cd > 0:
             draw_text(s, fmt_time(f.rain_cd), 16, (rect.centerx, below))
         else:
-            c = (255, 255, 255) if int(self.t * 2) % 2 else (255, 235, 150)
-            draw_text(s, "Праздник урожая!", 15, (rect.centerx, below), c)
+            c = (255, 255, 255) if int(self.t * 2) % 2 else glow
+            draw_text(s, "Оттепель!" if thaw else "Праздник урожая!", 15, (rect.centerx, below), c)
 
     def draw_vehicle(self, x, y, color, cargo=False, bob=0.0, tier=0, angle=0.0, sy=1.0):
         draw_vehicle_at(self.screen, self.farm_info()["vehicle"], tier, x, y, color, cargo, bob, angle, sy)

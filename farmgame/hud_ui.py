@@ -35,9 +35,9 @@ class HudUI:
             self.tip(leaf_rect, f"{CUR['title']}: множитель дохода. Щёлкни — дерево улучшений")
         if self.farm_info()["peasants"] and not board:
             pr = pill(142, 32, f"свободно {f.free_peasants()} из {f.peasants}", 15,
-                      lambda x, y: draw_peasant_head(s, x, y + 1, 1.1))
+                      lambda x, y: draw_helper_head(s, x, y + 1, 1.1))
             self.zone_btn(pr, lambda: (self.open_modal("shop"), setattr(self, "shop_tab", "farm")), 16)
-            self.tip(pr, "Свободные крестьяне. Щёлкни — нанять ещё")
+            self.tip(pr, f"Свободные {self.helpers()['title'].lower()}. Щёлкни — нанять ещё")
         if not board:
             # 3.13.2: на поле — столбиком слева; в сарае, мельнице, таверне — справа под шестерёнкой,
             # чтобы не налезать на карточки
@@ -127,7 +127,7 @@ class HudUI:
         self.draw_tavern_button()
         self.icon_button(pygame.Rect(16, 560, 62, 56), "shop", cart, lambda: self.open_modal("shop"), "Магазин",
                          badge=self.shop_has_affordable(),
-                         tip="Магазин: удобрения (прибыль x3) и " + ("крестьяне" if self.farm_info()["peasants"] else "фермеры") + "   (S)")
+                         tip="Магазин: удобрения (прибыль x3) и " + (self.helpers()["title"].lower() if self.farm_info()["peasants"] else "фермеры") + "   (S)")
         self.icon_button(pygame.Rect(88, 560, 62, 56), "upgrade", shovel,
                          lambda: setattr(self, "mode", "normal" if self.mode == "upgrade" else "upgrade"), "Прокачка",
                          active=upgrade_on, tip="Прокачка грядок: по 1, по 10, до вехи или на все деньги   (U)")

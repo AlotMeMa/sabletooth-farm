@@ -157,6 +157,7 @@ def spec_list():
             lambda s: None)
         add(f"icons/{an['icon']}", (30, 30), "центр", an["product"] + " (зима)", 1, lambda s: None)
     add("icons/frostleaf", (40, 40), "центр", "голубой листочек (валюта зимы)", 1, lambda s: None)
+    add("icons/gnome", (26, 26), "центр", "гном-помощник (зима)", 1, lambda s: None)
     for v in ("sled", "sled_0", "sled_1", "sled_2"):
         add(f"vehicles/{v}", (270, 124), "низ по центру = снег", "собачья упряжка (зима)", 1, lambda s: None)
     for a, key in enumerate(keys):
@@ -355,7 +356,7 @@ def known_names():
     from .spritefit import SHEETS
     names |= set(SHEETS)   # листы: icons/sheet, ui/buttons, icons/prizes, ui/chips
     from .spritefit import BUTTON_SHEET_ORDER
-    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
+    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_thaw", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

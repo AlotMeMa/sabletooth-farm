@@ -66,7 +66,7 @@ class WindowsUI:
         s, f = self.screen, self.farm
         r = self.panel(580, 470, "МАГАЗИН УЛУЧШЕНИЙ")
         peasants = self.farm_info()["peasants"]
-        tabs = (("fert", "Удобрения  x3"), ("farm", "Крестьяне" if peasants else "Фермеры (копят урожай)"))
+        tabs = (("fert", "Удобрения  x3"), ("farm", self.helpers()["title"] if peasants else "Фермеры (копят урожай)"))
         for idx, (tab, label) in enumerate(tabs):
             b = pygame.Rect(r.x + 20 + idx * 275, r.y + 66, 265, 38)
             active = self.shop_tab == tab
@@ -227,8 +227,9 @@ class WindowsUI:
         rounded(s, (255, 245, 190), row, 10, 3)
         icon = pygame.Rect(row.x + 10, row.y + 15, 60, 60)
         rounded(s, (200, 230, 170), icon, 8, 2)
-        draw_peasant_head(s, icon.centerx, icon.centery + 2, 2.2)
-        draw_text(s, "Нанять крестьянина", 19, (row.x + 86, row.y + 26), brown, anchor="midleft", outline=None)
+        draw_helper_head(s, icon.centerx, icon.centery + 2, 2.2)
+        hp = self.helpers()
+        draw_text(s, f"Нанять {hp['acc']}", 19, (row.x + 86, row.y + 26), brown, anchor="midleft", outline=None)
         draw_text(s, f"Всего {f.peasants} из {PEASANT_MAX}, свободно {f.free_peasants()}", 14, (row.x + 86, row.y + 54),
                   soft, anchor="midleft", outline=None)
         b = pygame.Rect(row.right - 160, row.y + 22, 146, 46)
@@ -239,13 +240,23 @@ class WindowsUI:
             rounded(s, BTN_GREEN if ok else BTN_GREY, b, 8, 3)
             draw_text(s, "$" + fmt(f.peasant_cost()), 17, b.center)
             self.zone_btn(b, self.do_hire_peasant, 8)
-        tips = [
-            "Крестьянин на грядке — она растёт без остановки и копит урожай (кнопка у грядки).",
-            "Крестьяне на мельнице мелют зерно, в пекарне пекут хлеб.",
-            "Их можно в любой момент переставить: снять с грядки и отправить на мельницу.",
-        ]
+        if self.farm_info()["barn"] == "mill":
+            tips = [
+                "Крестьянин на грядке — она растёт без остановки и копит урожай (кнопка у грядки).",
+                "Крестьяне на мельнице мелют зерно, в пекарне пекут хлеб.",
+                "Их можно в любой момент переставить: снять с грядки и отправить на мельницу.",
+            ]
+        else:                                                   # 3.25: гномы зимой — только грядки
+            tips = [
+                f"{hp['one'].capitalize()} на грядке — она растёт без остановки и копит урожай (кнопка у грядки).",
+                f"Их можно в любой момент переставить: снять с одной грядки и поставить на другую.",
+            ]
         for n, t in enumerate(tips):
             draw_text_fit(s, t, 13, (r.centerx, r.y + 250 + n * 26), r.w - 50, soft, outline=None)
+
+    def helpers(self):
+        """3.25: как зовут помощников-артель на этой ферме (крестьяне, гномы)."""
+        return HELPERS.get(self.farm_info().get("helpers", "peasants"), HELPERS["peasants"])
 
     def do_hire_peasant(self):
         f = self.farm
@@ -253,7 +264,7 @@ class WindowsUI:
         if f.hire_peasant():
             self.quest("peasant")
             self.sfx.play("buy")
-            self.toast(f"Нанят крестьянин! Свободно: {f.free_peasants()}", 2)
+            self.toast(f"Нанят {self.helpers()['one']}! Свободно: {f.free_peasants()}", 2)
         else:
             self.toast(f"Не хватает денег: нужно ${fmt(price)}", 2)
 
@@ -264,7 +275,7 @@ class WindowsUI:
             cx, cy = crop_center(k)
             self.floater(cx + 50, cy + 10, "снят" if was else "за работу!", (220, 240, 200))
         else:
-            self.toast("Нет свободных крестьян: найми в магазине или сними с другой грядки", 2.5)
+            self.toast(f"Нет свободных {self.helpers()['gen']}: найми в магазине или сними с другой грядки", 2.5)
 
     def buy_shop(self, fn, i):
         price = self.farm.fert_cost(i) if fn == self.farm.buy_fert else self.farm.farmer_cost(i)

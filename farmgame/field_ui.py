@@ -403,13 +403,8 @@ class FieldUI:
     def draw_upgrade_controls(self):
         s = self.screen
         plate = pygame.Rect(W // 2 - 150, 8, 300, 44)
-        ribbon = plate.inflate(60, 8)
-        if skin.plate(s, "banner", ribbon):                       # 3.18: свой баннер ui/banner
-            xr = ribbon.right + 4                                 # крестик — за концом ленты
-        else:
-            rounded(s, PANEL, plate, 8, 3)
-            xr = plate.right + 6
-        draw_text(s, "РЕЖИМ ПРОКАЧКИ", 20, plate.center, (90, 70, 60), outline=None)
+        drawn = self.draw_banner(plate, "РЕЖИМ ПРОКАЧКИ", 20)      # 3.20: текст по полосе ленты
+        xr = drawn.right + (4 if drawn.w > plate.w else 6)        # крестик — за концом ленты
         x = pygame.Rect(xr, plate.y + 4, 36, 36)
         rounded(s, BTN_BLUE, x, 8, 3)
         draw_text(s, "X", 18, x.center)

@@ -8,6 +8,7 @@ from .tavern_art import *  # noqa: F401,F403
 
 class TavernHudUI:
     def draw_tokens_pill(self, x, y, right=False):
+        """Жетоны таверны. 3.20: в зале — слева, под плашками денег (справа закрывала гостя на балконе)."""
         s = self.screen
         img = render_text(str(self.tavern.tokens), 18, WHITE, OUT)
         w = 58 + img.get_width() + 14

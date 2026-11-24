@@ -9,7 +9,7 @@ import json
 import os
 
 from .tavern_art import *  # noqa: F401,F403
-from .fireside_art import (FIRESIDE_LAYOUT, draw_flames, draw_coals, draw_logs, draw_cat, draw_kettle, draw_flowers,
+from .fireside_art import (FIRESIDE_LAYOUT, FIRESIDE_CUSTOM, draw_flames, draw_coals, draw_logs, draw_cat, draw_kettle,
                            draw_rug, build_fireside_background)
 
 FIRESIDE_HINTS = ["Огонь потрескивает. Ферма работает сама — можно просто посидеть",
@@ -18,7 +18,7 @@ CAT_LINES = ["Мрр…", "Мрр-мрр…", "*кот приоткрыл оди
 
 
 def load_fireside_layout(custom):
-    lay = json.loads(json.dumps(FIRESIDE_LAYOUT))
+    lay = json.loads(json.dumps(FIRESIDE_CUSTOM if custom else FIRESIDE_LAYOUT))
     path = os.path.join(ASSET_DIR, "backgrounds", "fireside.json")
     if custom and os.path.exists(path):
         try:
@@ -41,6 +41,7 @@ class FiresideUI:
         self.fs_purr = 0.0             # кот мурчит (секунд осталось)
         self.fs_since = 0.0            # сколько сидим
         self.fs_money0 = 0.0
+        self.fs_occ = []               # куски фона поверх огня (поленья)
 
     # ---------- вход и выход ----------
     def open_fireside(self):
@@ -49,6 +50,7 @@ class FiresideUI:
         if self.fs_bg is None:
             self.fs_bg, custom = build_fireside_background(self.tavern_bg, FIRESIDE_LAYOUT)
             self.fs_lay = load_fireside_layout(custom)
+            self.fs_occ = build_occluders(self.fs_bg, self.fs_lay.get("front") or [])
         self.view, self.modal = "fireside", None
         self.fs_since = 0.0
         self.fs_money0 = self.farm.money
@@ -125,20 +127,24 @@ class FiresideUI:
         s.blit(self.fs_bg, (0, 0))
         fx, fy = L["fire"]
         w, h = L["fire_w"], L["fire_h"]
-        power = 1.0 + 0.45 * self.fs_flare
+        power = 1.0 + 0.25 * self.fs_flare
         fl = 0.5 * math.sin(tt * 7.3) + 0.3 * math.sin(tt * 12.1 + 1) + 0.2 * math.sin(tt * 3.1)
         # свет огня на всю комнату — пульсирует
         blit_light(s, fx, fy - h * 0.4, 760 + 60 * fl + 160 * self.fs_flare, (255, 150, 60), 70 + 14 * fl, 0.0)
         blit_light(s, fx, fy - h * 0.3, 300 + 30 * fl, (255, 190, 90), 120 + 30 * fl, 0.0)
         if t.prize_on("rug"):
-            draw_rug(s, *L["rug"], 1.0)
+            draw_rug(s, *L["rug"], L.get("rug_k", 1.0))
             blit_light(s, L["rug"][0], L["rug"][1] - 10, 380, (255, 170, 80), 40 + 10 * fl, 0.0)
-        draw_coals(s, fx, fy, w, tt)
+        if not L.get("painted_logs"):             # на своём фоне угли и поленья уже нарисованы
+            draw_coals(s, fx, fy, w, tt)
         draw_flames(s, fx, fy, w, h, tt, power)
         if t.prize_on("kettle"):
             kx, ky = L["kettle"]
-            draw_kettle(s, kx, ky, 1.25, tt, top=L.get("chain_top"))
-        draw_logs(s, fx, fy, w)
+            draw_kettle(s, kx, ky, L.get("kettle_k", 1.25), tt, top=L.get("chain_top"))
+        if not L.get("painted_logs"):
+            draw_logs(s, fx, fy, w)
+        for img, pos in self.fs_occ:              # поленья фона — перед огнём
+            s.blit(img, pos)
         for x, y, _vx, _vy, life, life0, size in self.fs_embers:
             k = life / life0
             s.blit(soft_dot(size * 2.4, (255, 120, 40), 150 * k), (int(x - size * 2.4), int(y - size * 2.4)))
@@ -148,8 +154,6 @@ class FiresideUI:
             r = 5 + 14 * k
             s.blit(soft_dot(r, (250, 246, 240), 70 * math.sin(math.pi * k)),
                    (int(x + math.sin(ph + age * 1.6) * 8 * k - r), int(y - 70 * k - r)))
-        if t.prize_on("flowers"):
-            draw_flowers(s, *L["flowers"], 1.7, tt)
         if t.prize_on("cat"):
             cx, cy = L["cat"]
             draw_cat(s, cx, cy, 1.6, tt, self.fs_twitch, self.fs_purr > 0)

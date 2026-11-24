@@ -137,6 +137,7 @@ def _seamless_crop(px, bb):
     return (x0 + gaps[0], y0, x0 + gaps[-1], y1)
 
 
+SHADOW_DX, SHADOW_DY, SHADOW_ALPHA = 0.3, 0.5, 170   # 3.20: тень забора — вниз и чуть влево, полупрозрачная
 FENCE_SUPERSAMPLE = 3   # наклон считаем в 3 раза крупнее и сглаживаем — без «лесенки» на перекладинах
 
 
@@ -161,13 +162,14 @@ def build_fence_strip_layer(strip):
     piece = hd._orig.get("smoothscale", pygame.transform.smoothscale)(piece, (ws, hs))
     src = Pix(piece)
     segs = front_fence_segments()
-    x0 = int(min(a[0] for a, b in segs))
+    x0 = int(min(a[0] for a, b in segs)) - int(hgt * SHADOW_DX) - 4
     x1 = int(max(b[0] for a, b in segs)) + 1
     y0 = int(min(min(a[1], b[1]) for a, b in segs)) - hgt - 2
-    y1 = int(max(max(a[1], b[1]) for a, b in segs)) + 2
+    y1 = int(max(max(a[1], b[1]) for a, b in segs)) + int(hgt * SHADOW_DY) + 6
     ow, oh = int(round((x1 - x0) * kk)), int(round((y1 - y0) * kk))
     # прозрачные пиксели — цвета контура: при сглаживании край темнеет к контуру, а не к чёрному
     out = bytearray(bytes((70, 45, 35, 0)) * (ow * oh))
+    shadow = bytearray(bytes((40, 52, 26, 0)) * (ow * oh))   # 3.20: тень забора на траве (солнце за полем)
     sb, sw = src.buf, src.w
     for (ax, ay), (bx, by) in segs:
         span = int(round((bx - ax) * kk))
@@ -179,14 +181,26 @@ def build_fence_strip_layer(strip):
                 continue
             for y in range(hs):
                 oy = base - hs + y
+                si = (y * sw + sx) * 4
+                if not sb[si + 3]:
+                    continue
                 if 0 <= oy < oh:
-                    si, oi = (y * sw + sx) * 4, (oy * ow + ox) * 4
-                    if sb[si + 3]:
-                        out[oi:oi + 4] = sb[si:si + 4]
-    big = _frombytes(out, (ow, oh))
+                    oi = (oy * ow + ox) * 4
+                    out[oi:oi + 4] = sb[si:si + 4]
+                up = hs - y                                  # высота точки над землёй -> куда падает её тень
+                tx, ty = ox - int(up * SHADOW_DX), base + int(up * SHADOW_DY)
+                if 0 <= tx < ow and 0 <= ty < oh:
+                    shadow[(ty * ow + tx) * 4 + 3] = SHADOW_ALPHA
+    scale = hd._orig.get("smoothscale", pygame.transform.smoothscale)
     pw, ph = max(1, int(round((x1 - x0) * hd.K[0]))), max(1, int(round((y1 - y0) * hd.K[0])))
-    small = hd._orig.get("smoothscale", pygame.transform.smoothscale)(big, (pw, ph))
-    return hd.wrap(small) if hd.K[0] != 1 else small, (x0, y0)
+    small = scale(_frombytes(out, (ow, oh)), (pw, ph))
+    # тень мягкая: уменьшить в 5 раз и растянуть обратно — края размываются
+    blur = scale(_frombytes(shadow, (ow, oh)), (max(1, pw // 5), max(1, ph // 5)))
+    layer = pygame.Surface((pw, ph), pygame.SRCALPHA)
+    layer.fill((0, 0, 0, 0))
+    layer.blit(scale(blur, (pw, ph)), (0, 0))
+    layer.blit(small, (0, 0))
+    return hd.wrap(layer) if hd.K[0] != 1 else layer, (x0, y0)
 
 
 _wide_front = {}
@@ -242,6 +256,10 @@ def draw_front_fence_layer(s):
         layer = hd.Surface((W, H), pygame.SRCALPHA)
         layer.fill((0, 0, 0, 0))
         (a1, b1), (a2, b2) = front_fence_segments()
+        hgt = FENCE_STRIP_H["wall" if THEME.get("wall") else "fence"]
+        dx, dy = hgt * SHADOW_DX, hgt * SHADOW_DY
+        for a, b in ((a1, b1), (a2, b2)):            # 3.20: тень на траве, как у забора-картинки
+            pygame.draw.polygon(layer, (40, 52, 26, 80), [a, b, (b[0] - dx, b[1] + dy), (a[0] - dx, a[1] + dy)])
         draw_fence(layer, a1, b1, (0, 0))
         draw_fence(layer, a2, b2, (0, 0))
         _fence_layers[key] = (layer, (0, 0))

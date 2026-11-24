@@ -23,7 +23,17 @@ FIRESIDE_LAYOUT = dict(
     chain_top=150,                # где висит цепь котелка
     rug=[440, 566],               # коврик: центр
     cat=[392, 566],               # кот: низ по центру
-    flowers=[612, 150],           # кувшин с цветами на каминной полке: низ по центру
+)
+# 3.20: под свой фон пользователя assets/backgrounds/fireside (камин по центру, на углях лежат два полена).
+# Огонь горит над поленьями фона; свои угли и поленья код не рисует.
+FIRESIDE_CUSTOM = dict(
+    fire=[508, 456], fire_w=175, fire_h=225, painted_logs=True,
+    # поленья фона рисуются ПОВЕРХ огня (огонь — из-за поленьев): многоугольники переднего и заднего полена
+    front=[[[416, 452], [552, 380], [570, 388], [575, 404], [446, 481], [419, 478]],
+           [[456, 392], [470, 380], [598, 448], [601, 468], [586, 480], [470, 416]]],
+    kettle=[508, 352], kettle_k=1.7, chain_top=252,
+    rug=[506, 592], rug_k=1.25,
+    cat=[436, 590],
 )
 
 def _ell(s, col, rect, ow=2):
@@ -124,10 +134,14 @@ def draw_cat(s, x, y, k, t, twitch=0.0, purr=0.0):
 
 def draw_kettle(s, x, y, k, t, top=None, boil=1.0):
     """Чугунный котелок на цепи. (x, y) — низ по центру; top — докуда тянется цепь. Крышка подпрыгивает."""
-    if top is not None:
-        for yy in range(int(top), int(y - 40 * k), max(4, int(8 * k))):      # цепь — звенья
+    own = has_sprite("decor/kettle")
+    if top is not None:                          # цепь — звенья, до дужки котелка
+        hook = y - (106 * k * 0.5 if own else 40 * k)
+        for yy in range(int(top), int(hook), max(4, int(8 * k))):
             _ell(s, (70, 66, 64), (x - 2.5 * k, yy, 5 * k, 7 * k), 1)
-    if blit_sprite(s, "decor/kettle", x, y, k * 0.5, "midbottom"):
+    if own:
+        hop = 1.2 * k * max(0.0, math.sin(t * 8.5)) ** 8 * boil      # котелок чуть вздрагивает — кипит
+        blit_sprite(s, "decor/kettle", x, y - hop, k * 0.5, "midbottom")
         return
     w, h = 54 * k, 40 * k
     pygame.draw.arc(s, OUT, (int(x - w * 0.42), int(y - h - 18 * k), int(w * 0.84), int(34 * k)), 0.2, 2.94,

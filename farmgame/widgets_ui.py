@@ -126,6 +126,21 @@ class WidgetsUI:
         """Подсказка: появится, если задержать курсор на rect (если подсказки включены в настройках)."""
         self.tips.append((pygame.Rect(rect), text))
 
+    def draw_banner(self, plate, text, size=22, color=(90, 70, 60)):
+        """3.20: заголовок на ленте ui/banner (лента шире plate: концы-«хвосты» по бокам). У картинки-ленты
+        полоса под надпись — верхние две трети (хвосты свисают ниже), поэтому текст выше середины и не шире
+        полосы. Без картинки — плашка кодом. Возвращает прямоугольник ленты (или плашки)."""
+        s = self.screen
+        plate = pygame.Rect(plate)
+        ribbon = plate.inflate(60, 8)
+        if skin.plate(s, "banner", ribbon):
+            draw_text_fit(s, text, size, (ribbon.centerx, ribbon.y + ribbon.h * 0.36), ribbon.w * 0.66, color,
+                          outline=None)
+            return ribbon
+        rounded(s, PANEL, plate, 8, 3)
+        draw_text_fit(s, text, size, plate.center, plate.w - 16, color, outline=None)
+        return plate
+
     def draw_shade(self, alpha):
         """Затемнение под окном. Во время анимации — отдельный слой своей прозрачности: само затемнение
         не трогаем (set_alpha(None) у полупрозрачной картинки в pygame делает её сплошной — был синий фон)."""

@@ -41,12 +41,15 @@ class HudUI:
         if not board:
             # 3.13.2: на поле — столбиком слева; в сарае, мельнице, таверне — справа под шестерёнкой,
             # чтобы не налезать на карточки
+            center = None
             if self.view == "field":
                 y, right = (180 if self.farm_info()["peasants"] else 142), None
+            elif self.view == "tavern":                  # 3.20: в зале — сверху по центру, над сценой
+                y, right, center = 12, None, W // 2
             else:
-                y, right = 70 if self.view != "tavern" else 64, W - 14
-            y += self.draw_boost_pill(y, right)
-            self.draw_song_pill(y, right)
+                y, right = 70, W - 14
+            y += self.draw_boost_pill(y, right, center)
+            self.draw_song_pill(y, right, center)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)
@@ -59,7 +62,7 @@ class HudUI:
             pygame.draw.circle(s, BTN_BLUE, r.center, 6)
         self.icon_button(g, "settings", gear, lambda: self.open_modal("settings"), tip="Настройки: звук, экран, игра")
         if self.view == "tavern":
-            self.draw_tokens_pill(W - 72, 16, right=True)
+            self.draw_tokens_pill(14, 180 if self.farm_info()["peasants"] else 142)
             self.draw_tavern_back("На поле", self.leave_tavern)
             self.draw_prizes_button()
             return

@@ -165,7 +165,8 @@ class TavernUI:
     # ---------- жители ----------
     def say_barman(self, text=None):
         if text is None:
-            text = tv.BARMAN_LINES[self.barman_line % len(tv.BARMAN_LINES)]
+            lines = tv.barman_lines(self.tavern)
+            text = lines[self.barman_line % len(lines)]
             self.barman_line += 1
         b = self.tl["barman"]
         self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, 4.5]
@@ -259,11 +260,10 @@ class TavernUI:
         L = self.tl
         b = L["barman"]
         wipe = math.sin(tt * 3)
-        # 3.5: протирает кружку — чуть поворачивается и ходит из стороны в сторону (низ закрыт стойкой)
-        # низ продлён на 30 px: локти и фартук уходят за стойку без щели (её наклон открывал фон под локтем)
-        down = extended_down("characters/barman", 30 / max(0.1, b["sprite_scale"]))
-        if not down or not blit_tf(s, down, b["x"] + 1.3 * math.sin(tt * 3.2), b["waist"] + 32 + math.sin(tt * 1.5),
-                                   b["sprite_scale"], angle=1.5 * math.sin(tt * 3.2 + 0.6)):
+        # 3.20: стоит целиком, как бард: низ на месте (за стойкой), чуть «дышит» вверх-вниз (сдвигом, без масштаба — картинка остаётся чёткой). Без поворота
+        # (pygame поворачивает без сглаживания — была «лесенка») и без вытягивания низа (шёл волнами).
+        breath = 0.5 + 0.5 * math.sin(tt * 1.9)
+        if not blit_tf(s, "characters/barman", b["x"], b["waist"] + 9 - 2 * breath, b["sprite_scale"]):
             look = dict(top=(200, 210, 225), apron=True, hair=(70, 50, 40), style="bald", mustache=True)
             talking = self.tv_bubble is not None and self.tv_bubble[0] == b["x"]
             hands = draw_person(s, b["x"], b["waist"], b["k"], look, tt, talking, upper=True,

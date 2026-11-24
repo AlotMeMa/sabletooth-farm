@@ -10,6 +10,7 @@
 Звуки кнопок — assets/sfx/hover.ogg и click.ogg (без файлов играет встроенный мягкий щелчок).
 """
 import os
+import time
 
 import pygame
 
@@ -52,6 +53,50 @@ def has_scene_music(scene):
                for fn in os.listdir(folder))
 
 
+RESUME_SECONDS = 5.0    # 3.20: вышел из таверны и вернулся за 5 с — песня играет дальше с того же места
+_lengths = {}
+
+
+def track_length(path):
+    """Длина трека в секундах (для перемотки по кругу) или None. OGG — по заголовку и последней странице файла
+    (весь трек не декодируется), WAV — модулем wave."""
+    if path not in _lengths:
+        _lengths[path] = _ogg_length(path) if path.lower().endswith(".ogg") else _wav_length(path)
+    return _lengths[path]
+
+
+def _ogg_length(path):
+    try:
+        with open(path, "rb") as f:
+            head = f.read(4096)
+            f.seek(0, os.SEEK_END)
+            size = f.tell()
+            f.seek(max(0, size - 65536))
+            tail = f.read()
+        i = head.find(b"\x01vorbis")
+        if i < 0:
+            return None
+        rate = int.from_bytes(head[i + 12:i + 16], "little")
+        j = tail.rfind(b"OggS")
+        if j < 0 or rate <= 0:
+            return None
+        granule = int.from_bytes(tail[j + 6:j + 14], "little")
+        return granule / rate if granule > 0 else None
+    except OSError:
+        return None
+
+
+def _wav_length(path):
+    if not path.lower().endswith(".wav"):
+        return None
+    try:
+        import wave
+        with wave.open(path) as w:
+            return w.getnframes() / float(w.getframerate())
+    except Exception:
+        return None
+
+
 class Music:
     def __init__(self, volume=0.4):
         self.ok = False          # есть ли вообще звук (на компьютере без колонок его может не быть)
@@ -59,6 +104,8 @@ class Music:
         self.volume = volume
         self.muted = False
         self.scene_k = 1.0       # 3.19: «приглушить» музыку в сцене (у камина ~0.3); ползунок громкости не трогает
+        self.start_at = 0.0      # 3.20: с какой секунды трек включён (продолжили с места) — для position()
+        self.left = {}           # 3.20: путь трека -> (секунда трека, когда ушли): вернулся быстро — играет дальше
         try:
             if not pygame.mixer.get_init():
                 pygame.mixer.init()
@@ -86,18 +133,45 @@ class Music:
         path = find_music(farm_id, scene)
         if path == self.current:
             return
+        if self.current is not None:          # 3.20: запоминаем, где остановились
+            pos = self.position()
+            if pos is not None:
+                self.left[self.current] = (pos, time.time())
         self.current = path
+        self.start_at = 0.0
         try:
             pygame.mixer.music.stop()
             if path is None:
                 return
             pygame.mixer.music.load(path)
             pygame.mixer.music.set_volume(self.effective_volume())
-            pygame.mixer.music.play(-1, fade_ms=FADE_MS)
+            start = self.resume_point(path)
+            if start > 0:
+                try:
+                    pygame.mixer.music.play(-1, start=start, fade_ms=FADE_MS)
+                    self.start_at = start
+                except Exception:              # формат без перемотки — играем сначала
+                    pygame.mixer.music.play(-1, fade_ms=FADE_MS)
+            else:
+                pygame.mixer.music.play(-1, fade_ms=FADE_MS)
             print("Музыка:", os.path.relpath(path, ASSET_DIR))
         except Exception as e:   # битый файл или неподдерживаемый формат — без музыки, но не падаем
             print(f"Не удалось включить музыку {path}: {e}")
             self.current = None
+
+    def resume_point(self, path, now=None):
+        """С какой секунды включить трек path: ушли с него не дольше RESUME_SECONDS назад — с того же места,
+        иначе с начала (0)."""
+        got = self.left.pop(path, None)
+        if got is None:
+            return 0.0
+        pos, when = got
+        if (now if now is not None else time.time()) - when > RESUME_SECONDS:
+            return 0.0
+        length = track_length(path)
+        if length:
+            pos %= length                      # трек уже шёл по кругу — время от начала текущего круга
+        return max(0.0, pos)
 
     def position(self):
         """Сколько секунд играет текущая музыка (с момента включения, повторы не сбрасывают) или None.
@@ -108,7 +182,7 @@ class Music:
             ms = pygame.mixer.music.get_pos()
         except Exception:
             return None
-        return ms / 1000.0 if ms is not None and ms >= 0 else None
+        return self.start_at + ms / 1000.0 if ms is not None and ms >= 0 else None
 
     def apply_volume(self):
         if self.ok:

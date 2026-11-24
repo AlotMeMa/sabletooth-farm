@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.19.2"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.20"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -80,7 +80,7 @@ PRIZES = [
     dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
     dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
     # 3.19: уют у камина (видно в зале и в «посиделках у камина»)
-    dict(id="flowers", kind="cosmetic", name="Полевые цветы", cost=60, text="кувшин с цветами на столе и на каминной полке"),
+    dict(id="flowers", kind="cosmetic", name="Полевые цветы", cost=60, text="кувшин с цветами на столе в зале"),
     dict(id="rug", kind="cosmetic", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
     dict(id="kettle", kind="cosmetic", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
     dict(id="cat", kind="cosmetic", name="Кот у камина", cost=150, text="спит у огня; его можно погладить"),

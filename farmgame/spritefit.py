@@ -55,6 +55,8 @@ TALK_SHEET_ORDER = ["bubble", "bubble_tail", "arrow"]
 # тёмная плашка сообщения; лента-баннер, вторая лента (не нужна — пропуск); рамка полоски, вывеска казино.
 # Белой заливки полоски на листе нет — заливку рисует код (или свой файл ui/bar_fill.png).
 PLATE_SHEET_ORDER = ["pill", "toast", "banner", "_unused", "bar_frame", "sign_casino"]
+# 3.20: лист карточек дерева 2×3 — можно копить, можно купить, всё изучено; закрыто, кружок пустой, кружок полный
+TREE_SHEET_ORDER = ["tree_node_open", "tree_node_ready", "tree_node_max", "tree_node_locked", "tree_pip_off", "tree_pip_on"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -65,6 +67,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
     "fx/sheet": ("fx/", FX_SHEET_ORDER, 3, 3),
     "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 3, 2),
+    "ui/tree_sheet": ("ui/", TREE_SHEET_ORDER, 2, 3),
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -75,6 +78,9 @@ MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экра
     "mill_card": (360, 130, "bottom"), "bakery_card": (360, 130, "bottom"),   # 3.13: картинки карточек мельницы
 }
 UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110),   # наибольший размер (3.4)
+           # 3.20: карточки дерева
+           "tree_node_open": (420, 140), "tree_node_ready": (420, 140), "tree_node_max": (420, 140),
+           "tree_node_locked": (420, 140),
            # 3.16: растягиваемые записки доски, свиток недели, табличка на поле, облачко речи
            "quest_note_1": (490, 334), "quest_note_2": (490, 334), "quest_note_3": (490, 334),
            "quest_weekly": (460, 720), "sign": (300, 170), "bubble": (360, 200),
@@ -225,6 +231,8 @@ def _fit_spec_base(name):
     if folder == "decor" and last in DECOR_SIZE:      # 3.19: украшения у камина
         w, h, align = DECOR_SIZE[last]
         return _spec(*_box(w, h, 1, 1, 1, 1), align)
+    if folder == "ui" and last in ("tree_pip_off", "tree_pip_on"):    # 3.20: кружки уровней на карточке дерева
+        return _spec(*_box(32, 32, 1, 1, 1, 1), "center")
     if folder == "ui" and last == "slider_knob":
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("chip_"):   # 3.14: фишки казино (рисуются в 0.5 — вдвое крупнее для чёткости)
@@ -623,6 +631,16 @@ def _place(piece, spec, scale=None):
 def fit_single(img, spec):
     cw, ch = spec["canvas"]
     if spec["align"] == "full":
+        w, h = img.get_size()
+        ratio = (w / h) / (cw / ch)
+        if ratio > 1.1 or ratio < 1 / 1.1:
+            # 3.20: пропорции сильно другие (фон камина 16:9 при экране 25:16) — обрезаем края, а не сплющиваем
+            if ratio > 1:
+                nw = int(round(h * cw / ch))
+                img = img.subsurface(((w - nw) // 2, 0, nw, h))
+            else:
+                nh = int(round(w * ch / cw))
+                img = img.subsurface((0, (h - nh) // 2, w, nh))
         return pygame.transform.smoothscale(img, (cw, ch))
     if spec["align"] == "trim":       # без холста: обрезанный рисунок, вписанный в cw×ch с его пропорциями
         px = _prepare(img, _work(max(cw, ch)))

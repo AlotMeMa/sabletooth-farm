@@ -298,9 +298,13 @@ class CasinoUI:
         if self.cs_bg is None:
             self.cs_bg = self.build_casino_background()
         s.blit(self.cs_bg, (0, 0))
-        plate = pygame.Rect(196, 120, 230, 48)               # 3.14.2: слева — посередине стоит крупье
-        rounded(s, WOOD, plate, 10, 3)
-        draw_text(s, "РУЛЕТКА", 24, (plate.centerx, plate.centery - 1), GOLD)
+        # 3.14.2: слева — посередине стоит крупье. 3.20: на ленте, как «САРАЙ» и «МЕЛЬНИЦА» (без неё — дерево)
+        if has_sprite("ui/banner"):
+            self.draw_banner((228, 118, 186, 48), "РУЛЕТКА", 24)
+        else:
+            plate = pygame.Rect(196, 120, 230, 48)
+            rounded(s, WOOD, plate, 10, 3)
+            draw_text(s, "РУЛЕТКА", 24, (plate.centerx, plate.centery - 1), GOLD)
         self.cs_draw_croupier(s)
         self.cs_draw_wheel(s)
         busy = self.cs_spin is not None

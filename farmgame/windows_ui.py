@@ -140,20 +140,26 @@ class WindowsUI:
                     pygame.draw.line(s, (120, 210, 100) if done else (190, 180, 175), (cx, prev.bottom), (cx, nr.top), 3)
                 lvl, mx, cost = f.up(nid), len(node["costs"]), f.tree_cost(nid)
                 if cost is None:
-                    color = (250, 212, 90)
+                    color, look = (250, 212, 90), "tree_node_max"
                 elif not f.tree_available(nid):
-                    color = (205, 200, 196)
+                    color, look = (205, 200, 196), "tree_node_locked"
                 elif f.leaves >= cost:
-                    color = (150, 222, 120)
+                    color, look = (150, 222, 120), "tree_node_ready"
                 else:
-                    color = (175, 215, 240)
+                    color, look = (175, 215, 240), "tree_node_open"
                 selected = self.tree_sel == nid
-                rounded(s, color, nr, 10, 4 if selected else 2, (230, 90, 60) if selected else OUT)
+                if skin.plate(s, look, nr):          # 3.20: своя карточка (assets/ui/tree_sheet или ui/tree_node_*)
+                    if selected:
+                        pygame.draw.rect(s, (230, 90, 60), nr.inflate(6, 6), 3, border_radius=12)
+                else:
+                    rounded(s, color, nr, 10, 4 if selected else 2, (230, 90, 60) if selected else OUT)
                 draw_text(s, node["name"], 13, (nr.centerx, nr.y + 15), brown, outline=None)
                 for k in range(mx):  # точки уровней
                     px = nr.x + 12 + k * min(12, (nr.w - 80) // max(1, mx))
-                    pygame.draw.circle(s, OUT, (px, nr.bottom - 15), 5)
-                    pygame.draw.circle(s, (90, 190, 80) if k < lvl else WHITE, (px, nr.bottom - 15), 4)
+                    if not blit_sprite(s, "ui/tree_pip_on" if k < lvl else "ui/tree_pip_off", px, nr.bottom - 15, 0.34,
+                                       "center"):
+                        pygame.draw.circle(s, OUT, (px, nr.bottom - 15), 5)
+                        pygame.draw.circle(s, (90, 190, 80) if k < lvl else WHITE, (px, nr.bottom - 15), 4)
                 if cost is None:
                     draw_text(s, "МАКС", 13, (nr.right - 10, nr.bottom - 15), (170, 120, 20), anchor="midright", outline=None)
                 elif not f.tree_available(nid):

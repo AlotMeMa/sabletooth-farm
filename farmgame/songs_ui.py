@@ -64,7 +64,7 @@ class SongsUI:
                 self.tip(bt, "Бард ещё играет прошлый заказ" if playing else f"Нужно жетонов: {sg['cost']}")
         self.button((r.centerx - 120, r.bottom - 66, 240, 42), "Просто послушать", self.listen_bard, BTN_BLUE, True, 16)
 
-    def draw_song_pill(self, y, right=None):
+    def draw_song_pill(self, y, right=None, center=None):
         """Плашка «♪ песня  12:34», пока играет заказанная песня. right — правый край (плашка справа)."""
         f, s = self.farm, self.screen
         sg = self.song_def() if f.song_left > 0 else None
@@ -75,6 +75,8 @@ class SongsUI:
         r = pygame.Rect(14, y, 50 + img.get_width() + 14, 30)
         if right is not None:
             r.right = right
+        if center is not None:
+            r.centerx = center
         if not skin.plate(s, "pill", r):                          # 3.18: своя плашка ui/pill
             rounded(s, (170, 140, 220), r, 15, 3)
         draw_note_icon(s, r.x + 22, r.centery + 6, 0, 0.7)
@@ -82,7 +84,7 @@ class SongsUI:
         self.tip(r, f"Песня барда: {sg['effect']}")
         return 36
 
-    def draw_boost_pill(self, y, right=None):
+    def draw_boost_pill(self, y, right=None, center=None):
         f, s = self.farm, self.screen
         if f.boost_left <= 0:
             return 0
@@ -91,6 +93,8 @@ class SongsUI:
         r = pygame.Rect(14, y, 58 + img.get_width() + 14, 32)
         if right is not None:
             r.right = right
+        if center is not None:
+            r.centerx = center
         if not skin.plate(s, "pill", r):                          # 3.18: своя плашка ui/pill
             rounded(s, (250, 200, 90), r, 16, 3)
         draw_text(s, "x2", 15, (r.x + 30, r.centery), WHITE)

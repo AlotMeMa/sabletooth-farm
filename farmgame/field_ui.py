@@ -4,13 +4,14 @@
 Примесь к App (3.15: вынесено из app.py без изменений). Общие импорты и константы — ui_common.
 """
 from .ui_common import *  # noqa: F401,F403
+from .config import _rain_time
 
 
 class FieldUI:
     # ------------------------------------------------------------ монетки и плашка денег
     MONEY_ICON = (34, 32)             # где на экране монетка плашки денег
     FESTIVAL_RECT = (875, 116, 60, 60)    # кнопка праздника — на траве справа от замка
-    THAW_RECT = (825, 82, 60, 60)         # 3.25: кнопка «Оттепель» — там, где летом тучка
+    SHAMAN_RECT = (825, 82, 60, 60)       # 3.26: кнопка «Гномье пришествие» — там, где летом тучка
 
     def truck_tier(self):
         p = self.farm.potential_leaves()
@@ -123,8 +124,11 @@ class FieldUI:
         f = self.farm
         if f.start_rain():
             self.quest("weather")
-            self.toast(f"{self.farm_info()['weather']}! Всё растёт быстрее")
-            self.sfx.play({"Праздник урожая": "fanfare", "Оттепель": "sun"}.get(self.farm_info()["weather"], "rain"))
+            if self.farm_info().get("rush_helpers"):
+                self.toast(f"{self.farm_info()['weather']}! Гномы работают на всех грядках, шаманы пляшут")
+            else:
+                self.toast(f"{self.farm_info()['weather']}! Всё растёт быстрее")
+            self.sfx.play({"Праздник урожая": "fanfare", GNOME_RUSH: "tambourine"}.get(self.farm_info()["weather"], "rain"))
         elif f.rain_left <= 0 and f.rain_cd > 0:
             self.toast(f"Ещё рано: {self.farm_info()['weather'].lower()} через {fmt_time(f.rain_cd)}", 1.5)
 
@@ -210,16 +214,20 @@ class FieldUI:
         bar = pygame.Rect(P(cx - BAR_W / 2 + shift), label.bottom + 1, BAR_W, 9)   # одинаковая для всех грядок
         if f.blocked[k] or f.frozen[k] > 0:     # ворона или лёд: грядка стоит
             draw_bar(s, bar, f.progress[k] / t, (150, 150, 160))
-        elif f.farmers[k] and t <= 0.5:
+        elif f.working(k) and t <= 0.5:
             draw_bar(s, bar, 1.0, (120, 220, 90))
         else:
-            draw_bar(s, bar, f.progress[k] / t, (120, 220, 90) if f.farmers[k] else GOLD)
+            draw_bar(s, bar, f.progress[k] / t, (120, 220, 90) if f.working(k) else GOLD)
         if self.farm_info()["peasants"]:   # средневековье: значок крестьянина на левом конце полоски
             # Значок «сидит» на самой полоске прогресса (как аватар), поэтому не закрывает овощи.
             ax, ay = bar.x - 2, bar.centery
             if f.farmers[k]:
                 pygame.draw.circle(s, OUT, (ax, ay), 13)
                 pygame.draw.circle(s, (245, 175, 50), (ax, ay), 11)                 # занят — оранжевый
+                draw_helper_head(s, ax, ay + 2, 0.85)
+            elif f.helper_rush():          # 3.26: на время пришествия тут работает гном из леса — фиолетовый
+                pygame.draw.circle(s, OUT, (ax, ay), 13)
+                pygame.draw.circle(s, (175, 130, 230), (ax, ay), 11)
                 draw_helper_head(s, ax, ay + 2, 0.85)
             else:
                 free = f.free_peasants() > 0
@@ -297,7 +305,7 @@ class FieldUI:
         x, y = 855, 108
         raining = f.rain_left > 0
         weather = self.farm_info()["weather"]
-        if weather in WEATHER_BUTTON:          # 3.25: праздник урожая и оттепель — кнопкой
+        if weather in WEATHER_BUTTON:          # праздник урожая и гномье пришествие — кнопкой
             self.draw_festival_button(WEATHER_BUTTON[weather])
             return
         draw_cloud_body(s, x, y, raining)
@@ -314,14 +322,68 @@ class FieldUI:
             draw_text(s, fmt_time(f.rain_cd), 18, (x, y - 58))
         else:
             c = (255, 255, 255) if int(self.t * 2) % 2 else (190, 230, 255)
-            draw_text(s, "Вызвать дождь!" if self.farm_info()["weather"] == "Дождь" else "Вызвать оттепель!", 16, (x, y - 58), c)
+            draw_text(s, "Вызвать дождь!", 16, (x, y - 58), c)
             self.zone((x - 65, y - 45, 130, 90), self.click_rain)
 
+    # ---------- 3.26: «Гномье пришествие» ----------
+    RUSH_IN, RUSH_OUT = 2.2, 2.2      # сколько секунд шаманы идут на лужайку и уходят с неё
+
+    def rush_clock(self):
+        """(сколько идёт пришествие, сколько осталось) или None, если его нет."""
+        f = self.farm
+        if not f.helper_rush():
+            return None
+        total = max(f.rain_left, _rain_time(f.up("rain_len")))
+        return total - f.rain_left, f.rain_left
+
+    def draw_rush_worker(self, k):
+        """Гном из леса на грядке без своего гнома: выскакивает из сугроба, машет тяпкой, в конце исчезает."""
+        clock = self.rush_clock()
+        f = self.farm
+        if clock is None or f.levels[k] == 0 or f.farmers[k]:
+            self.rush_popped.discard(k)
+            return
+        el, left = clock
+        delay = 0.25 + 0.18 * DRAW_ORDER.index(k)
+        grow = min(1.0, max(0.0, (el - delay) / 0.35), max(0.0, left / 0.6))
+        if grow <= 0.05:
+            return
+        cx, cy = crop_center(k)
+        right = k % 2 == 0
+        x, y = cx + (64 if right else -64), cy + 14
+        if k not in self.rush_popped:                 # выскочил — облачко снега
+            self.rush_popped.add(k)
+            self.fx.dust(x, y - 4, n=6, color=(245, 250, 255), size=(5, 9), spread=12, up=20, drift=20, alpha=220,
+                         life=(0.35, 0.6))
+        draw_gnome_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right)
+
+    def draw_shamans(self):
+        """Два гнома-шамана выходят справа на лужайку, пляшут с бубнами и уходят, когда пришествие кончается."""
+        clock = self.rush_clock()
+        if clock is None:
+            self.rush_popped.clear()
+            return
+        el, left = clock
+        for n, (sx, sy) in enumerate(SHAMAN_SPOTS):
+            come = anim.ease_out_cubic(min(1.0, max(0.0, (el - 0.3 * n) / self.RUSH_IN)))
+            go = 1.0 - anim.ease_out_cubic(min(1.0, max(0.0, left / self.RUSH_OUT)))      # 0 → 1 в последние секунды
+            off = (1.0 - come + go) * (W + 40 - sx)
+            x, t = sx + off, self.t_real + n * 1.3
+            if off > 1.0:                                   # идёт: семенит, смотрит куда идёт
+                hop = abs(math.sin(t * 9)) * 3
+                draw_gnome_shaman_walk(self.screen, x, sy - hop, 1.6, t, flip=go > 0)
+            else:
+                draw_gnome_shaman(self.screen, x, sy, 1.6, t, flip=n == 1)
+                if random.random() < 0.08:                  # искорки от бубна
+                    self.fx.sparks(x + random.uniform(-18, 18), sy - 80, n=1,
+                                   colors=((250, 215, 90), (215, 170, 255), (255, 255, 230)), speed=(20, 50),
+                                   life=(0.4, 0.8), size=(2, 3), gravity=-20)
+
     def draw_festival_button(self, kind="festival"):
-        """Кнопка погоды: «Праздник урожая» рядом с замком (средневековье) или «Оттепель» (зима, 3.25)."""
+        """Кнопка погоды: «Праздник урожая» рядом с замком (средневековье) или «Гномье пришествие» (зима, 3.26)."""
         s, f = self.screen, self.farm
-        thaw = kind == "thaw"
-        rect = pygame.Rect(self.THAW_RECT if thaw else self.FESTIVAL_RECT)
+        gnomes = kind == "shaman"
+        rect = pygame.Rect(self.SHAMAN_RECT if gnomes else self.FESTIVAL_RECT)
         active = f.rain_left > 0
         ready = not active and f.rain_cd <= 0
 
@@ -333,34 +395,34 @@ class FieldUI:
                 ellipse(s, (245, 205, 90), cx + dx * 1.2, cy - 16, 7, 14)
             rounded(s, (210, 60, 60), (cx - 11, cy + 2, 22, 7), 3, 2)
 
-        def sun_drop(r):   # солнышко и капля (если нет картинки ui/btn_thaw)
-            cx, cy = r.centerx - 5, r.centery - 3
-            for a in range(8):
-                ang = a * math.pi / 4
-                pygame.draw.line(s, OUT, (cx + math.cos(ang) * 9, cy + math.sin(ang) * 9),
-                                 (cx + math.cos(ang) * 16, cy + math.sin(ang) * 16), 4)
-                pygame.draw.line(s, (255, 210, 80), (cx + math.cos(ang) * 9, cy + math.sin(ang) * 9),
-                                 (cx + math.cos(ang) * 15, cy + math.sin(ang) * 15), 2)
-            pygame.draw.circle(s, OUT, (cx, cy), 10)
-            pygame.draw.circle(s, (255, 205, 70), (cx, cy), 8)
-            dx, dy = r.centerx + 12, r.centery + 12
-            poly(s, (120, 190, 240), [(dx, dy - 12), (dx + 7, dy), (dx, dy + 6), (dx - 7, dy)], 2)
+        def tambourine(r):   # бубен с лентами и колпак гнома (если нет картинки ui/btn_shaman)
+            cx, cy = r.centerx + 3, r.centery + 4
+            for n, c in enumerate(((230, 80, 70), (250, 200, 70), (90, 180, 110))):
+                pygame.draw.line(s, c, (cx + 8, cy + 6), (cx + 12 + n * 4, cy + 20 - n * 2), 3)
+            ellipse(s, (235, 215, 170), cx, cy, 30, 26, 2)
+            pygame.draw.ellipse(s, (200, 70, 60), pygame.Rect(cx - 15, cy - 13, 30, 26), 3)
+            for n in range(5):
+                a = n * 2 * math.pi / 5 - 0.6
+                pygame.draw.circle(s, (250, 215, 90), (P(cx + math.cos(a) * 15), P(cy + math.sin(a) * 13)), 3)
+            hx, hy = r.centerx - 12, r.centery - 10
+            poly(s, (110, 70, 150), [(hx - 8, hy + 4), (hx + 8, hy + 4), (hx + 2, hy - 14)], 2)
+            pygame.draw.circle(s, WHITE, (hx + 2, hy - 15), 3)
 
-        name = "thaw" if thaw else "festival"
-        glow = (190, 230, 255) if thaw else (255, 235, 150)
+        name = "shaman" if gnomes else "festival"
+        glow = (215, 190, 255) if gnomes else (255, 235, 150)
         if ready and not has_sprite(f"ui/btn_{name}"):
             pulse = 1 + 0.06 * math.sin(self.t * 5)
             pygame.draw.circle(s, glow, rect.center, P(40 * pulse))
-        self.icon_button(rect, name, sun_drop if thaw else sheaf, self.click_rain, active=active or ready)
+        self.icon_button(rect, name, tambourine if gnomes else sheaf, self.click_rain, active=active or ready)
         below = rect.bottom + 14
         if active:
-            draw_text(s, f"{'Оттепель' if thaw else 'Праздник'}! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15,
+            draw_text(s, f"{'Пришествие' if gnomes else 'Праздник'}! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15,
                       (rect.centerx, below), glow)
         elif f.rain_cd > 0:
             draw_text(s, fmt_time(f.rain_cd), 16, (rect.centerx, below))
         else:
             c = (255, 255, 255) if int(self.t * 2) % 2 else glow
-            draw_text(s, "Оттепель!" if thaw else "Праздник урожая!", 15, (rect.centerx, below), c)
+            draw_text(s, "Призвать гномов!" if gnomes else "Праздник урожая!", 15, (rect.centerx, below), c)
 
     def draw_vehicle(self, x, y, color, cargo=False, bob=0.0, tier=0, angle=0.0, sy=1.0):
         draw_vehicle_at(self.screen, self.farm_info()["vehicle"], tier, x, y, color, cargo, bob, angle, sy)

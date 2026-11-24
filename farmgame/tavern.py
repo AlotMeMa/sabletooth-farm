@@ -464,7 +464,7 @@ def _clean_quest(q, weekly=False):
 def _weather_verb(fm):
     w = fm.get("weather", "Дождь")
     return {"Дождь": "Вызови дождь", "Праздник урожая": "Устрой праздник урожая",
-            "Оттепель": "Вызови оттепель"}.get(w, "Вызови " + w.lower())
+            "Гномье пришествие": "Призови гномов"}.get(w, "Вызови " + w.lower())
 
 
 def _buyer_dat(fm):

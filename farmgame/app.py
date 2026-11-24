@@ -86,6 +86,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.floaters = []            # [x, y, text, life, color]
         self.toasts = []              # [text, life]
         self.drops = []
+        self.rush_popped = set()          # 3.26: на каких грядках гном из пришествия уже выскочил
         self.truck_state = "away"     # away | arriving | parked | leaving
         self.truck_x = W + 230.0
         self.truck_v = 0.0            # 3.3: скорость (тормозит, подъезжая, и разгоняется, уезжая)
@@ -459,7 +460,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                 self.toast(f"Заработано ${fmt(self.farm.move_threshold())}! Можно переехать: {FARMS[self.farm.farm_index + 1]['name']}", 5)
 
         # дождь (капли падают быстро и брызгают об землю) или конфетти праздника (падает медленно, кувыркаясь)
-        festival = self.farm_info()["weather"] in WEATHER_BUTTON   # праздник и оттепель: медленные «капли»
+        festival = self.farm_info()["weather"] in WEATHER_BUTTON   # праздник и пришествие: медленные «капли»
         if f.rain_left > 0:
             if festival:
                 if random.random() < min(1.0, 70 * dt):
@@ -633,18 +634,21 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         for k in DRAW_ORDER:
             self.draw_plants(k)
             self.draw_ice(k)
+            self.draw_rush_worker(k)          # 3.26: гном из «пришествия» на грядке
         self.draw_front_fence()
+        self.draw_shamans()                   # 3.26: шаманы пляшут на лужайке справа
         self.draw_truck_layer()
         if f.rain_left > 0:
-            if self.farm_info()["weather"] == "Оттепель":          # 3.25: тёплый свет, с веток падают капли-искорки
+            if self.farm_info()["weather"] == GNOME_RUSH:   # 3.26: тёплый свет, в воздухе — волшебные искорки шаманов
                 s.blit(self.bless_tint, (0, 0))
                 tr = self.t_real
+                colors = ((250, 215, 90), (200, 160, 255), (150, 220, 255))
                 for x, y, _ in self.drops:
-                    sx = x + math.sin(tr * 1.6 + x * 0.1) * 4
-                    sh = 0.5 + 0.5 * math.sin(tr * 7 + x)
-                    poly(s, (150, 205, 245), [(sx, y - 5), (sx + 3, y + 1), (sx, y + 4), (sx - 3, y + 1)], 0)
-                    if sh > 0.85:
-                        pygame.draw.circle(s, WHITE, (P(sx - 1), P(y - 1)), 1)
+                    sx = x + math.sin(tr * 1.6 + x * 0.1) * 6
+                    r = 2.5 + 1.5 * (0.5 + 0.5 * math.sin(tr * 7 + x))     # мерцает
+                    c = colors[int(x * 5) % len(colors)]
+                    poly(s, c, [(sx, y - r * 1.6), (sx + r * 0.5, y - r * 0.5), (sx + r * 1.6, y), (sx + r * 0.5, y + r * 0.5),
+                                (sx, y + r * 1.6), (sx - r * 0.5, y + r * 0.5), (sx - r * 1.6, y), (sx - r * 0.5, y - r * 0.5)], 0)
             elif self.farm_info()["weather"] == "Праздник урожая":   # конфетти и тёплый свет
                 s.blit(self.bless_tint, (0, 0))
                 colors = ((255, 215, 90), (235, 90, 80), (110, 190, 110), (110, 160, 235), (245, 245, 235))

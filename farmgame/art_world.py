@@ -278,6 +278,80 @@ def draw_gnome_head(s, x, y, k=1.0):
     pygame.draw.circle(s, OUT, (P(x + 2.5 * k), P(y - 1 * k)), max(1, P(1.2 * k)))
 
 
+def _gnome_body(s, x, y, k, coat, hat, hop=0.0, lean=0.0):
+    """Гном целиком (3.26): (x, y) — точка у ног. Возвращает (плечо_x, плечо_y) для рук и предметов."""
+    y -= hop
+    ellipse(s, (60, 45, 35), x - 5 * k, y - 2 * k, 9 * k, 5 * k, 1)            # сапожки
+    ellipse(s, (60, 45, 35), x + 5 * k, y - 2 * k, 9 * k, 5 * k, 1)
+    bx = x + lean * k
+    poly(s, coat, [(x - 9 * k, y - 4 * k), (x + 9 * k, y - 4 * k), (bx + 6 * k, y - 20 * k), (bx - 6 * k, y - 20 * k)], 2)
+    pygame.draw.line(s, (90, 60, 35), (P(x - 8 * k), P(y - 9 * k)), (P(x + 8 * k), P(y - 9 * k)), max(1, P(2 * k)))
+    hx, hy = bx, y - 25 * k
+    blob(s, (250, 250, 248), [(hx, hy + 5 * k, 7 * k), (hx - 4 * k, hy + 3 * k, 5 * k), (hx + 4 * k, hy + 3 * k, 5 * k)], 2)
+    blob(s, (245, 205, 170), [(hx, hy - 1 * k, 6 * k)], 2)
+    pygame.draw.circle(s, (225, 140, 120), (P(hx), P(hy + 1 * k)), max(1, P(2.2 * k)))       # нос
+    pygame.draw.circle(s, OUT, (P(hx - 2.5 * k), P(hy - 2 * k)), max(1, P(1.1 * k)))
+    pygame.draw.circle(s, OUT, (P(hx + 2.5 * k), P(hy - 2 * k)), max(1, P(1.1 * k)))
+    tip = (hx + 4 * k + lean * 0.6 * k, hy - 19 * k)
+    poly(s, hat, [(hx - 8 * k, hy - 4 * k), (hx + 8 * k, hy - 4 * k), tip], 2)
+    return bx, y - 17 * k, tip
+
+
+def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
+    """3.26: гном из «пришествия» работает тяпкой. Картинка characters/gnome_worker — покачивается кодом."""
+    swing = math.sin(t * 6.0)
+    if blit_tf(s, "characters/gnome_worker", x, y, k, flip=flip, sy=1 - 0.04 * abs(swing),
+               angle=(4 if flip else -4) * swing, alpha=alpha):
+        return
+    d = -1 if flip else 1
+    sx, sy, tip = _gnome_body(s, x, y, k, (70, 120, 190), (210, 60, 60), lean=1.5 * swing * d)
+    pygame.draw.circle(s, WHITE, (P(tip[0]), P(tip[1])), max(2, P(2.4 * k)))
+    a = math.radians(-50 + 45 * swing)                     # тяпка: замах — удар
+    ex, ey = sx + d * math.cos(a) * 16 * k, sy + math.sin(a) * 16 * k
+    pygame.draw.line(s, OUT, (P(sx), P(sy)), (P(ex), P(ey)), max(2, P(3.4 * k)))
+    pygame.draw.line(s, (170, 120, 70), (P(sx), P(sy)), (P(ex), P(ey)), max(1, P(2 * k)))
+    poly(s, (160, 165, 175), [(ex, ey), (ex + d * 6 * k, ey + 2 * k), (ex + d * 5 * k, ey + 6 * k)], 2)
+
+
+def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
+    """3.26: гном-шаман пляшет с бубном: подпрыгивает, кружится, трясёт бубном над головой.
+    Картинка characters/gnome_shaman — прыгает и качается кодом (зеркалится на каждом повороте)."""
+    hop = abs(math.sin(t * 4.2)) * 7 * k
+    turn = math.sin(t * 2.1) < 0
+    if blit_tf(s, "characters/gnome_shaman", x, y - hop, k, flip=flip ^ turn,
+               sy=1 + 0.05 * math.sin(t * 8.4), angle=8 * math.sin(t * 4.2), alpha=alpha):
+        return
+    ellipse(s, (150, 175, 200), x, y + 1, 22 * k, 6 * k, 0)              # тень на снегу
+    sx, sy, tip = _gnome_body(s, x, y, k, (110, 70, 150), (70, 50, 120), hop=hop, lean=3 * math.sin(t * 4.2))
+    for n, c in enumerate(((230, 80, 70), (250, 200, 70), (90, 180, 110))):          # перья на колпаке
+        a = -2.0 + n * 0.5
+        pygame.draw.line(s, c, (P(tip[0]), P(tip[1])), (P(tip[0] + math.cos(a) * 9 * k), P(tip[1] + math.sin(a) * 9 * k)),
+                         max(2, P(2.5 * k)))
+    d = 1 if math.sin(t * 2.1) >= 0 else -1
+    bx, by = sx + d * (10 + 3 * math.sin(t * 8.4)) * k, sy - 16 * k + 3 * math.sin(t * 8.4) * k   # бубен над головой
+    pygame.draw.line(s, OUT, (P(sx), P(sy)), (P(bx), P(by + 4 * k)), max(2, P(3 * k)))
+    pygame.draw.line(s, (110, 70, 150), (P(sx), P(sy)), (P(bx), P(by + 4 * k)), max(1, P(1.6 * k)))
+    ellipse(s, (235, 215, 170), bx, by, 15 * k, 12 * k, 2)
+    pygame.draw.ellipse(s, (200, 70, 60), pygame.Rect(P(bx - 7.5 * k), P(by - 6 * k), max(1, P(15 * k)), max(1, P(12 * k))),
+                        max(1, P(2 * k)))
+    for n in range(4):                                                   # бубенчики
+        a = t * 3 + n * math.pi / 2
+        pygame.draw.circle(s, (250, 215, 90), (P(bx + math.cos(a) * 7 * k), P(by + math.sin(a) * 5.5 * k)), max(1, P(1.6 * k)))
+
+
+def draw_gnome_shaman_walk(s, x, y, k=1.0, t=0.0, flip=False):
+    """Шаман идёт на лужайку или уходит с неё: семенит, бубен у пояса позвякивает."""
+    if blit_tf(s, "characters/gnome_shaman", x, y, k, flip=flip, angle=5 * math.sin(t * 9)):
+        return
+    sx, sy, tip = _gnome_body(s, x, y, k, (110, 70, 150), (70, 50, 120), lean=2 * math.sin(t * 9))
+    for n, c in enumerate(((230, 80, 70), (250, 200, 70), (90, 180, 110))):
+        a = -2.0 + n * 0.5
+        pygame.draw.line(s, c, (P(tip[0]), P(tip[1])), (P(tip[0] + math.cos(a) * 9 * k), P(tip[1] + math.sin(a) * 9 * k)),
+                         max(2, P(2.5 * k)))
+    d = 1 if flip else -1
+    ellipse(s, (235, 215, 170), sx + d * 9 * k, sy + 6 * k, 12 * k, 10 * k, 2)
+
+
 def draw_helper_head(s, x, y, k=1.0):
     """Значок помощника-артели текущей фермы: крестьянин или гном."""
     hp = HELPERS.get(FARMS[min(FARM_INDEX[0], len(FARMS) - 1)].get("helpers", "peasants"), HELPERS["peasants"])

@@ -327,7 +327,7 @@ class MoveUI:
         if nxt and nxt["peasants"]:
             parts.append(("Там: крестьяне, мельница с пекарней, разбойники, печати.", soft))
         elif nxt and nxt["frost"]:
-            parts.append(("Там: вместо дождя оттепель, вместо вороны мороз.", soft))
+            parts.append(("Там: вместо дождя гномье пришествие, вместо вороны мороз.", soft))
         y = box.y + 66
         for text, col in parts:
             for line in wrap(text, 15, box.w - 60, 3):

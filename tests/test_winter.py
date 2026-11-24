@@ -36,11 +36,45 @@ class WinterData(unittest.TestCase):
             self.assertNotEqual(s["key"], w["key"])
         self.assertEqual([a["name"] for a in cfg.ANIMALS], [a["name"] for a in cfg.ANIMALS_SUMMER])  # сейчас лето
 
-    def test_gnomes_and_thaw(self):
+    def test_gnomes_and_gnome_rush(self):
         w = self.winter()
         self.assertTrue(w["peasants"])
         self.assertEqual(cfg.HELPERS[w["helpers"]]["title"], "Гномы")
-        self.assertEqual(cfg.WEATHER_BUTTON[w["weather"]], "thaw")
+        self.assertEqual(w["weather"], "Гномье пришествие")
+        self.assertEqual(cfg.WEATHER_BUTTON[w["weather"]], "shaman")
+        self.assertTrue(w.get("rush_helpers"))
+        self.assertEqual(len(cfg.SHAMAN_SPOTS), 2)
+
+    def test_gnome_rush_works_every_bed(self):
+        """3.26: пока идёт пришествие, грядки без своего гнома копят урожай сами; кончилось — снова ждут."""
+        from farmgame.logic import Farm
+        f = Farm()
+        f.farm_index = next(n for n, fm in enumerate(cfg.FARMS) if fm["id"] == "winter")
+        f.levels[0] = 1
+        f.farmers[0] = False
+        t = f.cycle_time(0)
+        f.update(t * 1.01)                       # без пришествия: созрела и ждёт
+        self.assertTrue(f.ready[0])
+        one = f.stash[0]
+        self.assertFalse(f.helper_rush())
+        f.rain_cd = 0
+        self.assertTrue(f.start_rain())
+        self.assertTrue(f.helper_rush() and f.working(0))
+        f.update(0.001)                          # созревшее не считается дважды
+        self.assertAlmostEqual(f.stash[0], one)
+        for _ in range(5):
+            f.update(t / f.growth_speed() * 1.001)
+        self.assertGreater(f.stash[0], one * 4)  # гном работал: урожай копится, грядка не ждёт
+        self.assertFalse(f.ready[0])
+        f.rain_left = 0.0
+        self.assertFalse(f.helper_rush())
+
+    def test_summer_rain_has_no_rush(self):
+        from farmgame.logic import Farm
+        f = Farm()
+        f.rain_cd = 0
+        f.start_rain()
+        self.assertFalse(f.helper_rush())
 
     def test_quest_says_gnomes(self):
         from farmgame import tavern as tv

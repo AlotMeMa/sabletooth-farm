@@ -98,6 +98,8 @@ class ScreenUI:
                 self.leave_wide()
             elif not self.fullscreen and self.edge_fill and self.enter_wide():
                 pass
+            elif self.fullscreen:                # обычный полный экран (с полосами) — выходим через новое окно
+                self.restore_window(fresh=True)
             else:
                 pygame.display.toggle_fullscreen()
             self.fullscreen = not self.fullscreen
@@ -144,14 +146,33 @@ class ScreenUI:
         except Exception:
             return None
 
-    def restore_window(self):
+    def restore_window(self, fresh=False):
+        """Обычное окно. fresh=True — окно создаётся заново с нуля (выход из полного экрана, 3.26)."""
+        if fresh:
+            self.fresh_display()
         real = pygame.display.set_mode(self.canvas, pygame.SCALED | pygame.RESIZABLE)
         self.set_canvas(real)
         hd.set_offset(0, 0)
         self.wide = None
 
+    def fresh_display(self):
+        """3.26: выход из полного экрана давал чёрное окно — SDL оставлял «рисовальщик» полноэкранного размера,
+        и кадры игры уходили мимо окна. Теперь окно закрывается и открывается заново: видеосистема SDL
+        перезапускается, а картинки, звук и сохранение не трогаются (они живут отдельно от окна)."""
+        try:
+            pygame.display.quit()
+            pygame.display.init()
+        except pygame.error as e:
+            print("Окно не перезапустилось:", e)
+        try:
+            pygame.display.set_caption(f"Весёлая ферма {GAME_VERSION}")
+        except pygame.error:
+            pass
+        self.cursor_state = None              # свой курсор поставится заново на первом кадре
+        self.was_minimized = False
+
     def leave_wide(self):
-        self.restore_window()
+        self.restore_window(fresh=True)
 
     def on_window_event(self, e):
         """3.16.5: свернули полный экран (кнопкой, Alt+Tab, Win), а Windows вернул его обычным окном — пересоздаём.
@@ -190,7 +211,7 @@ class ScreenUI:
         self.fullscreen = False
         hd.set_offset(0, 0)
         try:
-            self.restore_window()
+            self.restore_window(fresh=True)
         except pygame.error as e:
             print("Окно не пересоздалось:", e)
 

@@ -158,6 +158,10 @@ def spec_list():
         add(f"icons/{an['icon']}", (30, 30), "центр", an["product"] + " (зима)", 1, lambda s: None)
     add("icons/frostleaf", (40, 40), "центр", "голубой листочек (валюта зимы)", 1, lambda s: None)
     add("icons/gnome", (26, 26), "центр", "гном-помощник (зима)", 1, lambda s: None)
+    add("characters/gnome_worker", (44, 54), "низ по центру (22, 54) = снег у грядки",
+        "гном из «Гномьего пришествия» с тяпкой (зима)", 1, lambda s: art.draw_gnome_worker(s, 22, 54, 1.0))
+    add("characters/gnome_shaman", (56, 70), "низ по центру (28, 70) = снег на лужайке",
+        "гном-шаман с бубном (зима)", 1, lambda s: art.draw_gnome_shaman(s, 28, 70, 1.0, 0.0))
     for v in ("sled", "sled_0", "sled_1", "sled_2"):
         add(f"vehicles/{v}", (270, 124), "низ по центру = снег", "собачья упряжка (зима)", 1, lambda s: None)
     for a, key in enumerate(keys):
@@ -356,7 +360,7 @@ def known_names():
     from .spritefit import SHEETS
     names |= set(SHEETS)   # листы: icons/sheet, ui/buttons, icons/prizes, ui/chips
     from .spritefit import BUTTON_SHEET_ORDER
-    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_thaw", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
+    names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_shaman", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

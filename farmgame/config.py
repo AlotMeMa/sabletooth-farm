@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.25.1"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.26"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -320,11 +320,14 @@ def _index_tree(tree):
     return nodes
 
 
+GNOME_RUSH = "Гномье пришествие"   # 3.26: зимняя «погода» (была «Оттепель», решение пользователя 24.11)
+
+
 def _winter_tree():
-    """3.24: Зимнее дерево — пока как Дерево листьев (те же эффекты), ветка погоды — «Оттепель»."""
+    """3.24: Зимнее дерево — пока как Дерево листьев (те же эффекты), ветка погоды — «Гномье пришествие» (3.26)."""
     out = []
     for bname, nodes in TREE_SUMMER:
-        out.append(("Оттепель" if bname == "Погода" else bname, [dict(n) for n in nodes]))
+        out.append((GNOME_RUSH if bname == "Погода" else bname, [dict(n) for n in nodes]))
     return out
 
 
@@ -373,7 +376,10 @@ HELPERS = {
     "gnomes": dict(title="Гномы", gen="гномов", one="гном", acc="гнома", icon="gnome",
                    plural=("гнома", "гнома", "гномов")),
 }
-WEATHER_BUTTON = {"Праздник урожая": "festival", "Оттепель": "thaw"}   # погода кнопкой (не тучкой): имя кнопки
+WEATHER_BUTTON = {"Праздник урожая": "festival", GNOME_RUSH: "shaman"}   # погода кнопкой (не тучкой): имя кнопки
+# 3.26: «Гномье пришествие» — из леса выходят ещё гномы и работают на ВСЕХ грядках (и без своего гнома),
+# а на лужайке справа гномы-шаманы пляшут с бубнами. Кнопка — ui/btn_shaman, гномы — characters/gnome_*.
+SHAMAN_SPOTS = [(862, 372), (936, 418)]    # где пляшут шаманы (лужайка справа от поля, логические координаты)
 FARMS = [
     dict(id="summer", name="Летняя ферма", names=[c["name"] for c in CROPS],
          plants=["potato", "carrot", "wheat", "tomato", "cucumber", "corn", "beet", "cabbage", "pumpkin"],
@@ -397,8 +403,9 @@ FARMS = [
          plants=["cranberry", "ginger", "kale", "frostmint", "pinkradish", "cloudberry", "seabuckthorn", "bluepotato",
                  "icepumpkin"],
          # 3.25 (решения пользователя): помощники — гномы, как крестьяне (общая артель); вместо дождя — кнопка
-         # «Оттепель», как «Праздник урожая» в средневековье
-         theme=THEME_WINTER, weather="Оттепель", crow=False, frost=True, bandits=False, peasants=True,
+         # «Гномье пришествие» (3.26, было «Оттепель»), как «Праздник урожая» в средневековье;
+         # rush_helpers: пока оно идёт, все грядки работают сами, будто на каждой стоит гном
+         theme=THEME_WINTER, weather=GNOME_RUSH, rush_helpers=True, crow=False, frost=True, bandits=False, peasants=True,
          helpers="gnomes", barn="animals", animals="winter", tree="winter", cur="frost", ready=False,
          trophy=dict(name="Снежинка", text=""),
          buyer="каюр", buyer_cap="Каюр", arrive="Гав-гав! Примчалась собачья упряжка!",

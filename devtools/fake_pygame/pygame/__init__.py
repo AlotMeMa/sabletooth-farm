@@ -716,7 +716,8 @@ def _set_mode(size=(0, 0), flags=0, *a, **kw):
 
 display = types.SimpleNamespace(
     set_mode=_set_mode, set_caption=lambda *a: None, flip=lambda: _stat("flip"), update=lambda *a: None,
-    toggle_fullscreen=lambda: 1, get_desktop_sizes=lambda: [STATE.get("desktop", (1920, 1080))],
+    toggle_fullscreen=lambda: 1, quit=lambda: _stat("display_quit"), init=lambda: _stat("display_init"),
+    get_desktop_sizes=lambda: [STATE.get("desktop", (1920, 1080))],
     Info=lambda: types.SimpleNamespace(current_w=STATE.get("desktop", (1920, 1080))[0],
                                        current_h=STATE.get("desktop", (1920, 1080))[1]),
     get_surface=lambda: STATE["screen"], set_icon=lambda s: None, get_window_size=lambda: STATE["screen"].get_size(),

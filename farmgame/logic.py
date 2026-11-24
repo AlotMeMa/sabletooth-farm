@@ -156,6 +156,14 @@ class Farm:
                 return sg.get(key, 1.0)
         return 1.0
 
+    def helper_rush(self):
+        """3.26: «Гномье пришествие» идёт — на каждой грядке работает гном (даже где своего нет)."""
+        return self.rain_left > 0 and bool(self.farm_def().get("rush_helpers"))
+
+    def working(self, i):
+        """На грядке сейчас кто-то работает: свой помощник или гном из пришествия."""
+        return self.farmers[i] or self.helper_rush()
+
     def growth_speed(self):
         return _rain_speed(self.up("rain_power")) if self.rain_left > 0 else 1.0
 
@@ -214,7 +222,7 @@ class Farm:
             return 0.0
         self.stash[crop] -= take
         self.a_feed[a] += take
-        if self.stash[crop] <= self.cycle_income(crop) * 1e-9 and not self.farmers[crop]:
+        if self.stash[crop] <= self.cycle_income(crop) * 1e-9 and not self.working(crop):
             self.stash[crop] = 0.0
             self.ready[crop] = False
             self.progress[crop] = 0.0
@@ -349,7 +357,7 @@ class Farm:
             self.stash[i] -= take
             space -= take
             moved += take
-            if self.stash[i] <= self.cycle_income(i) * 1e-9 and not self.farmers[i]:
+            if self.stash[i] <= self.cycle_income(i) * 1e-9 and not self.working(i):
                 self.stash[i] = 0.0
                 self.ready[i] = False
                 self.progress[i] = 0.0
@@ -520,11 +528,14 @@ class Farm:
         self._run_mill(dt, automation)
 
         sp = self.growth_speed()
+        rush = self.helper_rush()
         for i in range(N_CROPS):
             if self.levels[i] == 0 or self.blocked[i] or self.frozen[i] > 0:
                 continue
             t = self.cycle_time(i)
-            if self.farmers[i]:
+            if self.farmers[i] or rush:
+                if rush and self.ready[i] and not self.farmers[i]:   # 3.26: созревшее уже лежит в stash —
+                    self.ready[i], self.progress[i] = False, 0.0     # гном начинает новый круг, не считая его дважды
                 self.progress[i] += dt * sp
                 if self.progress[i] >= t:
                     k = int(self.progress[i] // t)
@@ -548,7 +559,7 @@ class Farm:
             self.last_lucky = True
         self.earn(amt)
         self.stash[i] = 0.0
-        if not self.farmers[i]:
+        if not self.working(i):
             self.ready[i] = False
             self.progress[i] = 0.0
         return amt

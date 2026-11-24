@@ -245,6 +245,7 @@ SFX_INFO = {   # имя -> когда играет
     "crowd": "гул голосов в таверне (фон, играет по кругу)",
     "fire": "треск камина (фон у камина, играет по кругу)",
     "spark": "подбросили полено — огонь вспыхнул и затрещал",
+    "tambourine": "гномье пришествие: шаманы бьют в бубен (зима)",
 }
 SFX_NAMES = tuple(SFX_INFO)
 MIN_GAP = {"coin": 0.06, "hover": 0.03, "feed": 0.1, "spark": 0.3}   # чтобы при сборе «пачкой» не трещало
@@ -343,6 +344,12 @@ def _spec(name):
         return [(0, _fire)]
     if name == "spark":
         return [(0, lambda rate: _crackles(rate, 0.9, 26, 0.7, seed=5))]
+    if name == "tambourine":   # 3.26: удар по коже бубна + звон бубенчиков, три раза
+        out = []
+        for i, d in enumerate((0.0, 0.22, 0.44, 0.55)):
+            out.append((d, T(150, 85, 0.16, 0.30)))
+            out.append((d + 0.01, lambda r, i=i: _noise(r, 0.14 if i < 3 else 0.3, 0.10, 0.02, 0.12)))
+        return out
     if name == "sell":
         return [(i * 0.05, T(f, f, 0.14, 0.17, "bright"))
                 for i, f in enumerate((N["E6"], N["G6"], N["B6"], N["E6"], N["G6"], N["B6"], N["C7"]))]

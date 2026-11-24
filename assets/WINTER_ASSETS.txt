@@ -1,0 +1,21 @@
+Зимняя глава (3) — какие картинки куда класть. Промты: Claude Doc «Промпты для Gemini», раздел «Зима».
+PNG или JPG, любого размера: игра сама уберёт фон и подгонит размер.
+
+backgrounds/winter.png              фон зимнего поля
+crops/winter/<имя>.png              9 растений (список — в crops/winter/README.txt)
+animals/goose.png                   гусь
+animals/yak.png                     як
+animals/reindeer.png                северный олень
+animals/bearcub.png                 медвежонок
+icons/frostleaf.png                 голубой листочек (валюта)
+icons/down.png                      пух
+icons/wool.png                      шерсть
+icons/cheese.png                    сыр
+icons/jam.png                       варенье
+icons/gnome.png                     значок гнома-помощника
+characters/gnome_worker.png         гном с тяпкой (Гномье пришествие)
+characters/gnome_shaman.png         гном-шаман с бубном (Гномье пришествие)
+ui/btn_shaman.png                   кнопка «Гномье пришествие»
+vehicles/sled_0.png                 упряжка из трёх лаек
+vehicles/sled_1.png                 упряжка из шести лаек
+vehicles/sled_2.png                 королевская упряжка

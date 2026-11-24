@@ -465,7 +465,7 @@ class WindowsUI:
             f.reset_run()
             self.set_theme()
             self.view, self.modal = "field", None
-            self.toast("Зимнее поле (заготовка, только для тестов): гномы — в магазине, оттепель — справа вверху", 4)
+            self.toast("Зимнее поле (заготовка, только для тестов): гномы — в магазине, пришествие — справа вверху", 4)
         def all_crops():
             for i in range(N_CROPS):
                 f.levels[i] += 50

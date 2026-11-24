@@ -20,7 +20,7 @@ import re
 
 import pygame
 
-from .config import BASE_DIR, W, H, PRIZES
+from .config import BASE_DIR, W, H, PRIZE_SHEET_IDS
 
 CACHE_VERSION = "fit7"   # 3.11.2: светлое (мука, дымка) у края на мадженте больше не розовеет — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
@@ -45,7 +45,7 @@ ICON_SHEET_ORDER = ["coin", "coin_silver", "leaf", "seal", "peasant", "egg", "mi
 # лист кнопок 3×3 (assets/ui/buttons.png), порядок по строкам:
 BUTTON_SHEET_ORDER = ["shop", "upgrade", "tree", "barn", "mill", "move", "settings", "field", "close"]
 # 3.14.3: листы казино — несколько картинок одной генерацией
-PRIZE_SHEET_ORDER = [p["id"] for p in PRIZES][:9]   # лист призов 3×3 (assets/icons/prizes.png): первые 9 из config.PRIZES
+PRIZE_SHEET_ORDER = list(PRIZE_SHEET_IDS)       # лист призов 3×3 (assets/icons/prizes.png): порядок клеток
                                                     # (новые призы — отдельными файлами icons/prize_<id>)
 CHIP_SHEET_ORDER = ["ui/chip_5", "ui/chip_10", "ui/chip_25", "ui/chip_50", "props/roulette_ball"]   # ряд из 5 (ui/chips.png)
 # 3.16: доска заданий и таблички (2×3), облачко и стрелка (1×3), частицы и лампочки гирлянды (3×3)
@@ -79,6 +79,8 @@ UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110), 
            # 3.18: плашки, сообщение, баннер, полоска, указатели таверны
            "pill": (360, 100), "toast": (480, 90), "banner": (520, 110), "bar_frame": (400, 60),
            "bar_fill": (400, 60), "sign_board": (264, 208), "sign_casino": (300, 108)}
+DECOR_SIZE = {"cat": (120, 80, "bottom"), "kettle": (110, 110, "bottom"), "flowers": (60, 110, "bottom"),
+              "rug": (600, 130, "center")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
 FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
@@ -218,6 +220,9 @@ def _fit_spec_base(name):
             sz = FX_SIZE[last]
             return _spec(*_box(sz, sz, 1, 1, 1, 1), "center")
         return None
+    if folder == "decor" and last in DECOR_SIZE:      # 3.19: украшения у камина
+        w, h, align = DECOR_SIZE[last]
+        return _spec(*_box(w, h, 1, 1, 1, 1), align)
     if folder == "ui" and last == "slider_knob":
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "ui" and last.startswith("chip_"):   # 3.14: фишки казино (рисуются в 0.5 — вдвое крупнее для чёткости)

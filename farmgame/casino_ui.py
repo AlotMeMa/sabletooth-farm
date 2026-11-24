@@ -349,7 +349,7 @@ class CasinoUI:
         pb = pygame.Rect(14, 112, 170, 46)                  # 3.14.2: над столом, под «В таверну»
         self.button(pb, "Призы", lambda: self.open_modal("prizes"), (245, 175, 50), True, 19)
         draw_token(s, pb.x + 28, pb.centery, 0.7)
-        self.tip(pb, "Призовая стойка: трофеи, удача и украшения за жетоны")
+        self.tip(pb, "Призовая стойка: трофеи и украшения за жетоны")
         if self.cs_say:
             hint = None if self.tavern.casino_intro else \
                 f"щёлкни по крупье — дальше ({self.cs_intro + 1}/{len(CROUPIER_INTRO)})"
@@ -385,44 +385,53 @@ class CasinoUI:
         s, t = self.screen, self.tavern
         r = self.panel(640, 480, "ПРИЗОВАЯ СТОЙКА")
         draw_text(s, f"У тебя жетонов: {t.tokens}", 15, (r.centerx, r.y + 56), (90, 70, 60), outline=None)
-        tabs = (("trophy", "Трофеи"), ("buff", "Удача"), ("cosmetic", "Украшения"))
-        tw = (r.w - 60 - 20) // 3
+        tabs = (("trophy", "Трофеи"), ("cosmetic", "Украшения"))
+        tw = (r.w - 60 - 10) // 2
         for i, (key, title) in enumerate(tabs):
             on = self.prize_tab == key
             self.button((r.x + 30 + i * (tw + 10), r.y + 74, tw, 38), title, lambda k=key: setattr(self, "prize_tab", k),
                         (245, 175, 50) if on else BTN_BLUE, True, 17)
-        items = [p for p in PRIZES if p["kind"] == self.prize_tab]
-        for n, p in enumerate(items):
-            card = pygame.Rect(r.x + 30, r.y + 124 + n * 78, r.w - 60, 70)
+        if self.prize_tab not in ("trophy", "cosmetic"):
+            self.prize_tab = "trophy"
+        items = sorted((p for p in PRIZES if p["kind"] == self.prize_tab), key=lambda p: p["cost"])
+        per = 4
+        pages = max(1, (len(items) + per - 1) // per)
+        self.prize_page = min(getattr(self, "prize_page", 0), pages - 1) if self.prize_tab == getattr(
+            self, "prize_page_tab", None) else 0
+        self.prize_page_tab = self.prize_tab
+        for n, p in enumerate(items[self.prize_page * per:(self.prize_page + 1) * per]):
+            card = pygame.Rect(r.x + 30, r.y + 124 + n * 74, r.w - 60, 66)
             rounded(s, (238, 222, 192), card, 10, 2, skin="card")
             draw_prize_icon(s, p, card.x + 38, card.centery)
             draw_text_fit(s, p["name"], 17, (card.x + 76, card.y + 22), card.w - 270, (90, 70, 60), anchor="midleft",
                           outline=None)
-            sub = p["text"] + (", раз в день" if p["kind"] == "buff" else "")
-            draw_text_fit(s, sub, 13, (card.x + 76, card.y + 48), card.w - 270, (60, 130, 50), anchor="midleft",
+            draw_text_fit(s, p["text"], 13, (card.x + 76, card.y + 45), card.w - 270, (60, 130, 50), anchor="midleft",
                           outline=None)
-            bt = pygame.Rect(card.right - 170, card.y + 14, 156, 42)
+            bt = pygame.Rect(card.right - 170, card.y + 12, 156, 42)
             state = t.prize_state(p)
             if state == "owned" and p["kind"] == "cosmetic":
                 on = t.prize_on(p["id"])
                 self.button(bt, "Включено" if on else "Выключено", lambda pid=p["id"]: self.toggle_prize(pid),
                             BTN_GREEN if on else BTN_GREY, True, 16)
             elif state == "owned":
-                skin_max(s, bt, "На полке")
-            elif state == "today":
-                left = self.farm.lucky_left if p["id"] == "lucky_coin" else self.farm.clover_left
-                label = f"ещё {int(left // 60)}:{int(left % 60):02d}" if left > 0 else "завтра"
-                skin_max(s, bt, label)
+                skin_max(s, bt, "В таверне")
             else:
                 can = t.tokens >= p["cost"]
                 self.button(bt, f"{p['cost']}", lambda pid=p["id"]: self.buy_prize(pid), BTN_GREEN, can, 18)
                 draw_token(s, bt.x + 40, bt.centery, 0.75)
                 if not can:
                     self.tip(bt, f"Нужно жетонов: {p['cost']}")
-        if self.prize_tab == "trophy":
-            owned = sum(1 for p in items if t.prizes.get(p["id"]))
-            draw_text(s, f"На полке трофеев: {owned} из {len(items)}", 14, (r.centerx, r.bottom - 40),
-                      (140, 110, 95), outline=None)
+        owned = sum(1 for p in items if t.prizes.get(p["id"]))
+        draw_text(s, f"Собрано: {owned} из {len(items)}", 14, (r.x + 40, r.bottom - 46), (140, 110, 95),
+                  anchor="midleft", outline=None)
+        if pages > 1:
+            draw_text(s, f"{self.prize_page + 1} / {pages}", 15, (r.centerx, r.bottom - 46), (90, 70, 60), outline=None)
+            if self.prize_page > 0:
+                self.button((r.centerx - 92, r.bottom - 66, 40, 36), "<",
+                            lambda: setattr(self, "prize_page", self.prize_page - 1), BTN_BLUE)
+            if self.prize_page < pages - 1:
+                self.button((r.centerx + 52, r.bottom - 66, 40, 36), ">",
+                            lambda: setattr(self, "prize_page", self.prize_page + 1), BTN_BLUE)
 
     def buy_prize(self, pid):
         ok, why = self.tavern.buy_prize(self.farm, pid)
@@ -441,24 +450,6 @@ class CasinoUI:
             self.sfx.play("hover")
             self.save()
 
-    def draw_prize_pills(self, y, right=None):
-        """Плашки купленных бафов казино с таймером (как у песни барда)."""
-        f, s = self.farm, self.screen
-        for pid, left in (("lucky_coin", f.lucky_left), ("clover", f.clover_left)):
-            if left <= 0:
-                continue
-            p = next(p for p in PRIZES if p["id"] == pid)
-            img = render_text(f"{p['name']}   {int(left // 60)}:{int(left % 60):02d}", 14, WHITE, OUT)
-            r = pygame.Rect(14, y, 50 + img.get_width() + 14, 30)
-            if right is not None:
-                r.right = right
-            from . import skin
-            if not skin.plate(s, "pill", r):                      # 3.18: своя плашка ui/pill
-                rounded(s, (150, 200, 110) if pid == "clover" else (240, 196, 80), r, 15, 3)
-            draw_prize_icon(s, p, r.x + 24, r.centery, 0.55)
-            s.blit(img, img.get_rect(midleft=(r.x + 46, r.centery)))
-            self.tip(r, f"Приз казино: {p['text']}")
-            y += 36
 
 
 # ----------------------------------------------------------------------
@@ -563,6 +554,16 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
         from .tavern_ui import draw_person
         look = dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True)
         draw_person(s, x, y + 16 * k, 0.42 * k, look)
+    elif pid in ("flowers", "rug", "kettle", "cat"):        # 3.19: украшения у камина
+        from .fireside_art import draw_cat, draw_kettle, draw_flowers, draw_rug
+        if pid == "flowers":
+            draw_flowers(s, x, y + 16 * k, 0.62 * k, 0.0)
+        elif pid == "rug":
+            draw_rug(s, x, y, 0.13 * k, 0.62)
+        elif pid == "kettle":
+            draw_kettle(s, x, y + 14 * k, 0.5 * k, 0.0)
+        else:
+            draw_cat(s, x - 5 * k, y + 10 * k, 0.62 * k, 0.0)
     elif pid == "garland":
         pygame.draw.arc(s, OUT, pygame.Rect(x - 20 * k, y - 14 * k, 40 * k, 20 * k), math.pi, 2 * math.pi, 2)
         for i, col in enumerate(((255, 90, 80), (255, 210, 80), (110, 220, 120), (110, 170, 255))):

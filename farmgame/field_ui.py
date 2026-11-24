@@ -103,7 +103,7 @@ class FieldUI:
 
     def coins_to_counter(self, x, y, amt, n=3):
         """Монетки летят дугой из (x, y) в плашку денег; деньги на плашке прибавляются, когда они долетают."""
-        if amt <= 0 or self.view == "board":
+        if amt <= 0 or self.view in ("board", "fireside"):
             return
         share = amt / n
         self.money_pending += amt

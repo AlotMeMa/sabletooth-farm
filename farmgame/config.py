@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.18"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.19"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -68,22 +68,27 @@ SONGS = [
 ]
 # 3.14: казино для игроков. Открывается навсегда, когда жетонов впервые набирается CASINO_UNLOCK_TOKENS
 CASINO_UNLOCK_TOKENS = 100
-# Призовая стойка казино: kind — trophy (навсегда, на полку), buff (раз в день), cosmetic (навсегда, вкл/выкл)
+# Призовая стойка таверны — только косметика (решение автора 24.11: «магазин таверны — исключительно косметика»):
+# kind — trophy (навсегда, встаёт в таверне), cosmetic (навсегда, вкл/выкл). Бафы «Счастливая монета» и «Клевер»
+# (3.14–3.17) убраны.
 PRIZES = [
-    dict(id="horseshoe", kind="trophy", name="Бронзовая подкова", cost=50, text="первый трофей на полку игорного зала"),
+    dict(id="horseshoe", kind="trophy", name="Бронзовая подкова", cost=50, text="первый трофей для таверны"),
     dict(id="cup", kind="trophy", name="Серебряный кубок", cost=150, text="кубок удачливого фермера"),
     dict(id="statue", kind="trophy", name="Золотой крестьянин", cost=500, text="статуэтка с кривым зубом"),
     dict(id="crystal", kind="trophy", name="Хрустальный колос", cost=1500, text="для настоящих завсегдатаев"),
-    dict(id="lucky_coin", kind="buff", name="Счастливая монета", cost=40, minutes=60,
-         text="доход грядок x1.5 на 60 мин", effect="income", value=1.5),
-    dict(id="clover", kind="buff", name="Четырёхлистный клевер", cost=25, minutes=30,
-         text="шанс урожая x10 +5% на 30 мин", effect="lucky", value=0.05),
     dict(id="gold_notes", kind="cosmetic", name="Нарядные ноты", cost=80, text="ноты барда золотые и блестят"),
     dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
     dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
+    # 3.19: уют у камина (видно в зале и в «посиделках у камина»)
+    dict(id="flowers", kind="cosmetic", name="Полевые цветы", cost=60, text="кувшин с цветами на столе и на каминной полке"),
+    dict(id="rug", kind="cosmetic", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
+    dict(id="kettle", kind="cosmetic", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
+    dict(id="cat", kind="cosmetic", name="Кот у камина", cost=150, text="спит у огня; его можно погладить"),
     dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300,
          text="крестьянка поёт свою песню вместо барда"),
 ]
+# лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES
+PRIZE_SHEET_IDS = ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail", "garland"]
 GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше
 # Ворона: реже белки, останавливает грядку, пока её не прогонят (только пока игра открыта)
 CROW_MIN, CROW_MAX = 300.0, 600.0

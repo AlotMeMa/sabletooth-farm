@@ -46,8 +46,7 @@ class HudUI:
             else:
                 y, right = 70 if self.view != "tavern" else 64, W - 14
             y += self.draw_boost_pill(y, right)
-            y += self.draw_song_pill(y, right) or 0
-            self.draw_prize_pills(y, right)
+            self.draw_song_pill(y, right)
 
         # шестерёнка
         g = pygame.Rect(W - 62, 12, 50, 50)

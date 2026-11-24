@@ -6,6 +6,7 @@ from .tavern_ui import TavernUI
 from .board_ui import BoardUI
 from .songs_ui import SongsUI
 from .tavern_life_ui import TavernLifeUI
+from .fireside_ui import FiresideUI
 from .tavern_hud_ui import TavernHudUI
 from .mill_ui import MillUI
 from .tutorial_ui import TutorialUI
@@ -52,7 +53,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
           ScreenUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
@@ -376,7 +377,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, TavernHudUI, MillUI, Tutoria
                 self.mode = "normal"
             elif self.view in ("barn", "tavern"):
                 self.view = "field"
-            elif self.view in ("board", "casino"):
+            elif self.view in ("board", "casino", "fireside"):
                 self.view = "tavern"
         elif key == pygame.K_F11:
             self.toggle_fullscreen()
@@ -388,7 +389,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, TavernHudUI, MillUI, Tutoria
             if key == pygame.K_b and self.view in ("field", "barn"):
                 self.toggle_barn()
             elif key == pygame.K_t and self.tavern.unlocked:
-                if self.view in ("tavern", "board"):
+                if self.view in ("tavern", "board", "fireside"):
                     self.leave_tavern()
                 else:
                     self.open_tavern()
@@ -601,10 +602,11 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, TavernHudUI, MillUI, Tutoria
     def draw_scene(self):
         self.zones = []
         s, f = self.screen, self.farm
-        if self.view in ("barn", "tavern", "board", "casino"):
+        if self.view in ("barn", "tavern", "board", "casino", "fireside"):
             {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view,
-             "casino": self.draw_casino_view}[self.view]()
-            self.draw_hud()
+             "casino": self.draw_casino_view, "fireside": self.draw_fireside_view}[self.view]()
+            if self.view != "fireside":      # 3.19: у камина — без плашек, только огонь
+                self.draw_hud()
             self.draw_toasts()
             self.fx.draw(s)
             if self.modal:

@@ -14,6 +14,7 @@ class TavernUI:
         self.tavern = tv.Tavern()
         self.tavern_check = 0.0
         self.audio_scene = None
+        self.audio_fire = False
         self.tv_bubble = None          # [x, y, text, life]
         self.tv_talk = None            # [индекс гостя на балконе, текст, life]
         self.tv_talk_timer = 2.0
@@ -37,6 +38,7 @@ class TavernUI:
         self.tv_steam_t = 0.0
         self.tv_twinkle_t = 3.0
         self.tv_motes = None
+        self.init_fireside()           # 3.19: посиделки у камина
 
     def quest_blocked(self):
         """Задания, которые сейчас не выполнить: их не выдаём."""
@@ -81,13 +83,18 @@ class TavernUI:
 
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
-        want = "tavern" if self.view in ("tavern", "board", "casino") else None
+        want = "tavern" if self.view in ("tavern", "board", "casino", "fireside") else None
         if want and self.tavern.prize_on("bard_girl") and has_scene_music("tavern_girl"):
             want = "tavern_girl"            # 3.15.2: певица поёт свою песню
-        if want != self.audio_scene:
-            self.audio_scene = want
-            self.music.play_for(self.farm_info()["id"], want)
-            self.sfx.ambient("crowd" if want else None)
+        fire = self.view == "fireside"
+        if want != self.audio_scene or fire != self.audio_fire:
+            if want != self.audio_scene:
+                self.audio_scene = want
+                self.music.play_for(self.farm_info()["id"], want)
+            self.audio_fire = fire
+            # 3.19: у камина музыка тихо, гул зала громче, сверху треск поленьев
+            self.sfx.ambients(({"crowd": 1.5, "fire": 1.7} if fire else {"crowd": 1.0}) if want else {})
+        self.music.fade_scene(0.3 if fire else 1.0, 1 / 60)
         self.sfx.update_ambient()
 
     # ---------- задания ----------
@@ -201,6 +208,9 @@ class TavernUI:
                 self.toast("На доске в таверне — новые задания!", 4)
             self.tavern_check_seen = True
         self.sync_scene_audio()
+        if self.view == "fireside":
+            self.tick_fireside(min(dt, 0.25))
+            return
         if self.view != "tavern":
             return
         rdt = min(dt, 0.25)
@@ -229,6 +239,7 @@ class TavernUI:
         s.blit(self.tavern_bg, (0, 0))
         self.draw_tavern_life(s, tt)
         self.draw_tavern_trophies(s)
+        self.draw_tavern_decor(s, tt)
         if not self.tavern_custom:
             # огонь в камине
             for i in range(5):
@@ -300,6 +311,7 @@ class TavernUI:
                         pivot="center", alpha=255 * min(1.0, life / 0.6))
             else:
                 draw_note(s, x, y, color=col)
+        self.draw_fireplace_zone(s)
         self.zone(L["barman_zone"], self.say_barman)
         self.zone(L["bard_zone"], self.open_songs)
         self.tip(L["bard_zone"], "Бард: заказать песню за жетоны")

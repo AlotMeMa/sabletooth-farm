@@ -13,7 +13,7 @@ import random
 
 import pygame
 
-from .config import W, H, PRIZES
+from .config import W, H, PRIZES, PRIZE_TABS
 from .art import (OUT, WHITE, GOLD, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, rounded, draw_text, render_text,
                   draw_text_fit, blit_sprite, blit_tf, blit_light, has_sprite, ellipse, RAINBOW)
 from .tavern_ui import draw_token, draw_person, draw_bubble
@@ -97,7 +97,7 @@ class CasinoUI:
         self.cs_bg = None
         self.cs_say = None              # [текст, секунд осталось] — облачко крупье
         self.cs_intro = 0               # номер подсказки правил (пока крупье рассказывает)
-        self.prize_tab = "trophy"
+        self.prize_tab = "decor"         # 3.33: вкладки PRIZE_TABS, трофеи — последние
 
     def open_casino(self):
         """Казино — за дверью таверны: зал таверны готовим тоже (кнопка «В таверну» ведёт туда)."""
@@ -387,18 +387,21 @@ class CasinoUI:
     # ------------------------------------------------------------ призовая стойка
     def draw_prizes(self):
         s, t = self.screen, self.tavern
-        r = self.panel(640, 480, "ПРИЗОВАЯ СТОЙКА")
+        r = self.panel(700, 480, "ПРИЗОВАЯ СТОЙКА")
         draw_text(s, f"У тебя жетонов: {t.tokens}", 15, (r.centerx, r.y + 56), (90, 70, 60), outline=None)
-        tabs = (("trophy", "Трофеи"), ("cosmetic", "Украшения"))
-        tw = (r.w - 60 - 10) // 2
-        for i, (key, title) in enumerate(tabs):
+        keys = [k for k, _ in PRIZE_TABS]
+        if self.prize_tab not in keys:
+            self.prize_tab = keys[0]
+        tw = (r.w - 60 - 8 * (len(keys) - 1)) // len(keys)
+        for i, (key, title) in enumerate(PRIZE_TABS):     # 3.33: украшения, персонажи, эффекты, прочее, трофеи
             on = self.prize_tab == key
-            self.button((r.x + 30 + i * (tw + 10), r.y + 74, tw, 38), title, lambda k=key: setattr(self, "prize_tab", k),
-                        (245, 175, 50) if on else BTN_BLUE, True, 17)
-        if self.prize_tab not in ("trophy", "cosmetic"):
-            self.prize_tab = "trophy"
-        items = sorted((p for p in PRIZES if p["kind"] == self.prize_tab),
-                       key=lambda p: (bool(p.get("jackpot")), p["cost"]))    # 3.27: скины джекпота — в конце
+            self.button((r.x + 30 + i * (tw + 8), r.y + 74, tw, 38), title, lambda k=key: setattr(self, "prize_tab", k),
+                        (245, 175, 50) if on else BTN_BLUE, True, 15)
+        if self.prize_tab == "trophy":
+            pool = [p for p in PRIZES if p["kind"] == "trophy"]
+        else:
+            pool = [p for p in PRIZES if p["kind"] == "cosmetic" and p.get("cat", "decor") == self.prize_tab]
+        items = sorted(pool, key=lambda p: (bool(p.get("jackpot") or p.get("achievement")), p["cost"]))  # не продающиеся — в конце
         per = 4
         pages = max(1, (len(items) + per - 1) // per)
         self.prize_page = min(getattr(self, "prize_page", 0), pages - 1) if self.prize_tab == getattr(
@@ -420,6 +423,9 @@ class CasinoUI:
                             BTN_GREEN if on else BTN_GREY, True, 16)
             elif state == "owned":
                 skin_max(s, bt, "В таверне")
+            elif p.get("achievement"):    # 3.34: трофей за достижение
+                self.button(bt, "За достижение", lambda: None, BTN_GREY, False, 14)
+                self.tip(bt, "Дают в «Достижениях»: " + p["text"])
             elif p.get("jackpot"):        # 3.27: не продаётся — выпадает джекпотом колеса фортуны в Игровой
                 self.button(bt, "Джекпот колеса", lambda: None, BTN_GREY, False, 14)
                 self.tip(bt, "Выпадает только джекпотом колеса фортуны в Игровой")
@@ -567,6 +573,8 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
             pygame.draw.circle(s, (255, 212, 80), (int(x - 14 * k + i * 6 * k), int(y + 8 * k - i * 4 * k)),
                                max(1, int((1 + i) * k)))
         poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
+    elif draw_new_prize_icon(s, pid, x, y, k):         # 3.33–3.34: новые призы
+        pass
     elif pid in ("bard_girl", "fiddler", "bagpiper"):              # 3.23: артисты сцены
         from .tavern_ui import draw_person, ARTIST_LOOKS
         draw_person(s, x, y + 16 * k, 0.42 * k, ARTIST_LOOKS[pid])
@@ -588,3 +596,81 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
             by = y - 4 * k + 10 * k * 4 * u * (1 - u)
             pygame.draw.circle(s, OUT, (int(bx), int(by + 4 * k)), int(5 * k) + 1)
             pygame.draw.circle(s, col, (int(bx), int(by + 4 * k)), int(5 * k))
+
+
+def draw_new_prize_icon(s, pid, x, y, k=1.0):
+    """3.33–3.34: значки новых призов кодом. True — нарисовано."""
+    from . import decor_art as da
+    if pid == "acorn":
+        ellipse(s, (176, 118, 62), x, y + 4 * k, 22 * k, 26 * k)
+        ellipse(s, (130, 86, 46), x, y - 9 * k, 28 * k, 12 * k)
+        pygame.draw.line(s, OUT, (x, int(y - 15 * k)), (int(x + 3 * k), int(y - 21 * k)), max(2, int(3 * k)))
+        blit_light(s, x - 4 * k, y, 16 * k, (255, 230, 170), 120, 0.0)
+    elif pid == "seal_trophy":
+        pygame.draw.circle(s, OUT, (x, y), int(17 * k) + 2)
+        pygame.draw.circle(s, (190, 40, 45), (x, y), int(17 * k))
+        pygame.draw.circle(s, (150, 25, 30), (x, y), int(11 * k), max(1, int(2 * k)))
+        poly(s, GOLD, [(x - 8 * k, y + 4 * k), (x - 8 * k, y - 5 * k), (x - 4 * k, y), (x, y - 7 * k), (x + 4 * k, y),
+                       (x + 8 * k, y - 5 * k), (x + 8 * k, y + 4 * k)], 1)
+    elif pid == "crown":
+        poly(s, GOLD, [(x - 18 * k, y + 10 * k), (x - 20 * k, y - 10 * k), (x - 9 * k, y - 1 * k), (x, y - 16 * k),
+                       (x + 9 * k, y - 1 * k), (x + 20 * k, y - 10 * k), (x + 18 * k, y + 10 * k)], 2)
+        for dx, col in ((-10, (210, 60, 60)), (0, (80, 160, 230)), (10, (90, 190, 90))):
+            pygame.draw.circle(s, col, (int(x + dx * k), int(y + 4 * k)), max(2, int(3 * k)))
+        for dx in (-9, 9):
+            poly(s, (240, 200, 90), [(x + dx * k - 3 * k, y + 13 * k), (x + dx * k, y + 8 * k), (x + dx * k + 3 * k, y + 13 * k),
+                                     (x + dx * k, y + 18 * k)], 1)
+    elif pid == "snowflake":
+        for i in range(6):
+            a = i * math.pi / 3
+            ex, ey = x + math.cos(a) * 17 * k, y + math.sin(a) * 17 * k
+            pygame.draw.line(s, (150, 200, 235), (x, y), (ex, ey), max(2, int(4 * k)))
+            pygame.draw.line(s, (235, 248, 255), (x, y), (ex, ey), max(1, int(2 * k)))
+            mx, my = x + math.cos(a) * 10 * k, y + math.sin(a) * 10 * k
+            for da_ in (-0.7, 0.7):
+                pygame.draw.line(s, (220, 240, 255), (mx, my), (mx + math.cos(a + da_) * 6 * k, my + math.sin(a + da_) * 6 * k), 2)
+        blit_light(s, x, y, 30 * k, (200, 235, 255), 140, 0.0)
+    elif pid == "golden_squirrel":
+        ellipse(s, (245, 200, 60), x - 2 * k, y + 4 * k, 20 * k, 22 * k)
+        ellipse(s, (250, 210, 70), x + 2 * k, y - 10 * k, 16 * k, 14 * k)
+        ellipse(s, (235, 185, 50), x + 13 * k, y - 4 * k, 14 * k, 30 * k)
+        pygame.draw.circle(s, OUT, (int(x + 4 * k), int(y - 12 * k)), max(1, int(2 * k)))
+        blit_light(s, x, y - 4 * k, 34 * k, (255, 230, 120), 150, 0.0)
+    elif pid == "golden_pitchfork":
+        pygame.draw.line(s, OUT, (x, int(y + 18 * k)), (x, int(y - 6 * k)), max(4, int(7 * k)))
+        pygame.draw.line(s, (200, 150, 60), (x, int(y + 18 * k)), (x, int(y - 6 * k)), max(2, int(4 * k)))
+        pygame.draw.line(s, GOLD, (int(x - 10 * k), int(y - 6 * k)), (int(x + 10 * k), int(y - 6 * k)), max(2, int(4 * k)))
+        for dx in (-10, 0, 10):
+            pygame.draw.line(s, GOLD, (int(x + dx * k), int(y - 6 * k)), (int(x + dx * k), int(y - 20 * k)), max(2, int(3 * k)))
+        blit_light(s, x, y - 8 * k, 30 * k, (255, 230, 120), 140, 0.0)
+    elif pid == "wreath":
+        da.draw_wreath(s, x, y, 0.55 * k, 0.0)
+    elif pid == "lanterns":
+        da.draw_lantern(s, x, y - 26 * k, 1.0 * k, 0.0)
+    elif pid == "rocking_chair":
+        da.draw_rocking_chair(s, x + 4 * k, y + 18 * k, 0.36 * k, 0.0)
+    elif pid == "dog":
+        da.draw_dog(s, x, y + 14 * k, 0.42 * k, 0.0)
+    elif pid == "owl":
+        da.draw_owl(s, x, y + 22 * k, 0.75 * k, 1.0)
+    elif pid == "own_mug":
+        da.draw_own_mug(s, x, y + 14 * k, 1.1 * k, 0.0)
+    elif pid == "fireflies":
+        for i, (dx, dy) in enumerate(((-12, 6), (4, -10), (12, 8), (-2, 14))):
+            blit_light(s, x + dx * k, y + dy * k, 18 * k, (200, 255, 120), 200, 0.0)
+            pygame.draw.circle(s, (240, 255, 190), (int(x + dx * k), int(y + dy * k)), max(1, int(2 * k)))
+    elif pid in ("leaf_trail", "bubble_trail"):
+        for i in range(5):
+            cx, cy = x - 14 * k + i * 6 * k, y + 8 * k - i * 4 * k
+            if pid == "leaf_trail":
+                poly(s, da.TRAIL_LEAVES[i % 4], [(cx - 4 * k, cy), (cx, cy - 3 * k), (cx + 4 * k, cy), (cx, cy + 3 * k)], 1)
+            else:
+                pygame.draw.circle(s, (150, 200, 240), (int(cx), int(cy)), max(2, int((2 + i * 0.8) * k)), 1)
+        poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
+    elif pid in ("cards_gold", "cards_winter"):
+        from .blackjack_ui import draw_card, CARD_BACKS
+        draw_card(s, x - 6 * k, y + 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
+        draw_card(s, x + 6 * k, y - 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
+    else:
+        return False
+    return True

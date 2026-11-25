@@ -412,13 +412,13 @@ def draw_hover_ring(surf, rect, radius=10, color=(255, 248, 210)):
 RAINBOW = ((255, 90, 80), (255, 170, 60), (255, 225, 80), (110, 220, 120), (90, 180, 255), (180, 120, 255))
 
 
-def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False):
+def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False, style=None):
     """Тонкий исчезающий шлейф за курсором. points = [(x, y, время)].
     Слой — только размером со сам шлейф (а не весь экран): в HD так заметно быстрее."""
     pts = [(x, y, now - t) for x, y, t in points if now - t < life]
     if len(pts) < 2:
         return
-    pad = 8
+    pad = 8 if not style else 22
     lx, ly = int(min(p[0] for p in pts)) - pad, int(min(p[1] for p in pts)) - pad
     lw, lh = int(max(p[0] for p in pts)) - lx + pad + 1, int(max(p[1] for p in pts)) - ly + pad + 1
     layer = hd.Surface((lw, lh), pygame.SRCALPHA)
@@ -429,6 +429,18 @@ def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False)
             continue
         width = max(1, int(1 + 4 * k))
         a, b = (x0 - lx, y0 - ly), (x1 - lx, y1 - ly)
+        if style in ("leaves", "bubbles"):     # 3.33: «Листопад» и «Мыльные пузыри» — через отрезок, чтобы не сливались
+            n = int(x0 * 0.7 + y0 * 1.3)
+            if n % 2:
+                continue
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + (1 - k) * 10 * (1 if style == "leaves" else -1)
+            from .decor_art import trail_leaf, trail_bubble, TRAIL_LEAVES
+            if style == "leaves":
+                trail_leaf(layer, mx + math.sin(now * 5 + n) * 4 * (1 - k), my, k,
+                           TRAIL_LEAVES[(n // 2) % len(TRAIL_LEAVES)], n * 0.7 + now * 3)
+            else:
+                trail_bubble(layer, mx, my, k, n)
+            continue
         if stars:            # 3.27: джекпот «Звёздный шлейф» — разноцветные звёздочки вместо линии
             col = RAINBOW[int(x0 * 0.05 + y0 * 0.03 + now * 6) % len(RAINBOW)]
             r = 2 + 4 * k

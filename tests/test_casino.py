@@ -116,7 +116,7 @@ class PlayerCasino(unittest.TestCase):
         base = self.f.cycle_income(0)
         self.t.tokens = 10 ** 6
         for p in PRIZES:
-            if p.get("jackpot"):          # 3.27: скины джекпота колеса фортуны не продаются
+            if p.get("jackpot") or p.get("achievement"):   # 3.27/3.34: джекпот колеса и трофеи за достижения не продаются
                 self.assertFalse(self.t.buy_prize(self.f, p["id"])[0], p["id"])
                 continue
             self.assertTrue(self.t.buy_prize(self.f, p["id"])[0], p["id"])

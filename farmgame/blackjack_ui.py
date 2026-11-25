@@ -73,10 +73,18 @@ def draw_suit(s, suit, x, y, k=1.0):
         poly(s, col, [(x, y + r * 0.2), (x - r * 0.5, y + r * 1.3), (x + r * 0.5, y + r * 1.3)], 0)
 
 
-def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back", sx=1.0, shadow=True):
+CARD_BACKS = {"cards_gold": "props/card_back_gold", "cards_winter": "props/card_back_winter"}   # 3.33: призы «Прочее»
+BACK_COLORS = {"props/card_back": ((170, 45, 50), (205, 80, 70), (240, 200, 120)),       # рубашки кодом
+               "props/card_back_gold": ((190, 140, 30), (235, 190, 70), (255, 240, 170)),
+               "props/card_back_winter": ((60, 110, 170), (120, 175, 225), (240, 250, 255))}
+CARD_BACK = ["props/card_back"]      # какая рубашка сейчас (ставит BlackjackUI перед рисованием стола)
+
+
+def draw_card(s, x, y, card, face_up=True, k=1.0, back=None, sx=1.0, shadow=True):
     """Карта с центром (x, y): лицо (ранг и масть рисует игра) или рубашка.
     sx — ширина 0..1 (карта переворачивается: сужается до ребра и раскрывается другой стороной)."""
     w, h = BJ["card_w"] * k, BJ["card_h"] * k
+    back = back or CARD_BACK[0]
     sx = max(0.04, min(1.0, sx))
     rect = pygame.Rect(0, 0, max(2, P(w * sx)), P(h))
     rect.center = (P(x), P(y))
@@ -89,9 +97,10 @@ def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back", sx=1.0
         return rect
     if not face_up:
         if not blit_sprite(s, back, x, y, w / 84, "center"):
-            rounded(s, (170, 45, 50), rect, max(4, P(7 * k)), 2, skin=None)
-            rounded(s, (205, 80, 70), rect.inflate(-P(10 * k), -P(10 * k)), max(3, P(5 * k)), 2, (240, 200, 120), skin=None)
-            pygame.draw.circle(s, (240, 200, 120), rect.center, max(3, P(10 * k)), 2)
+            base, inner, line = BACK_COLORS.get(back, BACK_COLORS["props/card_back"])
+            rounded(s, base, rect, max(4, P(7 * k)), 2, skin=None)
+            rounded(s, inner, rect.inflate(-P(10 * k), -P(10 * k)), max(3, P(5 * k)), 2, line, skin=None)
+            pygame.draw.circle(s, line, rect.center, max(3, P(10 * k)), 2)
         return rect
     if not blit_sprite(s, "props/card_face", x, y, w / 84, "center"):
         rounded(s, (252, 248, 238), rect, max(4, P(7 * k)), 2, skin=None)
@@ -291,6 +300,7 @@ class BlackjackUI:
 
     # ------------------------------------------------------------ рисование
     def draw_blackjack_view(self):
+        CARD_BACK[0] = CARD_BACKS.get(self.tavern.group_on("cards"), "props/card_back")
         s, g, t = self.screen, self.bj, self.t_real
         L = bj_layout()
         if getattr(self, "bj_bg", None) is None:

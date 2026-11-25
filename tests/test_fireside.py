@@ -36,9 +36,13 @@ class CosmeticShop(unittest.TestCase):
             self.assertIn(f'"{p["id"]}"', body, f"нет значка кодом для приза {p['id']}")
 
     def test_every_cosmetic_is_visible_somewhere(self):
-        code = "".join(source(n) for n in os.listdir(GAME) if n.endswith(".py"))
+        code = "".join(source(n) for n in os.listdir(GAME) if n.endswith(".py") and n != "config.py")
         for p in PRIZES:
             if p["kind"] == "cosmetic" and not p.get("stage"):     # артисты сцены рисуются через stage_artist()
+                if p.get("group"):     # 3.33: «одно из» — через group_on("<группа>") и сравнение с id
+                    self.assertIn(f'group_on("{p["group"]}")', code, p["id"])
+                    self.assertGreaterEqual(code.count(f'"{p["id"]}"'), 2, p["id"])     # значок + где рисуется
+                    continue
                 self.assertTrue(f'prize_on("{p["id"]}")' in code, f"украшение {p['id']} нигде не рисуется")
 
     def test_ids_unique(self):

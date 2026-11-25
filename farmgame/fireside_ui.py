@@ -15,6 +15,7 @@ from .fireside_art import (FIRESIDE_LAYOUT, FIRESIDE_CUSTOM, Fire, draw_coals, d
 FIRESIDE_HINTS = ["Огонь потрескивает. Ферма работает сама — можно просто посидеть",
                   "Клик по огню — подбросить полено"]
 CAT_LINES = ["Мрр…", "Мрр-мрр…", "*кот приоткрыл один глаз*", "*кот потянулся и снова уснул*"]
+DOG_LINES = ["Гав!", "*пёс стучит хвостом по полу*", "*Буян лизнул тебе руку*", "Вуф… *и снова уснул*"]   # 3.33
 
 
 def load_fireside_layout(custom):
@@ -86,6 +87,7 @@ class FiresideUI:
                 self.fs_fire.update(1 / 60)
         self.fs_fire.update(rdt, 1.0 + 0.8 * self.fs_flare)
         self.fs_purr = max(0.0, self.fs_purr - rdt)
+        self.fs_wag = max(0.0, getattr(self, "fs_wag", 0.0) - rdt)
         self.fs_twitch = max(0.0, self.fs_twitch - rdt * 4)
         if self.fs_twitch <= 0 and random.random() < rdt / 9:
             self.fs_twitch = 1.0
@@ -128,6 +130,28 @@ class FiresideUI:
         self.fs_purr = 4.0
         self.fs_twitch = 1.0
         self.floater(x + 20, y - 50, random.choice(CAT_LINES), (255, 236, 200))
+
+    def draw_fireside_extras(self, s, tt):
+        from .decor_art import draw_wreath, draw_rocking_chair, draw_dog, draw_fireflies
+        t, L = self.tavern, self.fs_lay
+        if t.prize_on("wreath"):
+            draw_wreath(s, *L.get("wreath", (940, 180)), 1.3, tt)
+        if t.prize_on("rocking_chair"):
+            draw_rocking_chair(s, *L.get("chair", (250, 612)), 1.2, tt)
+        if t.prize_on("dog"):
+            x, y = L.get("dog", (835, 610))
+            wag = max(0.0, getattr(self, "fs_wag", 0.0))
+            draw_dog(s, x, y, 1.4, tt, min(1.0, wag), wag > 0)
+            zone = pygame.Rect(int(x - 85), int(y - 70), 170, 72)
+            self.zone(zone, self.pet_dog)
+            self.tip(zone, "Погладить пса")
+        if t.prize_on("fireflies"):
+            draw_fireflies(s, tt, (120, 160, 880, 520), 14, 2)
+
+    def pet_dog(self):
+        x, y = self.fs_lay.get("dog", (835, 610))
+        self.fs_wag = 3.0
+        self.floater(x - 30, y - 80, random.choice(DOG_LINES), (255, 236, 200))
 
     def draw_fireside_trophies(self, s):
         """3.21: купленные трофеи — на каминной полке у огня (в зале их больше нет)."""
@@ -179,6 +203,7 @@ class FiresideUI:
             r = 5 + 14 * k
             s.blit(soft_dot(r, (250, 246, 240), 70 * math.sin(math.pi * k)),
                    (int(x + math.sin(ph + age * 1.6) * 8 * k - r), int(y - 70 * k - r)))
+        self.draw_fireside_extras(s, tt)          # 3.33: венок, кресло-качалка, пёс, светлячки
         if t.prize_on("cat"):
             cx, cy = L["cat"]
             draw_cat(s, cx, cy, 1.6, tt, self.fs_twitch, self.fs_purr > 0)

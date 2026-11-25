@@ -275,6 +275,7 @@ class TavernUI:
             s.blit(self.tavern_fg, (0, 0))
         for img, pos in self.tavern_occ:          # стойка и всё, что стоит перед персонажами
             s.blit(img, pos)
+        self.draw_tavern_front_decor(s, tt)      # 3.33: своя кружка на стойке, сова
         # бард на сцене
         d = L["bard"]
         beat = self.tv_beat()
@@ -293,8 +294,9 @@ class TavernUI:
             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
         notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
-        fancy = self.tavern.prize_on("gold_notes")     # 3.14: приз «Нарядные ноты»
-        rainbow = self.tavern.prize_on("rainbow_notes")   # 3.27: джекпот колеса — ноты переливаются
+        notes_skin = self.tavern.group_on("notes")      # 3.33: одно из — «Нарядные ноты» (3.14) или «Радужные» (3.27)
+        fancy = notes_skin == "gold_notes"
+        rainbow = notes_skin == "rainbow_notes"
         for x, y, life, _vx, col in self.tv_notes:
             if rainbow:
                 col = RAINBOW[int(life * 6 + x * 0.02) % len(RAINBOW)]

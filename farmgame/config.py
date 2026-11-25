@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.32"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.33"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -74,33 +74,71 @@ CASINO_UNLOCK_TOKENS = 100
 # Призовая стойка таверны — только косметика (решение автора 24.11: «магазин таверны — исключительно косметика»):
 # kind — trophy (навсегда, встаёт в таверне), cosmetic (навсегда, вкл/выкл). Бафы «Счастливая монета» и «Клевер»
 # (3.14–3.17) убраны.
+# 3.33 (просьба пользователя 25.11): у косметики раздел cat — вкладка стойки: decor (украшения), chars (персонажи),
+# fx (эффекты), misc (прочее). group — «одно из»: включил одно — остальные из группы выключились (stage — сцена,
+# trail — шлейф курсора, notes — ноты барда, cards — рубашка карт). achievement — даётся за достижение (3.34),
+# jackpot — выпадает джекпотом колеса фортуны; ни то, ни другое не продаётся.
 PRIZES = [
     dict(id="horseshoe", kind="trophy", name="Бронзовая подкова", cost=50, text="первый трофей для таверны"),
     dict(id="cup", kind="trophy", name="Серебряный кубок", cost=150, text="кубок удачливого фермера"),
     dict(id="statue", kind="trophy", name="Золотой крестьянин", cost=500, text="статуэтка с кривым зубом"),
     dict(id="crystal", kind="trophy", name="Хрустальный колос", cost=1500, text="для настоящих завсегдатаев"),
-    dict(id="gold_notes", kind="cosmetic", name="Нарядные ноты", cost=80, text="ноты барда золотые и блестят"),
-    dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
-    dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
-    # 3.19: уют у камина (видно в зале и в «посиделках у камина»)
-    dict(id="flowers", kind="cosmetic", name="Полевые цветы", cost=60, text="кувшин с цветами на столе в зале"),
-    dict(id="rug", kind="cosmetic", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
-    dict(id="kettle", kind="cosmetic", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
-    dict(id="cat", kind="cosmetic", name="Кот у камина", cost=150, text="спит у огня; его можно погладить"),
-    dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300, stage="tavern_girl", timing="music_girl",
-         text="крестьянка поёт свою песню вместо барда"),
+    # 3.33: ещё трофеи на каминную полку
+    dict(id="acorn", kind="trophy", name="Резной жёлудь", cost=300, text="белки смотрят с завистью"),
+    dict(id="seal_trophy", kind="trophy", name="Королевская печать", cost=800, text="настоящая, с королевским гербом"),
+    dict(id="crown", kind="trophy", name="Корона урожая", cost=2500, text="её надевают на празднике урожая"),
+    dict(id="snowflake", kind="trophy", name="Хрустальная снежинка", cost=4000, text="не тает даже у огня"),
+    # 3.34: трофеи за достижения (висят на трубе камина)
+    dict(id="golden_squirrel", kind="trophy", name="Золотая белка", cost=0, achievement="squirrel_3",
+         text="за 100 пойманных белок"),
+    dict(id="golden_pitchfork", kind="trophy", name="Золотые вилы", cost=0, achievement="earned_4",
+         text="за $1aa, заработанный за всю игру"),
+    # --- украшения (decor)
+    dict(id="flowers", kind="cosmetic", cat="decor", name="Полевые цветы", cost=60, text="кувшин с цветами на столе в зале"),
+    dict(id="rug", kind="cosmetic", cat="decor", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
+    dict(id="kettle", kind="cosmetic", cat="decor", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
+    dict(id="garland", kind="cosmetic", cat="decor", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
+    dict(id="wreath", kind="cosmetic", cat="decor", name="Венок из колосьев", cost=140, text="висит на стене у камина"),
+    dict(id="lanterns", kind="cosmetic", cat="decor", name="Фонарики", cost=180, text="три фонаря под балконом зала"),
+    dict(id="rocking_chair", kind="cosmetic", cat="decor", name="Кресло-качалка", cost=250,
+         text="само покачивается у огня"),
+    # --- персонажи (chars)
+    dict(id="cat", kind="cosmetic", cat="chars", name="Кот Рыжик", cost=150, text="спит у огня; его можно погладить"),
+    dict(id="dog", kind="cosmetic", cat="chars", name="Пёс Буян", cost=220, text="дремлет у камина и виляет хвостом"),
+    dict(id="owl", kind="cosmetic", cat="chars", name="Сова Ухта", cost=260, text="сидит на балке в зале и моргает"),
+    dict(id="bard_girl", kind="cosmetic", cat="chars", group="stage", name="Певица Мила", cost=300, stage="tavern_girl",
+         timing="music_girl", text="крестьянка поёт свою песню вместо барда"),
     # 3.23: ещё артисты на сцену. stage — имя своей песни (assets/music/<имя>.ogg; нет файла — музыка таверны),
     # timing — ключ темпа в разметке таверны. На сцене один артист: включил одного — остальные выключились.
-    dict(id="fiddler", kind="cosmetic", name="Скрипач Тимоха", cost=400, stage="tavern_fiddler", timing="music_fiddler",
-         text="весёлый парень со скрипкой вместо барда"),
-    dict(id="bagpiper", kind="cosmetic", name="Волынщик Ерёма", cost=500, stage="tavern_bagpipe", timing="music_bagpipe",
-         text="старый волынщик с бородой до пояса"),
+    dict(id="fiddler", kind="cosmetic", cat="chars", group="stage", name="Скрипач Тимоха", cost=400,
+         stage="tavern_fiddler", timing="music_fiddler", text="весёлый парень со скрипкой вместо барда"),
+    dict(id="bagpiper", kind="cosmetic", cat="chars", group="stage", name="Волынщик Ерёма", cost=500,
+         stage="tavern_bagpipe", timing="music_bagpipe", text="старый волынщик с бородой до пояса"),
+    # --- эффекты (fx)
+    dict(id="gold_notes", kind="cosmetic", cat="fx", group="notes", name="Нарядные ноты", cost=80,
+         text="ноты барда золотые и блестят"),
+    dict(id="gold_trail", kind="cosmetic", cat="fx", group="trail", name="Золотой шлейф", cost=120,
+         text="за курсором тянется золото"),
+    dict(id="leaf_trail", kind="cosmetic", cat="fx", group="trail", name="Листопад", cost=160,
+         text="за курсором кружатся листья"),
+    dict(id="bubble_trail", kind="cosmetic", cat="fx", group="trail", name="Мыльные пузыри", cost=160,
+         text="за курсором летят пузыри"),
+    dict(id="fireflies", kind="cosmetic", cat="fx", name="Светлячки", cost=230, text="порхают в зале и у камина"),
     # 3.27: скины джекпота колеса фортуны в Игровой — не продаются, только выпадают (jackpot=True)
-    dict(id="rainbow_notes", kind="cosmetic", name="Радужные ноты", cost=0, jackpot=True,
+    dict(id="rainbow_notes", kind="cosmetic", cat="fx", group="notes", name="Радужные ноты", cost=0, jackpot=True,
          text="ноты барда — всех цветов радуги"),
-    dict(id="star_trail", kind="cosmetic", name="Звёздный шлейф", cost=0, jackpot=True,
+    dict(id="star_trail", kind="cosmetic", cat="fx", group="trail", name="Звёздный шлейф", cost=0, jackpot=True,
          text="за курсором — разноцветные звёзды"),
+    # --- прочее (misc)
+    dict(id="own_mug", kind="cosmetic", cat="misc", name="Своя кружка", cost=70,
+         text="твоя кружка с сердечком на стойке"),
+    dict(id="cards_gold", kind="cosmetic", cat="misc", group="cards", name="Золотая рубашка", cost=200,
+         text="карты блэкджека с золотой рубашкой"),
+    dict(id="cards_winter", kind="cosmetic", cat="misc", group="cards", name="Зимняя рубашка", cost=200,
+         text="карты блэкджека со снежинками"),
 ]
+PRIZE_TABS = (("decor", "Украшения"), ("chars", "Персонажи"), ("fx", "Эффекты"), ("misc", "Прочее"),
+              ("trophy", "Трофеи"))
 # лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES
 PRIZE_SHEET_IDS = ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail", "garland"]
 GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше

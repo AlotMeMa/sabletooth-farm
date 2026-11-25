@@ -80,6 +80,7 @@ def spin(tavern, d=None, rng=random):
         tavern.tokens += reward["amount"]
     if reward["prize"]:
         tavern.prizes[reward["prize"]] = True
+        tavern._one_on_stage(reward["prize"])     # 3.33: выпавший скин сразу включён (а другой из группы — нет)
     tavern.wheel_day = day_key(d)
     tavern.wheel_last = {"text": reward["text"]}
     return idx, reward

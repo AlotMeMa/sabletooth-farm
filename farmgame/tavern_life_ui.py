@@ -25,6 +25,7 @@ class TavernLifeUI:
 
     def tick_tavern_life(self, rdt):
         """Ноты в такт, искры камина, пар, блик на кружке бармена."""
+        self.tick_owl(rdt)
         d = self.tl["bard"]
         self.tv_solo = max(0.0, self.tv_solo - rdt)
         if self.farm.song_left > 0 and self.farm.song:
@@ -139,6 +140,38 @@ class TavernLifeUI:
         if t.prize_on("flowers"):
             for x, y in d.get("flowers") or []:
                 draw_flowers(s, x, y, 1.0, tt)          # 3.21: крупнее — стоит на столе
+        if t.prize_on("lanterns"):                      # 3.33: фонарики висят на балке под балконом
+            from .decor_art import draw_lantern
+            y0 = self.tl.get("garland_y", 212)
+            for n, x in enumerate(d.get("lanterns") or DECOR_DEFAULTS["lanterns"]):
+                draw_lantern(s, x, y0 - 2, 1.0, tt, n * 1.7)
+
+    def draw_tavern_front_decor(self, s, tt):
+        """3.33: то, что стоит перед стойкой и персонажами: своя кружка, сова на бочке; светлячки над залом."""
+        from .decor_art import draw_own_mug, draw_owl, draw_fireflies
+        t, d = self.tavern, self.tl.get("decor") or {}
+        if t.prize_on("own_mug"):
+            x, y = d.get("own_mug") or DECOR_DEFAULTS["own_mug"]
+            draw_own_mug(s, x, y, 1.0, tt)
+            self.tip(pygame.Rect(int(x - 14), int(y - 30), 30, 32), "Твоя кружка")
+        if t.prize_on("owl"):
+            x, y = d.get("owl") or DECOR_DEFAULTS["owl"]
+            hoot = max(0.0, getattr(self, "owl_hoot", 0.0))
+            draw_owl(s, x, y, 1.0, tt, hoot)
+            zone = pygame.Rect(int(x - 24), int(y - 66), 48, 68)
+            self.zone(zone, self.poke_owl)
+            self.tip(zone, "Сова Ухта")
+        if t.prize_on("fireflies"):
+            draw_fireflies(s, tt, d.get("fireflies") or DECOR_DEFAULTS["fireflies"], 12, 1)
+
+    def poke_owl(self):
+        d = self.tl.get("decor") or {}
+        x, y = d.get("owl") or DECOR_DEFAULTS["owl"]
+        self.owl_hoot = 1.2
+        self.tv_bubble = [x, y - 70, random.choice(OWL_LINES), 2.5]
+
+    def tick_owl(self, rdt):
+        self.owl_hoot = max(0.0, getattr(self, "owl_hoot", 0.0) - rdt)
 
     def draw_garland(self, s, tt):
         """3.14, приз казино: гирлянда огоньков провисает под балконом, лампочки мигают по очереди."""

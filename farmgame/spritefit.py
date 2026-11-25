@@ -77,12 +77,23 @@ GNOMES_SHEET_ORDER = ["gnome_worker_1", "gnome_worker_2", "gnome_worker_3",
 # 3.29: второй лист призов (3×3, assets/icons/prizes_2.png) — украшения 3.19–3.27, у которых не было картинок;
 # девятая клетка — запас (пропуск)
 PRIZE2_SHEET_ORDER = ["flowers", "rug", "kettle", "cat", "fiddler", "bagpiper", "rainbow_notes", "star_trail", "_unused"]
+# 3.33: значки новых призов — два листа 3×3 (assets/icons/prizes_3.png и prizes_4.png)
+PRIZE3_SHEET_ORDER = ["acorn", "seal_trophy", "crown", "snowflake", "golden_squirrel", "golden_pitchfork",
+                      "wreath", "lanterns", "rocking_chair"]
+PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubble_trail", "cards_gold", "cards_winter",
+                      "_unused"]
+# 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
+DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
+                      "characters/owl"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER, 3, 3),
     "icons/prizes": ("icons/prize_", PRIZE_SHEET_ORDER, 3, 3),
     "icons/prizes_2": ("icons/prize_", PRIZE2_SHEET_ORDER, 3, 3),   # 3.29: украшения без картинок
+    "icons/prizes_3": ("icons/prize_", PRIZE3_SHEET_ORDER, 3, 3),   # 3.33: трофеи и украшения
+    "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
+    "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
@@ -113,7 +124,10 @@ UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110), 
            "pill": (360, 100), "toast": (480, 90), "banner": (520, 110), "bar_frame": (400, 60),
            "bar_fill": (400, 60), "sign_board": (264, 208), "sign_casino": (300, 108)}
 DECOR_SIZE = {"cat": (120, 80, "bottom"), "kettle": (110, 110, "bottom"), "flowers": (60, 110, "bottom"),
-              "rug": (600, 130, "center")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
+              "rug": (600, 130, "center"),
+              # 3.33: венок (на стене у камина), фонарь (под балкой зала, верх — крючок), кресло-качалка, своя кружка
+              "wreath": (130, 150, "center"), "lantern": (60, 100, "top"), "rocking_chair": (190, 190, "bottom"),
+              "own_mug": (60, 64, "bottom")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
 FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 
@@ -239,6 +253,10 @@ def _fit_spec_base(name):
             return _spec(*_box(56, 68, 2, 2, 2, 0), "bottom")     # 3.27: крупнее (на поле — ×1.25)
         if last.startswith("gnome_shaman"):   # 3.26: гном-шаман с бубном над головой; 3.27: варианты _1, _2
             return _spec(*_box(90, 112, 2, 2, 2, 0), "bottom")    # 3.27: крупнее (на лужайке — ×1.6)
+        if last == "dog":                  # 3.33: пёс Буян спит у камина (лежит боком)
+            return _spec(*_box(220, 120, 2, 2, 2, 0), "bottom")
+        if last == "owl":                  # 3.33: сова Ухта сидит на бочке в зале
+            return _spec(*_box(100, 140, 2, 2, 2, 0), "bottom")
         if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
             return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
         return None

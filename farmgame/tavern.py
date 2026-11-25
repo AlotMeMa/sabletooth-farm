@@ -116,6 +116,11 @@ BARMAN_EXTRA = {
 }
 
 
+def prize_group(prize):
+    """3.33: группа «одно из» у приза (артисты сцены — stage)."""
+    return prize.get("group") or ("stage" if prize.get("stage") else None)
+
+
 def barman_lines(tavern):
     """Что бармен может сказать сейчас: общие реплики и то, что подходит к залу (3.20)."""
     from .config import PRIZES
@@ -240,13 +245,20 @@ class Tavern:
         return True
 
     def _one_on_stage(self, pid):
-        """3.23: на сцене один артист — включили pid, остальных артистов выключаем."""
+        """3.23: на сцене один артист; 3.33 — так же любая группа «одно из» (шлейф, ноты, рубашка карт):
+        включили pid — остальных из его группы выключаем."""
         from .config import PRIZES
-        if not any(p["id"] == pid and p.get("stage") for p in PRIZES):
+        grp = prize_group(next((p for p in PRIZES if p["id"] == pid), {}))
+        if not grp:
             return
         for p in PRIZES:
-            if p.get("stage") and p["id"] != pid and self.prizes.get(p["id"]) and p["id"] not in self.prize_off:
+            if prize_group(p) == grp and p["id"] != pid and self.prizes.get(p["id"]) and p["id"] not in self.prize_off:
                 self.prize_off.append(p["id"])
+
+    def group_on(self, group):
+        """3.33: какой приз группы сейчас включён (id) или None."""
+        from .config import PRIZES
+        return next((p["id"] for p in PRIZES if prize_group(p) == group and self.prize_on(p["id"])), None)
 
     def stage_artist(self):
         """Кто сейчас на сцене вместо барда: приз-артист (dict) или None — поёт бард."""
@@ -264,6 +276,8 @@ class Tavern:
             return False, "Уже есть"
         if prize.get("jackpot"):                 # 3.27: только из джекпота колеса фортуны
             return False, "Этот приз выпадает только джекпотом колеса фортуны"
+        if prize.get("achievement"):             # 3.34: только за достижение
+            return False, "Этот трофей дают только за достижение"
         if self.tokens < prize["cost"]:
             return False, f"Нужно жетонов: {prize['cost']}"
         self.tokens -= prize["cost"]

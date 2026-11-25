@@ -21,6 +21,7 @@ RANKS = ("A", "2", "3", "4", "5", "6", "7", "8", "9", "10", "J", "Q", "K")
 SUITS = ("hearts", "diamonds", "clubs", "spades")
 RED_SUITS = ("hearts", "diamonds")
 UNLOCK_FARM = "winter"            # id фермы, с которой открывается блэкджек
+FORCE_NEXT = None                 # 3.29, режим разработчика: карты сверху колоды для следующей раздачи (один раз)
 
 
 def card_value(card):
@@ -89,7 +90,11 @@ class Blackjack:
         """Раздать. False — ставка меньше MIN_BET или уже идёт раздача."""
         if self.state != "bet" or self.bet < MIN_BET:
             return False
+        global FORCE_NEXT
         self.deck = new_deck(rng)
+        if FORCE_NEXT:                       # режим разработчика: игрок, дилер, игрок, дилер, дальше — добор
+            top, FORCE_NEXT = list(FORCE_NEXT), None
+            self.deck = [c for c in self.deck if c not in top] + list(reversed(top))
         self.player = [self.deck.pop(), self.deck.pop()]
         self.dealer = [self.deck.pop(), self.deck.pop()]
         self.result, self.paid = None, 0

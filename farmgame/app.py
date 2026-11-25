@@ -403,6 +403,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.map_scroll(-MAP_GAP if key == getattr(pygame, "K_LEFT", -1) else MAP_GAP)
         elif key == pygame.K_F1 and DEV:
             self.modal = None if self.modal == "dev" else "dev"
+            self.dev_tab, self.dev_page = None, 0          # 3.29: открывается на вкладке текущего места
         elif self.modal is None:
             if key == pygame.K_b and self.view in ("field", "barn"):
                 self.toggle_barn()

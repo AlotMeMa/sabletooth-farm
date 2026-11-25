@@ -240,14 +240,14 @@ class CreaturesUI:
         self.frost_timer -= dt
         if self.frost_timer > 0:
             return
-        self.frost_timer = random.uniform(FROST_MIN, FROST_MAX)
         f = self.farm
+        self.frost_timer = random.uniform(FROST_MIN, FROST_MAX) * 1.5 ** f.up("warmbeds")   # 3.29: «Тёплые грядки»
         free = [k for k in range(N_CROPS) if f.levels[k] > 0 and f.frozen[k] == 0 and not f.blocked[k]]
         if not free:
             return
         hit = random.sample(free, min(len(free), random.choice((1, 1, 2))))
         for k in hit:
-            f.frozen[k] = FROST_HITS
+            f.frozen[k] = max(1, FROST_HITS - f.up("icepick"))                             # 3.29: «Ледоруб»
         names = ", ".join(CROPS[k]["name"] for k in hit)
         self.toast(f"Мороз! Замёрзло: {names}. Разбей лёд кликами!", 4)
 

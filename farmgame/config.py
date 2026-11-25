@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.28.3"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.29"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -329,11 +329,49 @@ GNOME_RUSH = "Гномье пришествие"   # 3.26: зимняя «пог
 
 
 def _winter_tree():
-    """3.24: Зимнее дерево — пока как Дерево листьев (те же эффекты), ветка погоды — «Гномье пришествие» (3.26)."""
-    out = []
-    for bname, nodes in TREE_SUMMER:
-        out.append((GNOME_RUSH if bname == "Погода" else bname, [dict(n) for n in nodes]))
-    return out
+    """3.29 (просьба пользователя): своё Зимнее дерево — названия под зиму, эффекты под зимние механики.
+    Баланс (цены и сила) — как у летнего/средневекового. Отличия от летнего: «Гномья артель» вместо наёмных
+    фермеров (зимой гномы — общая артель, как крестьяне), против мороза — «Тёплые грядки» и «Ледоруб» вместо пугала
+    (ворон зимой нет), ветка погоды — «Гномье пришествие»."""
+    return [
+        ("Запасы", [
+            dict(id="capital", name="Зимние запасы", costs=[3, 10, 30, 90, 270],
+                 eff=lambda l: f"забег начинается с ${fmt(start_money(l))}"),
+            dict(id="serfs", name="Гномья артель", costs=[4, 12, 36, 108, 324],
+                 eff=lambda l: f"бесплатных гномов в начале: {PEASANT_START + l}"),
+            dict(id="lucky", name="Снежная удача", costs=[8, 24, 72, 216, 648],
+                 eff=lambda l: f"{2 * l}% шанс собрать гигантский урожай x10"),
+            dict(id="fertile", name="Северное сияние", costs=[20, 80, 320, 1280, 5120],
+                 eff=lambda l: f"весь доход x{2 ** l}"),
+        ]),
+        (GNOME_RUSH, [
+            dict(id="rain_len", name="Долгое пришествие", costs=[3, 9, 27],
+                 eff=lambda l: f"гномы работают {_rain_time(l):.0f} с"),
+            dict(id="rain_cd", name="Гномий рог", costs=[5, 15, 45],
+                 eff=lambda l: f"снова позвать гномов — через {fmt_time(_rain_cd(l))}"),
+            dict(id="rain_power", name="Шаманский бубен", costs=[30, 120],
+                 eff=lambda l: f"в пришествие всё растёт x{_rain_speed(l):g}"),
+            dict(id="sun", name="Зимнее солнце", costs=[6, 18, 54],
+                 eff=lambda l: f"солнце даёт {SUN_SECONDS + 30 * l:g} с дохода"),
+        ]),
+        ("Мороз", [
+            dict(id="warmbeds", name="Тёплые грядки", costs=[6, 18, 54],
+                 eff=lambda l: f"мороз раз в {FROST_MIN * 1.5 ** l / 60:.1f}-{FROST_MAX * 1.5 ** l / 60:.1f} мин"),
+            dict(id="icepick", name="Ледоруб", costs=[8, 24],
+                 eff=lambda l: f"лёд разбивается за {max(1, FROST_HITS - l)} "
+                               f"{'клик' if max(1, FROST_HITS - l) == 1 else 'клика'}"),
+            dict(id="sq_often", name="Кедровые орешки", costs=[4, 12, 36],
+                 eff=lambda l: f"белка раз в {SQUIRREL_MIN * 0.9 ** l / 60:.1f}-{SQUIRREL_MAX * 0.9 ** l / 60:.1f} мин"),
+            dict(id="golden", name="Золотые шишки", costs=[10, 30, 90, 270],
+                 eff=lambda l: f"золотая белка в {round((GOLDEN_CHANCE + 0.04 * l) * 100)}% случаев"),
+        ]),
+        ("Упряжка", [
+            dict(id="offline", name="Ледник", costs=[3, 6, 12, 24, 48],
+                 eff=lambda l: f"урожай копится офлайн до {(OFFLINE_CAP + 7200 * l) // 3600} ч"),
+            dict(id="truck", name="Щедрый каюр", costs=[15, 45, 135, 405, 1215],
+                 eff=lambda l: f"голубых листочков от упряжки +{10 * l}%"),
+        ]),
+    ]
 
 
 TREE_WINTER = _winter_tree()

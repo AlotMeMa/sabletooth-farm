@@ -296,12 +296,17 @@ class BlackjackUI:
         if getattr(self, "bj_bg", None) is None:
             self.bj_bg = self.build_blackjack_background()
         s.blit(self.bj_bg, (0, 0))
-        if has_sprite("ui/banner"):            # лента слева, как «РУЛЕТКА» (над головой Ворчуна — колпак)
-            self.draw_banner((24, 118, 220, 48), "БЛЭКДЖЕК", 22)
+        # 3.29: как в рулетке — слева «В игровую» и «Призы», правее — лента с названием игры
+        if has_sprite("ui/banner"):
+            self.draw_banner((206, 118, 214, 48), "БЛЭКДЖЕК", 22)
         else:
-            plate = pygame.Rect(30, 120, 200, 44)
+            plate = pygame.Rect(206, 120, 206, 44)
             rounded(s, (120, 70, 40), plate, 10, 3)
             draw_text(s, "БЛЭКДЖЕК", 22, plate.center, GOLD)
+        pb = pygame.Rect(14, 112, 170, 46)
+        self.button(pb, "Призы", lambda: self.open_modal("prizes"), (245, 175, 50), True, 19)
+        draw_token(s, pb.x + 28, pb.centery, 0.7)
+        self.tip(pb, "Призовая стойка: трофеи и украшения за жетоны")
         np_, nd, reveal = self.bj_counts()
         grumpy = 1.0 if self.bj_shown_res in ("win", "blackjack") else 0.4
         talking = self.bj_say is not None and int(t * 6) % 2 == 0

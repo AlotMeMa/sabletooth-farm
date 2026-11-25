@@ -431,10 +431,28 @@ class WindowsUI:
         self.button((r.centerx - 100, r.bottom - 72, 200, 46), "<  Назад", lambda: self.open_modal("settings"), BTN_BLUE)
 
     # ------------------------------------------------------------ режим разработчика
-    def dev_actions(self):
-        f = self.farm
-        pm = f.price_mult
+    # ------------------------------------------------------------ режим разработчика (F1)
+    # 3.29 (просьба пользователя): кнопки разложены по местам — у каждой локации свой набор, по максимуму;
+    # окно открывается на вкладке того места, где ты сейчас. Общие вещи — во вкладке «Общее».
+    DEV_TABS = (("field", "Поле"), ("barn", "Сарай"), ("tavern", "Таверна"), ("games", "Игровая"), ("all", "Общее"))
+    DEV_VIEW_TAB = {"field": "field", "barn": "barn", "tavern": "tavern", "board": "tavern", "fireside": "tavern",
+                    "gameroom": "games", "casino": "games", "blackjack": "games"}
 
+    def dev_here(self):
+        return self.DEV_VIEW_TAB.get(self.view, "field")
+
+    def dev_groups(self):
+        """{вкладка: [(подпись, действие)]}"""
+        from . import wheel as wh
+        from . import blackjack as bjl
+        f, t = self.farm, self.tavern
+        pm = f.price_mult
+        info = self.farm_info()
+
+        def go(view):
+            self.modal, self.view = None, view
+
+        # ---------- поле ----------
         def money():
             f.money = max(f.money, 1000 * pm) * 1000
         def leaves():
@@ -451,60 +469,118 @@ class WindowsUI:
                 return
             to_move()
             self.do_move()
-        def back_summer():
-            f.farm_index = 0
-            f.home_leaves = f.leaves
-            f.reset_run()
-            self.set_theme()
-            self.modal = None
-            self.toast("Вернулись на летнюю ферму (для тестов)", 2)
-        def to_winter():
-            """3.26: зимняя глава ещё закрыта для игроков — сюда можно только из режима разработчика."""
-            f.farm_index = next(n for n, fm in enumerate(FARMS) if fm["id"] == "winter")
-            f.home_leaves = f.leaves
-            f.reset_run()
-            self.set_theme()
-            self.view, self.modal = "field", None
-            self.toast("Зимнее поле (заготовка, только для тестов): гномы — в магазине, пришествие — справа вверху", 4)
+        def to_farm(fid):
+            def act():
+                f.farm_index = next(n for n, fm in enumerate(FARMS) if fm["id"] == fid)
+                f.home_leaves = f.leaves
+                f.reset_run()
+                self.set_theme()
+                go("field")
+                self.toast(f"{self.farm_info()['name']} (для тестов, всё с нуля)", 3)
+            return act
         def all_crops():
             for i in range(N_CROPS):
                 f.levels[i] += 50
+        def open_all():
+            for i in range(N_CROPS):
+                f.levels[i] = max(f.levels[i], 1)
+        def helpers_all():
+            if info["peasants"]:
+                f.peasants = max(f.peasants, PEASANT_MAX)
+            for i in range(N_CROPS):
+                if f.levels[i]:
+                    f.farmers[i] = True
+        def collect_all():
+            got = sum(f.collect(i) or 0 for i in range(N_CROPS))
+            self.toast(f"Собрано ${fmt(got)}", 2)
+        def tree_max():
+            for n, node in TREE_NODES.items():
+                f.tree[n] = len(node["costs"])
+        def tree_reset():
+            f.tree = {}
+            self.toast("Дерево сброшено", 2)
+        def weather():
+            f.rain_left, f.rain_cd = 0.0, 0.0
+            go("field")
+            self.click_rain()
+        def sun():
+            f.sun_cd = 0.0
+        def squirrel(g):
+            go("field")
+            self.spawn_squirrel(golden=g)
+        def pest(kind):
+            go("field")
+            if kind == "crow":
+                self.spawn_crow() if info["crow"] else self.toast("На этой ферме ворон нет", 2)
+            elif kind == "frost":
+                if info["frost"]:
+                    self.frost_timer = 0
+                else:
+                    self.toast("На этой ферме мороза нет", 2)
+            elif info["bandits"]:
+                self.spawn_bandit()
+            else:
+                self.toast("На этой ферме разбойников нет", 2)
+        def offline():
+            amt = f.offline_earn(3600)
+            self.offline_info = (3600.0, amt)
+            self.modal = "offline"
+        field = [("Деньги x1000", money), (f"+1000 {CUR['gen']}", leaves),
+                 ("Все грядки +50 ур.", all_crops), ("Открыть все грядки", open_all),
+                 (f"{self.helpers()['title'] if info['peasants'] else 'Помощники'} на все грядки", helpers_all),
+                 ("Собрать весь урожай", collect_all),
+                 (f"{info['weather']} сейчас", weather), ("Солнце: бонус готов", sun),
+                 ("Белка", lambda: squirrel(False)), ("Золотая белка", lambda: squirrel(True))]
+        if info["crow"]:
+            field.append(("Ворона", lambda: pest("crow")))
+        if info["frost"]:
+            field.append(("Мороз на грядку", lambda: pest("frost")))
+        if info["bandits"]:
+            field.append(("Разбойник", lambda: pest("bandit")))
+        field += [(f"Позвать: {info['buyer']}", to_truck), ("Заработать до переезда", to_move),
+                  ("Переехать сейчас", move_now), ("Дерево на максимум", tree_max), ("Дерево сбросить", tree_reset),
+                  ("Офлайн: «тебя не было 1 ч»", offline)]
+        field += [(f"Ферма: {fm['name']}", to_farm(fm["id"])) for fm in FARMS if fm["id"] != info["id"]]
+
+        # ---------- сарай / мельница ----------
         def barn():
             for a in range(N_ANIMALS):
                 f.a_levels[a] = max(f.a_levels[a], 5)
                 f.a_keeper[a] = True
-        def tree_max():
-            for n, node in TREE_NODES.items():
-                f.tree[n] = len(node["costs"])
-        def squirrel(g):
-            self.modal = None
-            self.view = "field"
-            self.spawn_squirrel(golden=g)
-        def crow():
-            self.modal, self.view = None, "field"
-            if self.farm_info()["crow"]:
-                self.spawn_crow()
-            else:
-                self.toast("На этой ферме ворон нет", 2)
-        def frost():
-            self.modal, self.view = None, "field"
-            if self.farm_info()["frost"]:
-                self.frost_timer = 0
-            else:
-                self.toast("На этой ферме мороза нет", 2)
-        def speed():
-            self.time_scale = {1: 10, 10: 60, 60: 1}[self.time_scale]
-        def bandit():
-            self.modal, self.view = None, "field"
-            if self.farm_info()["bandits"]:
-                self.spawn_bandit()
-            else:
-                self.toast("На этой ферме разбойников нет", 2)
+        def feed():
+            for a in range(N_ANIMALS):
+                if f.a_levels[a]:
+                    f.a_feed[a] = f.feeder_cap(a)
+        def products():
+            base = max(1.0, f.total_income()) * 60
+            for a in range(N_ANIMALS):
+                if f.a_levels[a]:
+                    f.a_store[a] += base
+        def barn_reset():
+            f.a_levels = [0] * N_ANIMALS
+            f.a_keeper = [False] * N_ANIMALS
+            f.a_feed = [0.0] * N_ANIMALS
+            f.a_store = [0.0] * N_ANIMALS
         def mill():
             f.m_levels = [3, 3]
             f.peasants = max(f.peasants, 8)
+        def hopper():
+            f.hopper = f.hopper_cap()
+        barn_tab = [("Все звери ур.5 + скотники", barn), ("Накормить всех доверху", feed),
+                    ("Продукты готовы (+минута дохода)", products), ("Сарай с нуля", barn_reset),
+                    ("Деньги x1000", money)]
+        if info.get("barn") == "mill":
+            barn_tab += [("Мельница и пекарня ур.3", mill), ("Засыпать зерно доверху", hopper)]
+        barn_tab += [("В сарай", lambda: go("barn"))]
+
+        # ---------- таверна ----------
+        def tokens(n):
+            def act():
+                t.unlocked = True
+                t.tokens = max(0, t.tokens + n)
+                self.toast(f"Жетонов: {t.tokens}", 2)
+            return act
         def quests_done():
-            t = self.tavern
             t.unlocked = True
             self.tavern_refresh()
             for q in t.daily + [t.weekly]:
@@ -512,47 +588,153 @@ class WindowsUI:
             self.modal = None
             self.open_tavern()
             self.open_board()
-        def tavern_debug():
-            self.tavern_debug = not self.tavern_debug
-            if self.tavern.unlocked:
-                self.modal = None
-                self.open_tavern()
-        def tokens():
-            t = self.tavern
-            t.unlocked = True
-            t.tokens += 500
-            self.toast(f"+500 жетонов (стало {t.tokens})", 2)
         def new_day():
-            t = self.tavern
             t.unlocked = True
             t.day = t.week = ""
             self.tavern_refresh()
             self.toast("Таверна: новые задания дня и недели", 2)
-        return [
-            ("Деньги x1000", money), (f"+1000 {CUR['gen']}", leaves),
-            ("Заработать до грузовика", to_truck), ("Заработать до переезда", to_move),
-            ("Переехать сейчас", move_now), ("Назад на летнюю", back_summer),
-            ("Зимнее поле (заготовка)", to_winter),
-            ("Блэкджек: правила снова", lambda: setattr(self.tavern, "bj_intro", False)),
-            ("Колесо фортуны: снова", lambda: (setattr(self.tavern, "wheel_day", ""), self.toast("Колесо можно крутить снова", 2))),
-            ("Все грядки +50 ур.", all_crops), ("Сарай: всё ур.5 + скотники", barn),
-            ("Дерево на максимум", tree_max), (f"Скорость времени: x{self.time_scale}", speed),
-            ("Белка", lambda: squirrel(False)), ("Золотая белка", lambda: squirrel(True)),
-            ("Ворона", crow), ("Мороз", frost),
-            ("Разбойник", bandit), ("Мельница и пекарня ур.3", mill),
-            ("Таверна: все задания готовы", quests_done), ("Таверна: новый день и неделя", new_day),
-            ("Таверна: показать разметку" + (" (вкл)" if self.tavern_debug else ""), tavern_debug),
-            ("Казино", self.open_casino), ("Жетоны +500", tokens),
-        ]
+        def tavern_debug():
+            self.tavern_debug = not self.tavern_debug
+            if t.unlocked:
+                self.modal = None
+                self.open_tavern()
+        def prizes_all():
+            for p in PRIZES:
+                t.prizes[p["id"]] = True
+            t.prize_off = []
+            self.toast("Все призы получены (артист на сцене — первый)", 2)
+        def prizes_none():
+            t.prizes, t.prize_off = {}, []
+        def artist(pid):
+            def act():
+                t.prizes[pid] = True
+                if pid in t.prize_off:
+                    t.prize_off.remove(pid)
+                t._one_on_stage(pid)
+                self.modal = None
+                self.open_tavern()
+            return act
+        def fireside():
+            t.unlocked = True
+            self.modal = None
+            self.open_tavern()
+            self.open_fireside()
+        tavern_tab = [("Жетоны +500", tokens(500)), ("Жетоны в ноль", tokens(-10 ** 9)),
+                      ("Все задания готовы", quests_done), ("Новый день и неделя", new_day),
+                      ("Все призы", prizes_all), ("Призы с нуля", prizes_none)]
+        tavern_tab += [(f"На сцену: {p['name']}", artist(p["id"])) for p in PRIZES if p.get("stage")]
+        tavern_tab += [("Посиделки у камина", fireside), ("Показать разметку" + (" (вкл)" if self.tavern_debug else ""),
+                                                            tavern_debug)]
+
+        # ---------- Игровая ----------
+        def open_games():
+            t.unlocked = t.casino_open = True
+            self.modal = None
+            self.open_gameroom()
+        def wheel_again():
+            t.wheel_day = ""
+            self.toast("Колесо можно крутить снова", 2)
+        def wheel_jackpot():
+            t.wheel_day = ""
+            wh.FORCE_NEXT = len(wh.SEGMENTS) - 1
+            self.toast("Следующий спин — ДЖЕКПОТ", 2)
+        def wheel_week():
+            wh.WEEK_SHIFT += 1
+            self.toast(f"Джекпот недели: {wh.jackpot_for()['name']}", 2)
+        def roulette_rules():
+            t.casino_intro = False
+            open_games()
+            self.open_casino()
+        def blackjack():
+            if not bjl.unlocked(f.farm_index):
+                to_farm("winter")()
+            open_games()
+            self.open_blackjack()
+        def bj_force(kind):
+            def act():
+                bjl.FORCE_NEXT = {"natural": [("A", "spades"), ("K", "hearts"), ("9", "clubs"), ("7", "diamonds")],
+                                  "dealer21": [("9", "spades"), ("7", "hearts"), ("A", "clubs"), ("K", "diamonds")],
+                                  "bust": [("10", "spades"), ("6", "hearts"), ("10", "clubs"), ("7", "diamonds"),
+                                           ("K", "hearts")]}[kind]
+                self.toast("Следующая раздача подготовлена", 2)
+            return act
+        games_tab = [("Открыть Игровую", open_games), ("Жетоны +500", tokens(500)), ("Жетоны в ноль", tokens(-10 ** 9)),
+                     ("Колесо: крутить снова", wheel_again), ("Колесо: следующий — джекпот", wheel_jackpot),
+                     ("Колесо: джекпот следующей недели", wheel_week),
+                     ("Рулетка: правила снова", roulette_rules), ("Блэкджек: открыть (зимой)", blackjack),
+                     ("Блэкджек: правила снова", lambda: setattr(t, "bj_intro", False)),
+                     ("Блэкджек: следующая — очко", bj_force("natural")),
+                     ("Блэкджек: у дилера очко", bj_force("dealer21")),
+                     ("Блэкджек: «Взять» — перебор", bj_force("bust")), ("Призовая стойка", lambda: self.open_modal("prizes"))]
+
+        # ---------- общее ----------
+        def speed():
+            self.time_scale = {1: 10, 10: 60, 60: 1}[self.time_scale]
+        def fps():
+            self.show_fps = not self.show_fps
+        def save_now():
+            self.save()
+            self.toast("Сохранено", 1.5)
+        def tutorial():
+            from .tutorial import Tutorial
+            self.tut = Tutorial()
+            self.toast("Обучение начнётся заново", 2)
+        all_tab = [(f"Скорость времени: x{self.time_scale}", speed), ("Показать кадры/с" + (" (вкл)" if self.show_fps else ""), fps),
+                   ("Сохранить сейчас", save_now), ("Обучение заново", tutorial),
+                   ("Полный экран (F11)", self.toggle_fullscreen), ("Перезагрузить картинки", self.dev_reload_art),
+                   ("На поле", lambda: go("field")), ("В таверну", lambda: (setattr(t, "unlocked", True), self.open_tavern(),
+                                                                         setattr(self, "modal", None)))]
+        return {"field": field, "barn": barn_tab, "tavern": tavern_tab, "games": games_tab, "all": all_tab}
+
+    def dev_actions(self):
+        """Все действия разработчика одним списком (для сценариев и старых тестов)."""
+        out, seen = [], set()
+        for acts in self.dev_groups().values():
+            for label, cb in acts:
+                if label not in seen:
+                    seen.add(label)
+                    out.append((label, cb))
+        # старые имена кнопок (сценарии 3.25–3.28)
+        groups = dict(out)
+        out.append(("Зимнее поле (заготовка)", groups.get("Ферма: Зимнее поле", lambda: None)))
+        out.append(("Назад на летнюю", groups.get("Ферма: Летняя ферма", lambda: None)))
+        return out
+
+    def dev_reload_art(self):
+        """Забыть подогнанные картинки в памяти — новые файлы из assets/ подхватятся без перезапуска."""
+        from . import art_sprites
+        art_sprites._sprite_cache.clear()
+        art_sprites._sprite_scaled.clear()
+        self.bg = self.build_background()
+        self.cs_bg = None
+        self.gr_bg = None
+        self.toast("Картинки перечитаны", 2)
 
     def draw_dev(self):
-        r = self.panel(640, 590, "РЕЖИМ РАЗРАБОТЧИКА")
-        draw_text(self.screen, f"Сохранение: {os.path.basename(cfg.SAVE_FILE)}   •   {self.clock.get_fps():.0f} кадр/с, "
+        r = self.panel(660, 600, "РЕЖИМ РАЗРАБОТЧИКА")
+        s = self.screen
+        draw_text(s, f"Сохранение: {os.path.basename(cfg.SAVE_FILE)}   •   {self.clock.get_fps():.0f} кадр/с, "
                   f"картинка {self.canvas[0]}×{self.canvas[1]}   •   F1 — закрыть", 13,
-                  (r.centerx, r.y + 70), (140, 110, 95), outline=None)
-        for n, (label, cb) in enumerate(self.dev_actions()):
+                  (r.centerx, r.y + 66), (140, 110, 95), outline=None)
+        here = self.dev_here()
+        tab = getattr(self, "dev_tab", None) or here
+        groups = self.dev_groups()
+        tw = (r.w - 60 - 4 * 6) // 5
+        for i, (key, title) in enumerate(self.DEV_TABS):
+            label = title + (" •" if key == here else "")
+            self.button((r.x + 30 + i * (tw + 6), r.y + 82, tw, 34), label, lambda k=key: setattr(self, "dev_tab", k),
+                        (245, 175, 50) if key == tab else BTN_BLUE, True, 14)
+        acts = groups.get(tab, [])
+        per = 22
+        page = min(getattr(self, "dev_page", 0), max(0, (len(acts) - 1) // per))
+        for n, (label, cb) in enumerate(acts[page * per:(page + 1) * per]):
             col, row = n % 2, n // 2
-            self.button((r.x + 30 + col * 300, r.y + 86 + row * 40, 280, 34), label, cb, (230, 110, 110), True, 15)
+            self.button((r.x + 30 + col * 305, r.y + 126 + row * 38, 295, 32), label, cb, (230, 110, 110), True, 14)
+        if len(acts) > per:
+            self.button((r.right - 90, r.bottom - 44, 60, 30), f"{page + 1}/{(len(acts) - 1) // per + 1}",
+                        lambda: setattr(self, "dev_page", (page + 1) % ((len(acts) - 1) // per + 1)), BTN_BLUE, True, 14)
+        draw_text(s, "• — вкладка места, где ты сейчас", 12, (r.x + 30, r.bottom - 26), (140, 110, 95),
+                  anchor="midleft", outline=None)
 
     def draw_offline(self):
         s = self.screen

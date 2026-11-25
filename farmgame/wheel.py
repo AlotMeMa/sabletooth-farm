@@ -19,6 +19,8 @@ JACKPOTS = [dict(kind="tokens", amount=300, name="300 жетонов"),
             dict(kind="tokens", amount=500, name="500 жетонов"),
             dict(kind="prize", prize="star_trail", name="скин «Звёздный шлейф»")]
 JACKPOT_OWNED_TOKENS = 250    # скин уже есть — жетоны вместо него
+FORCE_NEXT = None             # 3.29, режим разработчика: номер сектора, который выпадет следующим (один раз)
+WEEK_SHIFT = 0                # 3.29, режим разработчика: показать джекпот другой недели
 
 
 def today(d=None):
@@ -31,7 +33,7 @@ def day_key(d=None):
 
 def week_index(d=None):
     y, w, _ = today(d).isocalendar()
-    return y * 53 + w
+    return y * 53 + w + WEEK_SHIFT
 
 
 def jackpot_for(d=None):
@@ -50,6 +52,10 @@ def seconds_to_next(now=None):
 
 
 def pick(rng=random):
+    global FORCE_NEXT
+    if FORCE_NEXT is not None:
+        idx, FORCE_NEXT = FORCE_NEXT, None
+        return idx
     return rng.choices(range(len(SEGMENTS)), weights=WEIGHTS)[0]
 
 

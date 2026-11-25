@@ -89,3 +89,29 @@ class WinterData(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class WinterTree(unittest.TestCase):
+    """3.29: своё Зимнее дерево — названия под зиму, без летних узлов, которые зимой не работают."""
+
+    def test_names_and_nodes(self):
+        tree = cfg.TREES["winter"]
+        branches = [b for b, _ in tree]
+        self.assertIn(cfg.GNOME_RUSH, branches)
+        ids = [n["id"] for _, nodes in tree for n in nodes]
+        self.assertEqual(len(ids), len(set(ids)))
+        self.assertNotIn("farmers", ids)        # зимой гномы — артель (serfs), как крестьяне
+        self.assertNotIn("scarecrow", ids)      # ворон зимой нет
+        self.assertIn("warmbeds", ids)
+        self.assertIn("icepick", ids)
+        for _, nodes in tree:
+            for n in nodes:
+                for lvl in range(len(n["costs"]) + 1):
+                    text = n["eff"](lvl)
+                    self.assertIsInstance(text, str)
+                    self.assertNotIn("грузовик", text)
+                    self.assertNotIn("дожд", text)
+                    self.assertNotIn("листьев", text)
+        summer = {n["name"] for _, nodes in cfg.TREES["summer"] for n in nodes}
+        winter = {n["name"] for _, nodes in tree for n in nodes}
+        self.assertFalse(summer & winter, summer & winter)   # все названия свои

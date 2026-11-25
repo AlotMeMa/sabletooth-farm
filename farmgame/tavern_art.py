@@ -386,9 +386,9 @@ def draw_note_icon(s, x, y, n=0, k=0.85):
     draw_note(s, x, y, color=NOTE_COLORS[n % len(NOTE_COLORS)])
 
 
-def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True):
+def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True, max_lines=4):
     """Облачко с речью: (x, y) — кончик хвостика."""
-    lines = wrap(text, size, maxw, 4)
+    lines = wrap(text, size, maxw, max_lines)
     imgs = [render_text(line, size, BROWN, None) for line in lines]
     w = max(i.get_width() for i in imgs) + 24
     h = len(imgs) * (size + 4) + 16

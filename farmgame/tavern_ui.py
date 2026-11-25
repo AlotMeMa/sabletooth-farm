@@ -80,6 +80,7 @@ class TavernUI:
 
     def leave_tavern(self):
         self.view = "field"
+        self.tv_menu = False
 
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
@@ -160,13 +161,49 @@ class TavernUI:
         self.save()
 
     # ---------- жители ----------
-    def say_barman(self, text=None):
+    def say_barman(self, text=None, life=None):
         if text is None:
             lines = tv.barman_lines(self.tavern)
             text = lines[self.barman_line % len(lines)]
             self.barman_line += 1
         b = self.tl["barman"]
-        self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, 4.5]
+        life = life or max(4.5, min(12.0, len(text) / 14))     # длинную историю дочитать успеешь
+        self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, life]
+
+    # ---------- 3.34: разговор с барменом ----------
+    def poke_barman(self):
+        """Щелчок по бармену: открыть/закрыть темы разговора (и он здоровается)."""
+        self.tv_menu = not getattr(self, "tv_menu", False)
+        if self.tv_menu:
+            self.say_barman(random.choice(("Чем могу помочь?", "Слушаю тебя, друг!", "Ну, рассказывай — или спрашивай.",
+                                           "О чём поболтаем?")))
+
+    def barman_topic(self, topic):
+        from . import barman_talk
+        self.say_barman(barman_talk.answer(topic, self.farm, self.tavern))
+        self.quest("barman_talk")
+        self.sfx.play("hover")
+
+    def draw_barman_menu(self):
+        """Темы — дощечки на стойке под барменом; «Пока!» закрывает."""
+        if not getattr(self, "tv_menu", False) or self.modal is not None:
+            return
+        from . import barman_talk
+        b = self.tl["barman"]
+        bw, bh, gap = 172, 34, 6
+        x0 = int(min(W - 2 * bw - gap - 10, b["x"] - bw - gap // 2))
+        y0 = int(min(H - 3 * (bh + gap) - 60, b["waist"] + 48))
+        items = list(barman_talk.TOPICS) + [("bye", "Пока!")]
+        for i, (key, title) in enumerate(items):
+            rect = (x0 + (i % 2) * (bw + gap), y0 + (i // 2) * (bh + gap), bw, bh)
+            if key == "bye":
+                self.button(rect, title, self.close_barman_menu, BTN_GREY, True, 15)
+            else:
+                self.button(rect, title, lambda k=key: self.barman_topic(k), (235, 170, 70), True, 15)
+
+    def close_barman_menu(self):
+        self.tv_menu = False
+        self.say_barman(random.choice(("Заходи ещё!", "Удачного урожая!", "Береги грядки!")), 2.5)
 
     def poke_bard(self):
         """Клик по барду — соло: 8 долей ноты летят на каждую полудолю, бард качается сильнее."""
@@ -315,7 +352,8 @@ class TavernUI:
             else:
                 draw_note(s, x, y, color=col)
         self.draw_fireplace_zone(s)
-        self.zone(L["barman_zone"], self.say_barman)
+        self.zone(L["barman_zone"], self.poke_barman)     # 3.34: темы для разговора
+        self.tip(L["barman_zone"], "Бармен Гаврила: поговорить")
         self.zone(L["bard_zone"], self.open_songs)
         self.tip(L["bard_zone"], "Бард: заказать песню за жетоны")
         # стрелка к доске заданий
@@ -369,7 +407,10 @@ class TavernUI:
             draw_bubble(s, tx, ty, text, 13, 140)
         if self.tv_bubble:
             x, y, text, _ = self.tv_bubble
-            draw_bubble(s, x, y, text)
+            if len(text) > 100:              # 3.34: истории бармена — облачко шире и выше
+                draw_bubble(s, x, y, text, 15, 360, max_lines=7)
+            else:
+                draw_bubble(s, x, y, text)
         for x, y, text, life, color in self.floaters:
             draw_text(s, text, 18, (x, y), color)
         if self.tavern_debug:

@@ -189,7 +189,11 @@ class CasinoUI:
     def cs_finish(self):
         result = self.cs_spin["result"]
         self.cs_spin = None
+        hit = any(k[0] == "num" and k[1] == result for k in self.roulette.bets)
         won, staked = self.roulette.settle(self.tavern, result)
+        self.quest("roulette_spin")                  # 3.34: для достижений
+        if hit:
+            self.quest("roulette_number")
         name = {"green": "зеро", "red": "красное", "black": "чёрное"}[cs.color_of(result)]
         if won > 0:
             self.cs_msg = (f"Выпало {result} ({name})! Выигрыш: {won} жет.", GOLD)

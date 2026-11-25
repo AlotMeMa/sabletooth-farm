@@ -292,6 +292,10 @@ class BlackjackUI:
         if g.state == "done" and self.bj_shown_res is None and not self.bj_busy():
             self.bj_shown_res = g.result
             self.bj_say = [random.choice(DEALER_SAY[g.result]), 3.5]
+            if g.result in ("win", "blackjack"):       # 3.34: для достижений
+                self.quest("bj_win")
+            if g.result == "blackjack":
+                self.quest("bj_natural")
             if g.result in ("win", "blackjack"):
                 self.sfx.play("coin_big" if g.result == "blackjack" else "coin")
                 self.fx.sparks(500, bj_layout()["player_cards"][1] - 40, n=16 if g.result == "blackjack" else 9, up=70)

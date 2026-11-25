@@ -208,6 +208,9 @@ class GameRoomUI:
             self.toast(f"Колесо уже крутили сегодня. Снова — через {fmt_time(wh.seconds_to_next())}", 2.5)
             return
         idx, reward = got
+        self.quest("wheel_spin")                     # 3.34: для достижений
+        if reward.get("jackpot") or reward["kind"] == "prize":
+            self.quest("wheel_jackpot")
         n = len(wh.SEGMENTS)
         step = 2 * math.pi / n
         # сектор idx встаёт под стрелку сверху, когда поворот колеса = -idx*step (по модулю оборота);

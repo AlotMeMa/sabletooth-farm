@@ -216,6 +216,10 @@ class Tavern:
         self.wheel_day = ""      # 3.27: день, когда крутили колесо фортуны в Игровой (раз в день)
         self.wheel_last = None   # 3.27: что выпало в последний раз: {kind, amount, prize, text}
         self.bj_intro = False    # 3.28: Ворчун уже рассказал правила блэкджека
+        self.stats = {}          # 3.34: счётчики событий за всю игру (для достижений): событие -> сколько раз
+        self.ach_done = []       # 3.34: выполненные достижения (id)
+        self.ach_claimed = []    # 3.34: за какие уже забрали жетоны
+        self.talk_story = 0      # 3.34: какую историю бармен расскажет следующей
 
     # ---------- казино (3.14) ----------
     def check_casino(self):
@@ -389,7 +393,10 @@ class Tavern:
 
     # ---------- прогресс ----------
     def on(self, event, n=1):
-        """Игровое событие (собрал урожай, поймал белку...). Возвращает список только что выполненных заданий."""
+        """Игровое событие (собрал урожай, поймал белку...). Возвращает список только что выполненных заданий.
+        3.34: каждое событие ещё и считается в stats (для достижений) — всегда, даже пока таверна закрыта."""
+        if n > 0:
+            self.stats[event] = self.stats.get(event, 0) + n
         if not self.unlocked:
             return []
         done = []
@@ -432,7 +439,8 @@ class Tavern:
                     daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
                     casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
                     prize_off=self.prize_off, prize_day=self.prize_day, wheel_day=self.wheel_day,
-                    wheel_last=self.wheel_last, bj_intro=self.bj_intro)
+                    wheel_last=self.wheel_last, bj_intro=self.bj_intro, stats=self.stats, ach_done=self.ach_done,
+                    ach_claimed=self.ach_claimed, talk_story=self.talk_story)
 
     def from_dict(self, d):
         """Читает таверну из сохранения. Испорченные записи пропускаются — задания тогда просто выдадутся заново."""
@@ -457,6 +465,12 @@ class Tavern:
         if isinstance(d.get("prize_off"), list):
             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
         self.bj_intro = bool(d.get("bj_intro", self.bj_intro))
+        if isinstance(d.get("stats"), dict):       # 3.34
+            self.stats = {k: _int(v, 0) for k, v in d["stats"].items() if isinstance(k, str) and _int(v, 0) > 0}
+        for key in ("ach_done", "ach_claimed"):
+            if isinstance(d.get(key), list):
+                setattr(self, key, list(dict.fromkeys(x for x in d[key] if isinstance(x, str))))
+        self.talk_story = _int(d.get("talk_story"), self.talk_story)
         if isinstance(d.get("wheel_day"), str):
             self.wheel_day = d["wheel_day"][:10]
         if isinstance(d.get("wheel_last"), dict) and isinstance(d["wheel_last"].get("text"), str):

@@ -65,6 +65,8 @@ class HudUI:
             self.draw_tokens_pill(14, 180 if self.farm_info()["peasants"] else 142)
             self.draw_tavern_back("На поле", self.leave_tavern)
             self.draw_prizes_button()
+            self.draw_achievements_button()      # 3.34
+            self.draw_barman_menu()              # 3.34: темы для разговора с барменом
             return
         if board:
             if self.view == "casino":       # 3.14.2: над столом слева; 3.27: из рулетки — назад в Игровую

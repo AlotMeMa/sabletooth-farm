@@ -21,6 +21,7 @@ from .windows_ui import WindowsUI
 from .hud_ui import HudUI
 from .widgets_ui import WidgetsUI
 from .screen_ui import ScreenUI
+from .achievements_ui import AchievementsUI
 
 
 def hd_from_args():
@@ -57,7 +58,7 @@ def saved_hd_mode():
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
 class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, BlackjackUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
-          ScreenUI):
+          ScreenUI, AchievementsUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -423,6 +424,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         f = self.farm
         f.update(dt)
         self.tavern_tick(dt)
+        self.ach_tick(dt)                 # 3.34: достижения
         self.mill_tick(dt)
         self.tut_tick(dt)
         self.casino_tick(dt)
@@ -549,7 +551,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
                 "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs,
-                "prizes": self.draw_prizes, "fortune": self.draw_fortune}
+                "prizes": self.draw_prizes, "fortune": self.draw_fortune, "achievements": self.draw_achievements}
 
     def draw_modal_layer(self, name, prog, opening):
         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно

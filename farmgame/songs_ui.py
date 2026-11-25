@@ -22,6 +22,7 @@ class SongsUI:
             self.toast(why, 2.5)
             return
         sg = self.song_def(sid)
+        self.quest("song")                           # 3.34: для достижений
         self.modal = None
         self.sfx.play("fanfare")
         self.toast(f"Бард играет «{sg['name']}»: {sg['effect']} на {sg['minutes']} мин", 4)

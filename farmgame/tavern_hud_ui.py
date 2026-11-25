@@ -53,14 +53,25 @@ class TavernHudUI:
         self.icon_button(pygame.Rect(16, 478, 62, 56), "tavern", lambda r: draw_mug(self.screen, r.centerx - 3, r.centery + 4, 1.2),
                          self.open_tavern, "Таверна", badge=bool(self.tavern.claimable()), tip=TAVERN_TIP)
 
+    def draw_achievements_button(self):
+        """3.34: «Достижения» в таверне — над «Призами». Своя картинка — ui/btn_achievements."""
+        from . import achievements as ach
+        from .achievements_ui import draw_medal
+        r = pygame.Rect(16, 392, 62, 56)
+        ready = bool(ach.claimable(self.tavern))
+        done = len(self.tavern.ach_done)
+        self.icon_button(r, "achievements", lambda rr: draw_medal(self.screen, rr.centerx, rr.centery, 2, True, 0.9),
+                         self.open_achievements, "Достижения", badge=ready,
+                         tip=f"Достижения: {done} из {len(ach.ACHIEVEMENTS)}" + (" — есть награда!" if ready else ""))
+
     def draw_prizes_button(self):
         """3.16.7: «Призы» прямо в таверне — над «На поле» (как «Таверна» над «Магазином» на поле).
         Своя картинка — ui/btn_prizes; без неё деревянная плашка с жетоном, в тон остальным кнопкам."""
         from .config import PRIZES as _P
         r = pygame.Rect(16, 478, 62, 56)
         t = self.tavern
-        cheapest = min(p["cost"] for p in _P if t.prize_state(p) == "can") if any(
-            t.prize_state(p) == "can" for p in _P) else None
+        shop = [p for p in _P if t.prize_state(p) == "can" and not (p.get("jackpot") or p.get("achievement"))]
+        cheapest = min(p["cost"] for p in shop) if shop else None     # 3.34: джекпоты и трофеи за достижения не в счёт
         badge = cheapest is not None and t.tokens >= cheapest
         tip = f"Призы за жетоны: трофеи и украшения (у тебя {t.tokens})"
         if not has_sprite("ui/btn_prizes") and has_sprite("ui/btn_shop"):

@@ -382,7 +382,11 @@ class WindowsUI:
                         lambda: self.set_option("show_fps", not self.show_fps),
                         BTN_GREEN if self.show_fps else BTN_GREY, True, 18)
         else:
-            self.button((x, y, w, 46), "Статистика фермы", lambda: self.open_modal("stats"), (235, 170, 70), True, 18)
+            half0 = (w - 12) // 2       # 3.34: рядом со статистикой — достижения
+            self.button((x, y, half0, 46), "Статистика", lambda: self.open_modal("stats"), (235, 170, 70), True, 18)
+            from . import achievements as _ach
+            self.button((x + w - half0, y, half0, 46), "Достижения" + (" (!)" if _ach.claimable(self.tavern) else ""),
+                        self.open_achievements, (235, 170, 70), True, 18)
             self.button((x, y + 56, w, 46), "Подсказки у кнопок: " + ("включены" if self.show_tips else "выключены"),
                         lambda: self.set_option("show_tips", not self.show_tips),
                         BTN_GREEN if self.show_tips else BTN_GREY, True, 18)

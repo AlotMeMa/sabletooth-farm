@@ -118,6 +118,7 @@ class FiresideUI:
     def poke_fire(self):
         """Подбросить полено: огонь вспыхивает, летят искры, трещит."""
         self.fs_flare = 1.0
+        self.quest("fire_poke")                      # 3.34: для достижений
         self.sfx.play("spark")
         fx, fy = self.fs_lay["fire"]
         for _ in range(30):
@@ -128,6 +129,7 @@ class FiresideUI:
     def pet_cat(self):
         x, y = self.fs_lay["cat"]
         self.fs_purr = 4.0
+        self.quest("pet_cat")
         self.fs_twitch = 1.0
         self.floater(x + 20, y - 50, random.choice(CAT_LINES), (255, 236, 200))
 
@@ -151,6 +153,7 @@ class FiresideUI:
     def pet_dog(self):
         x, y = self.fs_lay.get("dog", (835, 610))
         self.fs_wag = 3.0
+        self.quest("pet_dog")
         self.floater(x - 30, y - 80, random.choice(DOG_LINES), (255, 236, 200))
 
     def draw_fireside_trophies(self, s):

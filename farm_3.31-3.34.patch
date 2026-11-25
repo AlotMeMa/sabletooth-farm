@@ -1,0 +1,2661 @@
+From e4e954f5b7ed5ce8bad462eb88870b705c179368 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 14:49:23 +0200
+Subject: [PATCH 1/4] =?UTF-8?q?=D0=92=D0=B5=D1=80=D1=81=D0=B8=D1=8F=203.31?=
+ =?UTF-8?q?:=20=D0=B4=D0=B5=D1=80=D0=B5=D0=B2=D0=BE=20=D0=B4=D0=BE=D1=80?=
+ =?UTF-8?q?=D0=BE=D0=B6=D0=B0=D0=B5=D1=82=20=E2=80=94=20=D0=BA=D0=B0=D0=B6?=
+ =?UTF-8?q?=D0=B4=D0=B0=D1=8F=20=D0=BF=D0=BE=D0=BA=D1=83=D0=BF=D0=BA=D0=B0?=
+ =?UTF-8?q?=20+10%=20=D0=BA=20=D1=86=D0=B5=D0=BD=D0=B5=20=D0=B4=D1=80?=
+ =?UTF-8?q?=D1=83=D0=B3=D0=B8=D1=85=20=D1=83=D0=BB=D1=83=D1=87=D1=88=D0=B5?=
+ =?UTF-8?q?=D0=BD=D0=B8=D0=B9,=20=D0=B1=D0=BE=D1=82-=D1=8D=D0=BA=D0=BE?=
+ =?UTF-8?q?=D0=BD=D0=BE=D0=BC=D0=B8=D1=81=D1=82?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0174tYV1TtJbt2bc9kHkJwmK
+---
+ devtools/economy_bot.py         | 130 ++++++++++++++++++++++++++++++++
+ devtools/scenarios/treeprice.py |   8 ++
+ docs/changes/changes_3.31.md    |  41 ++++++++++
+ farmgame/config.py              |   5 +-
+ farmgame/logic.py               |   9 ++-
+ farmgame/windows_ui.py          |  12 ++-
+ tests/test_tree_price.py        |  50 ++++++++++++
+ 7 files changed, 251 insertions(+), 4 deletions(-)
+ create mode 100644 devtools/economy_bot.py
+ create mode 100644 devtools/scenarios/treeprice.py
+ create mode 100644 docs/changes/changes_3.31.md
+ create mode 100644 tests/test_tree_price.py
+
+diff --git a/devtools/economy_bot.py b/devtools/economy_bot.py
+new file mode 100644
+index 0000000..7b52e66
+--- /dev/null
++++ b/devtools/economy_bot.py
+@@ -0,0 +1,130 @@
++# -*- coding: utf-8 -*-
++"""Бот-экономист: проходит главу «идеальной» игрой и печатает темп по забегам.
++
++    python devtools/economy_bot.py [ферма 0|1|2] [политика spend|half] [инфляция дерева, напр. 0.1]
++
++Бот каждую секунду собирает урожай, жмёт солнце и дождь, покупает то, что быстрее окупается
++(уровни грядок до ближайшей вехи, удобрения, фермеры), продаёт ферму, когда листья за секунду
++начинают падать, и тратит листья по политике:
++    spend — всё, что по карману, самое дешёвое первым (как сейчас играет почти любой игрок);
++    half  — покупает, только если после покупки останется не меньше половины листьев.
++Белок, ворон, сарая и мельницы бот не трогает — сравнивать варианты баланса между собой, а не с живой игрой.
++"""
++import os
++import random
++import sys
++
++ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
++sys.path[:0] = [os.path.join(ROOT, "devtools", "fake_pygame"), ROOT]
++
++from farmgame import config as C  # noqa: E402
++from farmgame import logic as L   # noqa: E402
++
++
++def best_purchase(f):
++    """(окупаемость, действие) самой выгодной покупки или None."""
++    best = None
++    for i in range(C.N_CROPS):
++        if f.levels[i] and not f.farmers[i] and not f.farm_def()["peasants"]:
++            p = f.farmer_cost(i)
++            if p <= f.money:
++                return (0, ("farmer", i, 1))
++        nm = C.next_milestone(f.levels[i]) or f.levels[i] + 25
++        n = max(1, nm - f.levels[i])
++        cost = f.cost(i, n)
++        before = f.income_per_sec(i, with_rain=False)
++        f.levels[i] += n
++        after = f.income_per_sec(i, with_rain=False)
++        f.levels[i] -= n
++        gain = max(after - before, 1e-12)
++        if f.levels[i] == 0:
++            gain = max(gain, 1e-9)
++        cand = (cost / gain, ("level", i, n), cost)
++        if best is None or cand[0] < best[0]:
++            best = cand
++        if f.levels[i]:
++            fc = f.fert_cost(i)
++            fg = before * 2
++            cand = (fc / max(fg, 1e-12), ("fert", i, 1), fc)
++            if cand[0] < best[0]:
++                best = cand
++    return best
++
++
++def spend_money(f):
++    for _ in range(400):
++        b = best_purchase(f)
++        if b is None:
++            return
++        kind, i, n = b[1]
++        if kind == "farmer":
++            f.buy_farmer(i)
++            continue
++        if b[2] > f.money:
++            return
++        if kind == "level":
++            f.buy(i, n)
++        else:
++            f.buy_fert(i)
++
++
++def spend_leaves(f, policy):
++    while True:
++        opts = [(f.tree_cost(n), n) for n in f.nodes() if f.can_buy_tree(n)]
++        if policy == "half":
++            opts = [o for o in opts if f.leaves - o[0] >= f.leaves / 2]
++        if not opts:
++            return
++        f.buy_tree(min(opts)[1])
++
++
++def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False):
++    random.seed(seed)
++    f = L.Farm()
++    f.farm_index = farm_index
++    f.reset_run()
++    t = run_t = 0.0
++    hist = []
++    runs = []
++    while t < max_hours * 3600:
++        f.update(1.0)
++        t += 1
++        run_t += 1
++        for i in range(C.N_CROPS):
++            f.collect(i)
++        f.sun_click()
++        f.start_rain()
++        spend_money(f)
++        if f.run_total() >= f.move_threshold():
++            runs.append((run_t, 0, f.leaves, f.leaf_mult))
++            break
++        pot = f.potential_leaves()
++        hist.append(pot)
++        if run_t > 120 and pot >= C.TRUCK_MIN_LEAVES:
++            marginal = (pot - hist[-61]) / 60 if len(hist) > 61 else 1e9
++            if marginal < pot / run_t:
++                got = f.sell_to_truck()
++                spend_leaves(f, policy)
++                runs.append((run_t, got, f.leaves, f.leaf_mult))
++                run_t = 0.0
++                hist = []
++    spent = sum(f.nodes()[n]["costs"][k] for n in f.tree for k in range(f.tree[n]))
++    levels = sum(f.tree.values())
++    total = sum(len(n["costs"]) for n in f.nodes().values())
++    if not quiet:
++        print(f"ферма {farm_index}, политика {policy}, инфляция {getattr(C, 'TREE_INFLATION', 0)}: "
++              f"глава {t / 3600:.1f} ч, забегов {len(runs)}, дерево {levels}/{total} ур. "
++              f"(по базовым ценам {spent}), листьев на руках {f.leaves}, x{f.leaf_mult:.1f} от листьев")
++        tail = runs[-8:]
++        print("   последние забеги (мин / листьев за забег / на руках / множитель листьев):")
++        print("   " + "; ".join(f"{r[0] / 60:.0f}м/{r[1]}/{r[2]}/x{r[3]:.1f}" for r in tail))
++    return t, runs, f
++
++
++if __name__ == "__main__":
++    fi = int(sys.argv[1]) if len(sys.argv) > 1 else 0
++    pol = sys.argv[2] if len(sys.argv) > 2 else "spend"
++    if len(sys.argv) > 3:
++        C.TREE_INFLATION = float(sys.argv[3])
++        L.TREE_INFLATION = C.TREE_INFLATION
++    play(fi, pol)
+diff --git a/devtools/scenarios/treeprice.py b/devtools/scenarios/treeprice.py
+new file mode 100644
+index 0000000..73fa760
+--- /dev/null
++++ b/devtools/scenarios/treeprice.py
+@@ -0,0 +1,8 @@
++# 3.31: дерево дорожает — окно дерева без выбора, с выбранным улучшением и тост после покупки
++f = A.farm
++f.levels = [200, 50, 50, 25, 10, 0, 0, 0, 0]
++f.tree = {"capital": 3, "farmers": 4, "rain_len": 2, "fertile": 1}
++f.leaves = f.home_leaves = 400
++A.open_modal("tree"); A.skip_anims(); frames(30); snap("tree_none")
++A.tree_sel = "lucky"; frames(10); snap("tree_sel")
++A.buy_tree("lucky"); frames(20); snap("tree_bought")
+diff --git a/docs/changes/changes_3.31.md b/docs/changes/changes_3.31.md
+new file mode 100644
+index 0000000..66be6ce
+--- /dev/null
++++ b/docs/changes/changes_3.31.md
+@@ -0,0 +1,41 @@
++# Версия 3.31 — дерево дорожает: думать, прежде чем тратить листья
++
++Просьба пользователя 25.11: «главный тейк — думать перед тем, как тратить листья на обновления. А то чем больше
++тратишь, тем больше получаешь, и это больше — многократно больше». Из предложенных вариантов выбран один:
++**дерево дорожает**.
++
++- Каждый купленный уровень поднимает цену всех **других** улучшений этого дерева на 10% (сложный процент,
++  `config.TREE_INFLATION = 0.10`, `Farm.tree_inflation()`). Своя лестница цен у улучшения прежняя — свои уровни
++  его не дорожат. Переезд сбрасывает дерево — и подорожание вместе с ним.
++- Окно дерева: на карточках цены уже с подорожанием; над кнопкой «Купить» — «дороже в xN из-за других
++  улучшений»; без выбора — подсказка «Каждая покупка поднимает цену всех других улучшений на 10%»;
++  после покупки — тост «Остальное подорожало на 10%». Строка «доход от листьев xA -> xB» осталась.
++- Тесты `tests/test_tree_price.py`, сценарий кадров `devtools/scenarios/treeprice.py`.
++- `devtools/economy_bot.py` — бот проходит главу и печатает темп по забегам:
++  `python devtools/economy_bot.py <ферма 0|1|2> <spend|half> [инфляция]`.
++
++## Что показал бот (часы до переезда)
++
++`spend` — тратит всё, что по карману (самое дешёвое первым); `half` — покупает, только если останется
++половина листьев (подобие «думающего» игрока). Бот проще прошлого (без белок, сарая и мельницы), поэтому
++строки сравнивать между собой, а не с 7.7 ч из 3.30.
++
++| | лето | средневековье | зима |
++|---|---|---|---|
++| было, тратит всё | 4.4 | 6.7 | 4.2 |
++| было, думает | 3.5 | 5.1 | 3.4 |
++| 3.31, тратит всё | 8.4 | 13.7 | 9.2 |
++| 3.31, думает | 5.0 | 7.0 | 5.3 |
++
++- Раньше «тратит всё» отставал от «думает» в 1.2–1.3 раза, теперь в 1.7–2 раза: выбор стал важен.
++- Главы для думающего игрока длиннее примерно на 40–55%. Ручка — одно число `TREE_INFLATION`
++  (0.05 — мягче: лето 4.3 ч у думающего, 7.0 ч у тратящего всё).
++- Всё дерево теперь не купить: к концу главы у бота 38–41 уровень из 53–57.
++- Осталось: последние 2–3 забега главы всё равно короткие — листья за забег прыгают в 5–10 раз, потому что
++  заработок внутри забега растёт ступеньками (вехи ×2, удобрения ×3), а листья — корень из заработка.
++  Это уже не про дерево; если мешает — отдельная правка.
++
++## Старые сохранения
++
++Цены дерева сразу пересчитываются по уже купленным уровням: у сохранения с почти полным деревом оставшиеся
++улучшения станут заметно дороже. Купленное не отнимается.
+diff --git a/farmgame/config.py b/farmgame/config.py
+index e4de1e7..59675aa 100644
+--- a/farmgame/config.py
++++ b/farmgame/config.py
+@@ -6,7 +6,7 @@ import sys
+ 
+ W, H = 1000, 640
+ FPS = 60
+-GAME_VERSION = "3.30"   # версия игры: видна в «Настройках» и в заголовке окна
++GAME_VERSION = "3.31"   # версия игры: видна в «Настройках» и в заголовке окна
+ SAVE_VERSION = 2
+ DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
+ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
+@@ -45,6 +45,9 @@ LEAF_UNIT = 1_000_000_000
+ LEAF_FACTOR = 10
+ LEAF_BONUS = 0.02      # +2% дохода за каждый лист
+ TRUCK_MIN_LEAVES = 5   # грузовик приезжает, когда можно получить хотя бы столько
++# 3.31: дерево дорожает. Каждый купленный уровень поднимает цену всех ДРУГИХ улучшений этого дерева
++# на TREE_INFLATION (сложный процент): всё дерево не купить — надо думать, что брать первым.
++TREE_INFLATION = 0.10
+ 
+ RAIN_TIME, RAIN_COOLDOWN, RAIN_SPEED = 60.0, 240.0, 2.0
+ SUN_COOLDOWN, SUN_SECONDS, SUN_MIN = 180.0, 60.0, 25.0
+diff --git a/farmgame/logic.py b/farmgame/logic.py
+index 4291a1b..39e3963 100644
+--- a/farmgame/logic.py
++++ b/farmgame/logic.py
+@@ -79,7 +79,14 @@ class Farm:
+     def tree_cost(self, node_id):
+         node = self.nodes()[node_id]
+         lvl = self.up(node_id)
+-        return node["costs"][lvl] if lvl < len(node["costs"]) else None
++        if lvl >= len(node["costs"]):
++            return None
++        return int(round(node["costs"][lvl] * self.tree_inflation(node_id)))
++
++    def tree_inflation(self, node_id=None):
++        """3.31: во сколько раз подорожало улучшение — по уровням, купленным в ДРУГИХ улучшениях дерева."""
++        others = sum(v for k, v in self.tree.items() if k != node_id and k in self.nodes())
++        return (1 + TREE_INFLATION) ** others
+ 
+     def tree_available(self, node_id):
+         prev = self.nodes()[node_id]["prev"]
+diff --git a/farmgame/windows_ui.py b/farmgame/windows_ui.py
+index 2071555..8a27367 100644
+--- a/farmgame/windows_ui.py
++++ b/farmgame/windows_ui.py
+@@ -179,7 +179,11 @@ class WindowsUI:
+         if self.tree_sel not in TREE_NODES:     # выбранное улучшение осталось от дерева прошлой фермы (после переезда)
+             self.tree_sel = None
+         if self.tree_sel is None:
+-            draw_text(s, "Нажми на улучшение, чтобы узнать, что оно даёт", 16, info.center, soft, outline=None)
++            draw_text(s, "Нажми на улучшение, чтобы узнать, что оно даёт", 16, (info.centerx, info.centery - 12), soft,
++                      outline=None)
++            draw_text_fit(s, f"Каждая покупка поднимает цену всех других улучшений на {round(TREE_INFLATION * 100)}% — "
++                             "выбирай, что брать первым", 14, (info.centerx, info.centery + 16), info.w - 30, brown,
++                          outline=None)
+             return
+         node = TREE_NODES[self.tree_sel]
+         nid = node["id"]
+@@ -200,6 +204,10 @@ class WindowsUI:
+             draw_text(s, f"«{need}»", 14, (info.right - 16, info.y + 58), (190, 80, 70), anchor="midright", outline=None)
+             return
+         ok = f.leaves >= cost
++        infl = f.tree_inflation(nid)
++        if infl > 1.005:   # 3.31: видно, насколько подорожало из-за других покупок
++            draw_text_fit(s, f"дороже в x{infl:.2f} из-за других улучшений", 12, (b.centerx, info.y + 12), b.w + 12,
++                          (190, 80, 70), outline=None)
+         rounded(s, BTN_GREEN if ok else BTN_GREY, b, 10, 3)
+         draw_text(s, f"Купить: {cost}", 18, (b.centerx - 12, b.centery))
+         draw_cur_icon(s, b.right - 26, b.centery, 0.55)
+@@ -214,7 +222,7 @@ class WindowsUI:
+         if self.farm.buy_tree(nid):
+             self.quest("tree")
+             self.sfx.play("levelup")
+-            self.toast(f"Улучшено: {TREE_NODES[nid]['name']}!", 2)
++            self.toast(f"Улучшено: {TREE_NODES[nid]['name']}! Остальное подорожало на {round(TREE_INFLATION * 100)}%", 2.5)
+             if nid in ("sq_often",):
+                 self.squirrel_timer = min(self.squirrel_timer, self.squirrel_delay())
+             if nid in ("scarecrow",):
+diff --git a/tests/test_tree_price.py b/tests/test_tree_price.py
+new file mode 100644
+index 0000000..843e6bf
+--- /dev/null
++++ b/tests/test_tree_price.py
+@@ -0,0 +1,50 @@
++# -*- coding: utf-8 -*-
++"""3.31: дерево дорожает — каждый купленный уровень поднимает цену ДРУГИХ улучшений на TREE_INFLATION."""
++import unittest
++
++from farmgame import config as C
++from farmgame.logic import Farm
++
++
++class TreeInflation(unittest.TestCase):
++    def setUp(self):
++        self.f = Farm()
++        self.f.leaves = self.f.home_leaves = 100_000
++
++    def test_fresh_tree_has_base_prices(self):
++        for nid, node in self.f.nodes().items():
++            self.assertEqual(self.f.tree_cost(nid), node["costs"][0])
++
++    def test_purchase_raises_other_prices(self):
++        base = self.f.tree_cost("rain_len")
++        self.assertTrue(self.f.buy_tree("capital"))
++        self.assertEqual(self.f.tree_cost("rain_len"), round(base * (1 + C.TREE_INFLATION)))
++
++    def test_own_levels_do_not_inflate_itself(self):
++        self.f.buy_tree("capital")
++        self.f.buy_tree("capital")
++        self.assertEqual(self.f.tree_cost("capital"), C.TREE_SUMMER[0][1][0]["costs"][2])
++
++    def test_paid_price_is_shown_price(self):
++        self.f.buy_tree("capital")
++        self.f.buy_tree("rain_len")
++        cost = self.f.tree_cost("farmers")
++        before = self.f.leaves
++        self.assertTrue(self.f.buy_tree("farmers"))
++        self.assertEqual(before - self.f.leaves, cost)
++
++    def test_move_resets_inflation(self):
++        self.f.tree = {"capital": 5, "farmers": 9}
++        self.f.run_earned = self.f.move_threshold()
++        self.assertTrue(self.f.move_farm())
++        self.assertEqual(self.f.tree_inflation("capital"), 1.0)
++        self.assertEqual(self.f.tree_cost("capital"), self.f.nodes()["capital"]["costs"][0])
++
++    def test_cannot_buy_when_inflated_price_too_high(self):
++        self.f.tree = {"capital": 5, "rain_len": 3, "offline": 5}
++        self.f.leaves = self.f.home_leaves = C.TREE_SUMMER[0][1][1]["costs"][0]   # базовая цена фермеров
++        self.assertFalse(self.f.can_buy_tree("farmers"))
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
+From a0cb0bda424e82643c56a27c9bb381d4de277786 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 15:11:37 +0200
+Subject: [PATCH 2/4] =?UTF-8?q?=D0=92=D0=B5=D1=80=D1=81=D0=B8=D1=8F=203.32?=
+ =?UTF-8?q?:=20=D0=B4=D0=B5=D0=BD=D1=8C=D0=B3=D0=B8=20=D0=B7=D0=B0=20?=
+ =?UTF-8?q?=D0=B7=D0=B0=D0=B4=D0=B0=D0=BD=D0=B8=D1=8F=20=D1=82=D0=B0=D0=B2?=
+ =?UTF-8?q?=D0=B5=D1=80=D0=BD=D1=8B=203/5/8=20=D0=B8=2030=20=D0=BC=D0=B8?=
+ =?UTF-8?q?=D0=BD=20=D1=81=20=D0=BF=D0=BE=D1=82=D0=BE=D0=BB=D0=BA=D0=BE?=
+ =?UTF-8?q?=D0=BC=20=D0=BE=D1=82=20=D1=86=D0=B5=D0=BD=D1=8B=20=D1=81=D0=BB?=
+ =?UTF-8?q?=D0=B5=D0=B4=D1=83=D1=8E=D1=89=D0=B5=D0=B9=20=D0=B3=D1=80=D1=8F?=
+ =?UTF-8?q?=D0=B4=D0=BA=D0=B8?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0174tYV1TtJbt2bc9kHkJwmK
+---
+ docs/changes/changes_3.32.md | 19 +++++++++++++
+ farmgame/board_ui.py         |  2 +-
+ farmgame/config.py           |  2 +-
+ farmgame/tavern.py           | 30 ++++++++++++++++++--
+ farmgame/tavern_ui.py        |  8 ++----
+ tests/test_quest_money.py    | 55 ++++++++++++++++++++++++++++++++++++
+ 6 files changed, 106 insertions(+), 10 deletions(-)
+ create mode 100644 docs/changes/changes_3.32.md
+ create mode 100644 tests/test_quest_money.py
+
+diff --git a/docs/changes/changes_3.32.md b/docs/changes/changes_3.32.md
+new file mode 100644
+index 0000000..258acce
+--- /dev/null
++++ b/docs/changes/changes_3.32.md
+@@ -0,0 +1,19 @@
++# Версия 3.32 — деньги за задания таверны меньше
++
++Жалоба пользователя 25.11: «за одну таску смог купить аж 2 новые грядки да и к тому же вкачать не хило остальные».
++
++Причина: награда была «N минут дохода грядок» — 15/25/40 мин за дневное и 180 мин за недельное. Внутри забега
++доход растёт ступеньками, и 40 минут нынешнего дохода — это сразу несколько следующих шагов. Пример (летняя ферма
++середины игры, тыква ещё закрыта, стоит $2.15B): ★★★ давало $90B (42 тыквы), неделя — $406B.
++
++Стало (`tavern.py`):
++- минуты дохода: дневные **3 / 5 / 8**, недельное **30** (было 15/25/40 и 180);
++- **потолок от цены следующей закрытой грядки** (`REWARD_BED_CAP`, `tavern.quest_money`): ★ — 25% её цены,
++  ★★ — 40%, ★★★ — 60%, неделя — 100%. Дневное задание помогает дотянуть до новой грядки, но не покупает её;
++  недельное — не больше одной. Когда открыты все 9 грядок, потолка нет — остаются только минуты;
++- тот же пример: ★ $537M, ★★ $860M, ★★★ $1.29B, неделя $2.15B;
++- жетоны, листья/печати и x2 на 30 минут у недельного — как были;
++- старые незабранные награды (15/25/40/180 мин в сохранении) тоже получают потолок: дневные 60%, недельная 100%;
++- на карточке недельного задания убрано «(3 ч дохода)».
++
++Тесты: `tests/test_quest_money.py`.
+diff --git a/farmgame/board_ui.py b/farmgame/board_ui.py
+index bccaa0c..1f0c841 100644
+--- a/farmgame/board_ui.py
++++ b/farmgame/board_ui.py
+@@ -113,7 +113,7 @@ class BoardUI:
+         draw_text(s, f"{fmt(q['progress'])} / {fmt(q['target'])}", 12, bar.center)
+         minutes, tokens, prestige, boost = self.tavern.reward_of(q)
+         draw_text(s, "Награда:", 14, (r.centerx, y0 + 124), BROWN, outline=None)
+-        rows = [(lambda x, y: draw_coin(s, x, y, 8), "$" + fmt(self.quest_money(minutes)) + f" ({minutes // 60} ч дохода)"),
++        rows = [(lambda x, y: draw_coin(s, x, y, 8), "$" + fmt(self.quest_money(minutes))),
+                 (lambda x, y: draw_token(s, x, y, 0.55), f"{tokens} жетонов"),
+                 (lambda x, y: draw_cur_icon(s, x, y, 0.5), f"{prestige} {CUR['gen']}"),
+                 (lambda x, y: draw_text(s, "x2", 12, (x, y), GOLD), f"доход x2 на {boost} мин")]
+diff --git a/farmgame/config.py b/farmgame/config.py
+index 59675aa..0b54699 100644
+--- a/farmgame/config.py
++++ b/farmgame/config.py
+@@ -6,7 +6,7 @@ import sys
+ 
+ W, H = 1000, 640
+ FPS = 60
+-GAME_VERSION = "3.31"   # версия игры: видна в «Настройках» и в заголовке окна
++GAME_VERSION = "3.32"   # версия игры: видна в «Настройках» и в заголовке окна
+ SAVE_VERSION = 2
+ DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
+ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
+diff --git a/farmgame/tavern.py b/farmgame/tavern.py
+index 262cf21..faf069b 100644
+--- a/farmgame/tavern.py
++++ b/farmgame/tavern.py
+@@ -15,8 +15,34 @@ DAILY_COUNT = 4
+ TAVERN_FROM_FARM = 1          # индекс фермы, с которой открывается таверна (1 — средневековье)
+ 
+ # Награда за ежедневное задание: минуты дохода фермы (считаются в момент получения) + жетоны.
+-DAILY_REWARD = {1: (15, 5), 2: (25, 10), 3: (40, 15)}        # сложность -> (минут дохода, жетонов)
+-WEEKLY_REWARD = dict(minutes=180, tokens=60, prestige=15, boost_minutes=30)
++# 3.32 (жалоба пользователя 25.11: «за одну таску купил 2 новые грядки и вкачал остальные»): было 15/25/40 мин
++# и 180 мин за неделю — стало 3/5/8 и 30, плюс потолок REWARD_BED_CAP (см. quest_money).
++DAILY_REWARD = {1: (3, 5), 2: (5, 10), 3: (8, 15)}        # сложность -> (минут дохода, жетонов)
++WEEKLY_REWARD = dict(minutes=30, tokens=60, prestige=15, boost_minutes=30)
++# Потолок денег за задание — доля цены первой ещё не купленной грядки: дневное задание помогает до неё
++# дотянуть (★ — четверть цены, ★★★ — больше половины), но не покупает её; недельное — не больше одной грядки.
++# Когда открыты все грядки — потолка нет. Ключ — минуты награды (по ним же узнаются старые незабранные награды).
++REWARD_BED_CAP = {3: 0.25, 5: 0.4, 8: 0.6, 30: 1.0}
++
++
++def bed_cap_share(minutes):
++    if minutes in REWARD_BED_CAP:
++        return REWARD_BED_CAP[minutes]
++    return 1.0 if minutes > 40 else 0.6     # старые незабранные награды: дневные 15/25/40 мин, недельная 180
++
++
++def quest_money(farm, minutes):
++    """Деньги за задание: столько минут дохода грядок (без дождя и буста x2), но не меньше небольшой суммы
++    и не больше доли (REWARD_BED_CAP) цены следующей закрытой грядки."""
++    n = len(farm.levels)
++    inc = sum(farm.income_per_sec(i, False) for i in range(n))
++    if farm.boost_left > 0:
++        inc /= 2
++    money = max(inc * 60 * minutes, 20 * farm.price_mult * minutes)
++    locked = [i for i in range(n) if farm.levels[i] == 0]
++    if locked:
++        money = min(money, bed_cap_share(minutes) * farm.cost(locked[0], 1))
++    return money
+ 
+ # Шаблоны заданий: событие, текст, цели по сложности, при каком условии фермы доступно.
+ # need: None — везде; "crow"/"bandits"/"peasants" — флаг фермы; "animals"/"mill" — что стоит вместо сарая.
+diff --git a/farmgame/tavern_ui.py b/farmgame/tavern_ui.py
+index 6b5c39a..3df46f2 100644
+--- a/farmgame/tavern_ui.py
++++ b/farmgame/tavern_ui.py
+@@ -108,12 +108,8 @@ class TavernUI:
+             self.toast(("Задание НЕДЕЛИ выполнено" if big else "Задание выполнено") + f": «{q['title']}»! Награда — в таверне", 4)
+ 
+     def quest_money(self, minutes):
+-        """Деньги за задание = столько минут дохода грядок (без дождя и буста), но не меньше небольшой суммы."""
+-        f = self.farm
+-        inc = sum(f.income_per_sec(i, False) for i in range(N_CROPS))
+-        if f.boost_left > 0:
+-            inc /= 2
+-        return max(inc * 60 * minutes, 20 * f.price_mult * minutes)
++        """Деньги за задание — см. tavern.quest_money (минуты дохода с потолком от цены следующей грядки)."""
++        return tv.quest_money(self.farm, minutes)
+ 
+     def grant_reward(self, minutes, prestige, boost):
+         """Выдаёт ферме награду задания (жетоны начисляет сама таверна). Возвращает, сколько денег дали."""
+diff --git a/tests/test_quest_money.py b/tests/test_quest_money.py
+new file mode 100644
+index 0000000..00f1724
+--- /dev/null
++++ b/tests/test_quest_money.py
+@@ -0,0 +1,55 @@
++# -*- coding: utf-8 -*-
++"""3.32: деньги за задания таверны — минуты дохода с потолком от цены следующей закрытой грядки."""
++import unittest
++
++from tests.helpers import summer_farm
++from farmgame import tavern as tv
++
++
++def income_minutes(f, minutes):
++    return sum(f.income_per_sec(i, False) for i in range(len(f.levels))) * 60 * minutes
++
++
++class QuestMoney(unittest.TestCase):
++    def test_daily_never_buys_a_new_bed(self):
++        f = summer_farm()                       # тыква (9-я грядка) закрыта
++        bed = f.cost(8, 1)
++        for diff, (minutes, _tok) in tv.DAILY_REWARD.items():
++            self.assertLess(tv.quest_money(f, minutes), bed)
++
++    def test_weekly_buys_at_most_one_bed(self):
++        f = summer_farm()
++        self.assertLessEqual(tv.quest_money(f, tv.WEEKLY_REWARD["minutes"]), f.cost(8, 1) + 1e-6)
++
++    def test_minutes_rule_when_cap_is_far(self):
++        f = summer_farm()
++        f.levels = [10, 0, 0, 0, 0, 0, 0, 0, 0]          # начало забега: потолок (половина моркови) не мешает?
++        self.assertLessEqual(tv.quest_money(f, 3), 0.25 * f.cost(1, 1) + 1e-6)
++        f.levels = [200, 100, 100, 50, 50, 50, 25, 10, 5]   # все грядки открыты — потолка нет
++        self.assertAlmostEqual(tv.quest_money(f, 3), income_minutes(f, 3))
++
++    def test_harder_task_pays_more(self):
++        f = summer_farm()
++        pays = [tv.quest_money(f, m) for m, _t in tv.DAILY_REWARD.values()]
++        self.assertEqual(pays, sorted(pays))
++        self.assertLess(pays[0], pays[-1])
++
++    def test_old_owed_rewards_are_capped(self):
++        f = summer_farm()
++        self.assertLessEqual(tv.quest_money(f, 40), 0.6 * f.cost(8, 1) + 1e-6)
++        self.assertLessEqual(tv.quest_money(f, 180), f.cost(8, 1) + 1e-6)
++
++    def test_boost_does_not_inflate_reward(self):
++        f = summer_farm()
++        f.levels[8] = 5
++        plain = tv.quest_money(f, 5)
++        f.boost_left = 60
++        self.assertAlmostEqual(tv.quest_money(f, 5), plain)
++
++    def test_rewards_are_smaller_than_before(self):
++        self.assertEqual({d: m for d, (m, _t) in tv.DAILY_REWARD.items()}, {1: 3, 2: 5, 3: 8})
++        self.assertEqual(tv.WEEKLY_REWARD["minutes"], 30)
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
+From ceed729dc951fa9fff77c69ef32c890ca2c73560 Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 16:15:17 +0200
+Subject: [PATCH 3/4] =?UTF-8?q?=D0=92=D0=B5=D1=80=D1=81=D0=B8=D1=8F=203.33?=
+ =?UTF-8?q?:=20=D0=BF=D1=80=D0=B8=D0=B7=D0=BE=D0=B2=D0=B0=D1=8F=20=D1=81?=
+ =?UTF-8?q?=D1=82=D0=BE=D0=B9=D0=BA=D0=B0=20=D0=BF=D0=BE=20=D0=B2=D0=BA?=
+ =?UTF-8?q?=D0=BB=D0=B0=D0=B4=D0=BA=D0=B0=D0=BC=20(=D1=83=D0=BA=D1=80?=
+ =?UTF-8?q?=D0=B0=D1=88=D0=B5=D0=BD=D0=B8=D1=8F/=D0=BF=D0=B5=D1=80=D1=81?=
+ =?UTF-8?q?=D0=BE=D0=BD=D0=B0=D0=B6=D0=B8/=D1=8D=D1=84=D1=84=D0=B5=D0=BA?=
+ =?UTF-8?q?=D1=82=D1=8B/=D0=BF=D1=80=D0=BE=D1=87=D0=B5=D0=B5/=D1=82=D1=80?=
+ =?UTF-8?q?=D0=BE=D1=84=D0=B5=D0=B8),=2015=20=D0=BD=D0=BE=D0=B2=D1=8B?=
+ =?UTF-8?q?=D1=85=20=D0=BF=D1=80=D0=B8=D0=B7=D0=BE=D0=B2?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0174tYV1TtJbt2bc9kHkJwmK
+---
+ devtools/scenarios/prizes333.py |  14 +++
+ devtools/scenarios/trails333.py |   8 ++
+ docs/changes/changes_3.33.md    |  46 ++++++++
+ farmgame/app.py                 |   7 +-
+ farmgame/art_field.py           |  16 ++-
+ farmgame/blackjack_ui.py        |  18 ++-
+ farmgame/casino_ui.py           | 110 +++++++++++++++++--
+ farmgame/config.py              |  72 +++++++++---
+ farmgame/decor_art.py           | 188 ++++++++++++++++++++++++++++++++
+ farmgame/fireside_art.py        |  11 +-
+ farmgame/fireside_ui.py         |  25 +++++
+ farmgame/spritefit.py           |  20 +++-
+ farmgame/tavern.py              |  20 +++-
+ farmgame/tavern_art.py          |   6 +
+ farmgame/tavern_life_ui.py      |  33 ++++++
+ farmgame/tavern_ui.py           |   6 +-
+ farmgame/templates.py           |  11 +-
+ farmgame/wheel.py               |   1 +
+ tests/test_casino.py            |   2 +-
+ tests/test_fireside.py          |   6 +-
+ tests/test_prize_tabs.py        |  53 +++++++++
+ 21 files changed, 625 insertions(+), 48 deletions(-)
+ create mode 100644 devtools/scenarios/prizes333.py
+ create mode 100644 devtools/scenarios/trails333.py
+ create mode 100644 docs/changes/changes_3.33.md
+ create mode 100644 farmgame/decor_art.py
+ create mode 100644 tests/test_prize_tabs.py
+
+diff --git a/devtools/scenarios/prizes333.py b/devtools/scenarios/prizes333.py
+new file mode 100644
+index 0000000..7e40503
+--- /dev/null
++++ b/devtools/scenarios/prizes333.py
+@@ -0,0 +1,14 @@
++# 3.33: призовая стойка по вкладкам, новые украшения в зале и у камина, рубашка карт, шлейфы
++from farmgame.config import PRIZES, PRIZE_TABS
++set_medieval(); A.tavern.unlocked = True; A.tavern.tokens = 20000
++for p in PRIZES:
++    if not (p.get("jackpot") or p.get("achievement")):
++        A.tavern.buy_prize(A.farm, p["id"])
++A.tavern.prizes["golden_squirrel"] = A.tavern.prizes["golden_pitchfork"] = True
++for tab, _t in PRIZE_TABS:
++    A.modal = None; A.prize_tab = tab; A.open_modal("prizes"); A.skip_anims(); frames(20); snap("pz_" + tab)
++A.modal = None
++A.open_tavern(); A.tv_bubble = None; A.toasts.clear(); frames(30); snap("pz_hall")
++A.poke_owl(); frames(10); snap("pz_owl")
++A.open_fireside(); A.toasts.clear(); frames(60); snap("pz_fireside")
++A.pet_dog(); frames(15); snap("pz_dog")
+diff --git a/devtools/scenarios/trails333.py b/devtools/scenarios/trails333.py
+new file mode 100644
+index 0000000..8d99489
+--- /dev/null
++++ b/devtools/scenarios/trails333.py
+@@ -0,0 +1,8 @@
++# 3.33: шлейфы «Листопад» и «Мыльные пузыри», рубашка карт в блэкджеке
++import math
++from farmgame import blackjack as bjl
++A.tavern.tokens = 5000
++for pid in ("leaf_trail", "bubble_trail"):
++    A.tavern.buy_prize(A.farm, pid)
++    A.trail = [(300 + i * 12, 300 + 40 * math.sin(i * 0.4), A.t_real - 0.45 + i * 0.012) for i in range(38)]
++    A.draw(); snap("tr_" + pid, crop=(250, 220, 800, 400))
+diff --git a/docs/changes/changes_3.33.md b/docs/changes/changes_3.33.md
+new file mode 100644
+index 0000000..7b56a2b
+--- /dev/null
++++ b/docs/changes/changes_3.33.md
+@@ -0,0 +1,46 @@
++# Версия 3.33 — призовая стойка по полочкам и новые призы
++
++Просьба пользователя 25.11: «в магазине поменяй местами трофеи и украшения, а сами украшения разбей на вкладки
++украшений, персонажей, эффектов и всего прочего, иначе снова всё в одной куче»; «больше скинов, больше трофеев».
++
++## Вкладки
++`config.PRIZE_TABS`: **Украшения · Персонажи · Эффекты · Прочее · Трофеи** (трофеи — последние, открывается
++вкладка «Украшения»). У косметики поле `cat` (decor / chars / fx / misc). Не продающиеся (джекпот колеса,
++за достижения) — в конце своей вкладки.
++
++## Группы «одно из»
++Поле `group`: включил одно — остальные из группы выключились (`Tavern._one_on_stage` обобщён, `Tavern.group_on`,
++`tavern.prize_group`). Группы: `stage` (артисты сцены, как раньше), `trail` (шлейф курсора), `notes` (ноты барда),
++`cards` (рубашка карт). Выпавший джекпот колеса сразу включается.
++
++## Новые призы (цены — прикидка, жетоны)
++| Вкладка | Приз | Цена | Где |
++|---|---|---|---|
++| Украшения | Венок из колосьев | 140 | стена справа у камина |
++| Украшения | Фонарики | 180 | три фонаря под балконом зала, качаются и светят |
++| Украшения | Кресло-качалка | 250 | у камина слева, само качается |
++| Персонажи | Пёс Буян | 220 | спит у камина справа; погладить — виляет хвостом |
++| Персонажи | Сова Ухта | 260 | на бочке за барменом, моргает; щёлкнуть — «Уху!» |
++| Эффекты | Листопад | 160 | шлейф курсора из листьев |
++| Эффекты | Мыльные пузыри | 160 | шлейф курсора из пузырей |
++| Эффекты | Светлячки | 230 | порхают в зале и у камина |
++| Прочее | Своя кружка | 70 | кружка с сердечком на стойке |
++| Прочее | Золотая рубашка | 200 | карты блэкджека (картинка `props/card_back_gold` уже есть в листе карт) |
++| Прочее | Зимняя рубашка | 200 | карты блэкджека (`props/card_back_winter`) |
++| Трофеи | Резной жёлудь | 300 | каминная полка |
++| Трофеи | Королевская печать | 800 | каминная полка |
++| Трофеи | Корона урожая | 2500 | каминная полка |
++| Трофеи | Хрустальная снежинка | 4000 | каминная полка |
++| Трофеи | Золотая белка, Золотые вилы | — | за достижения (3.34), висят на трубе камина |
++
++Кот переименован в «Кот Рыжик» (так его зовёт бармен) и переехал во вкладку «Персонажи».
++
++## Картинки (всё рисуется кодом, свои — по желанию)
++- Значки: листы `icons/prizes_3` (жёлудь, печать, корона, снежинка, золотая белка, золотые вилы, венок, фонарики,
++  кресло) и `icons/prizes_4` (пёс, сова, кружка, светлячки, листопад, пузыри, 2 рубашки, пусто).
++- В сцене: лист `decor/sheet_2` 2×3 — `decor/wreath`, `decor/lantern`, `decor/rocking_chair`, `decor/own_mug`,
++  `characters/dog`, `characters/owl` (или отдельными файлами).
++- Места в зале — `decor` в `tavern.json` (`lanterns`, `own_mug`, `owl`, `fireflies`), у камина — `fireside.json`
++  (`wreath`, `chair`, `dog`, ещё 6 мест в `trophies`).
++
++Тесты `tests/test_prize_tabs.py`; сценарии кадров `prizes333.py`, `trails333.py`.
+diff --git a/farmgame/app.py b/farmgame/app.py
+index d8ca9cb..6c018dc 100644
+--- a/farmgame/app.py
++++ b/farmgame/app.py
+@@ -520,9 +520,12 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
+         self.tips = []
+         self.draw_scene()
+         if self.view == "field" and self.modal is None:
++            tr = self.tavern.group_on("trail")     # 3.33: шлейф — один из группы (золото, звёзды, листья, пузыри)
+             draw_trail(self.screen, self.trail, self.t_real,
+-                       color=(255, 212, 80) if self.tavern.prize_on("gold_trail") else (255, 250, 225),
+-                       stars=self.tavern.prize_on("star_trail"))          # 3.27: джекпот колеса фортуны
++                       color=(255, 212, 80) if tr == "gold_trail" else (255, 250, 225),
++                       stars=tr == "star_trail",          # 3.27: джекпот колеса фортуны
++                       style={"leaf_trail": "leaves", "bubble_trail": "bubbles"}.get(tr),
++                       life=0.5 if tr in ("leaf_trail", "bubble_trail") else 0.28)
+         self.draw_hover()
+         self.draw_tip()
+         if self.show_fps:
+diff --git a/farmgame/art_field.py b/farmgame/art_field.py
+index 332effc..f13e3fe 100644
+--- a/farmgame/art_field.py
++++ b/farmgame/art_field.py
+@@ -412,13 +412,13 @@ def draw_hover_ring(surf, rect, radius=10, color=(255, 248, 210)):
+ RAINBOW = ((255, 90, 80), (255, 170, 60), (255, 225, 80), (110, 220, 120), (90, 180, 255), (180, 120, 255))
+ 
+ 
+-def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False):
++def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False, style=None):
+     """Тонкий исчезающий шлейф за курсором. points = [(x, y, время)].
+     Слой — только размером со сам шлейф (а не весь экран): в HD так заметно быстрее."""
+     pts = [(x, y, now - t) for x, y, t in points if now - t < life]
+     if len(pts) < 2:
+         return
+-    pad = 8
++    pad = 8 if not style else 22
+     lx, ly = int(min(p[0] for p in pts)) - pad, int(min(p[1] for p in pts)) - pad
+     lw, lh = int(max(p[0] for p in pts)) - lx + pad + 1, int(max(p[1] for p in pts)) - ly + pad + 1
+     layer = hd.Surface((lw, lh), pygame.SRCALPHA)
+@@ -429,6 +429,18 @@ def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False)
+             continue
+         width = max(1, int(1 + 4 * k))
+         a, b = (x0 - lx, y0 - ly), (x1 - lx, y1 - ly)
++        if style in ("leaves", "bubbles"):     # 3.33: «Листопад» и «Мыльные пузыри» — через отрезок, чтобы не сливались
++            n = int(x0 * 0.7 + y0 * 1.3)
++            if n % 2:
++                continue
++            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + (1 - k) * 10 * (1 if style == "leaves" else -1)
++            from .decor_art import trail_leaf, trail_bubble, TRAIL_LEAVES
++            if style == "leaves":
++                trail_leaf(layer, mx + math.sin(now * 5 + n) * 4 * (1 - k), my, k,
++                           TRAIL_LEAVES[(n // 2) % len(TRAIL_LEAVES)], n * 0.7 + now * 3)
++            else:
++                trail_bubble(layer, mx, my, k, n)
++            continue
+         if stars:            # 3.27: джекпот «Звёздный шлейф» — разноцветные звёздочки вместо линии
+             col = RAINBOW[int(x0 * 0.05 + y0 * 0.03 + now * 6) % len(RAINBOW)]
+             r = 2 + 4 * k
+diff --git a/farmgame/blackjack_ui.py b/farmgame/blackjack_ui.py
+index de80de2..3e02cc7 100644
+--- a/farmgame/blackjack_ui.py
++++ b/farmgame/blackjack_ui.py
+@@ -73,10 +73,18 @@ def draw_suit(s, suit, x, y, k=1.0):
+         poly(s, col, [(x, y + r * 0.2), (x - r * 0.5, y + r * 1.3), (x + r * 0.5, y + r * 1.3)], 0)
+ 
+ 
+-def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back", sx=1.0, shadow=True):
++CARD_BACKS = {"cards_gold": "props/card_back_gold", "cards_winter": "props/card_back_winter"}   # 3.33: призы «Прочее»
++BACK_COLORS = {"props/card_back": ((170, 45, 50), (205, 80, 70), (240, 200, 120)),       # рубашки кодом
++               "props/card_back_gold": ((190, 140, 30), (235, 190, 70), (255, 240, 170)),
++               "props/card_back_winter": ((60, 110, 170), (120, 175, 225), (240, 250, 255))}
++CARD_BACK = ["props/card_back"]      # какая рубашка сейчас (ставит BlackjackUI перед рисованием стола)
++
++
++def draw_card(s, x, y, card, face_up=True, k=1.0, back=None, sx=1.0, shadow=True):
+     """Карта с центром (x, y): лицо (ранг и масть рисует игра) или рубашка.
+     sx — ширина 0..1 (карта переворачивается: сужается до ребра и раскрывается другой стороной)."""
+     w, h = BJ["card_w"] * k, BJ["card_h"] * k
++    back = back or CARD_BACK[0]
+     sx = max(0.04, min(1.0, sx))
+     rect = pygame.Rect(0, 0, max(2, P(w * sx)), P(h))
+     rect.center = (P(x), P(y))
+@@ -89,9 +97,10 @@ def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back", sx=1.0
+         return rect
+     if not face_up:
+         if not blit_sprite(s, back, x, y, w / 84, "center"):
+-            rounded(s, (170, 45, 50), rect, max(4, P(7 * k)), 2, skin=None)
+-            rounded(s, (205, 80, 70), rect.inflate(-P(10 * k), -P(10 * k)), max(3, P(5 * k)), 2, (240, 200, 120), skin=None)
+-            pygame.draw.circle(s, (240, 200, 120), rect.center, max(3, P(10 * k)), 2)
++            base, inner, line = BACK_COLORS.get(back, BACK_COLORS["props/card_back"])
++            rounded(s, base, rect, max(4, P(7 * k)), 2, skin=None)
++            rounded(s, inner, rect.inflate(-P(10 * k), -P(10 * k)), max(3, P(5 * k)), 2, line, skin=None)
++            pygame.draw.circle(s, line, rect.center, max(3, P(10 * k)), 2)
+         return rect
+     if not blit_sprite(s, "props/card_face", x, y, w / 84, "center"):
+         rounded(s, (252, 248, 238), rect, max(4, P(7 * k)), 2, skin=None)
+@@ -291,6 +300,7 @@ class BlackjackUI:
+ 
+     # ------------------------------------------------------------ рисование
+     def draw_blackjack_view(self):
++        CARD_BACK[0] = CARD_BACKS.get(self.tavern.group_on("cards"), "props/card_back")
+         s, g, t = self.screen, self.bj, self.t_real
+         L = bj_layout()
+         if getattr(self, "bj_bg", None) is None:
+diff --git a/farmgame/casino_ui.py b/farmgame/casino_ui.py
+index 9a21459..a6d25aa 100644
+--- a/farmgame/casino_ui.py
++++ b/farmgame/casino_ui.py
+@@ -13,7 +13,7 @@ import random
+ 
+ import pygame
+ 
+-from .config import W, H, PRIZES
++from .config import W, H, PRIZES, PRIZE_TABS
+ from .art import (OUT, WHITE, GOLD, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, rounded, draw_text, render_text,
+                   draw_text_fit, blit_sprite, blit_tf, blit_light, has_sprite, ellipse, RAINBOW)
+ from .tavern_ui import draw_token, draw_person, draw_bubble
+@@ -97,7 +97,7 @@ class CasinoUI:
+         self.cs_bg = None
+         self.cs_say = None              # [текст, секунд осталось] — облачко крупье
+         self.cs_intro = 0               # номер подсказки правил (пока крупье рассказывает)
+-        self.prize_tab = "trophy"
++        self.prize_tab = "decor"         # 3.33: вкладки PRIZE_TABS, трофеи — последние
+ 
+     def open_casino(self):
+         """Казино — за дверью таверны: зал таверны готовим тоже (кнопка «В таверну» ведёт туда)."""
+@@ -387,18 +387,21 @@ class CasinoUI:
+     # ------------------------------------------------------------ призовая стойка
+     def draw_prizes(self):
+         s, t = self.screen, self.tavern
+-        r = self.panel(640, 480, "ПРИЗОВАЯ СТОЙКА")
++        r = self.panel(700, 480, "ПРИЗОВАЯ СТОЙКА")
+         draw_text(s, f"У тебя жетонов: {t.tokens}", 15, (r.centerx, r.y + 56), (90, 70, 60), outline=None)
+-        tabs = (("trophy", "Трофеи"), ("cosmetic", "Украшения"))
+-        tw = (r.w - 60 - 10) // 2
+-        for i, (key, title) in enumerate(tabs):
++        keys = [k for k, _ in PRIZE_TABS]
++        if self.prize_tab not in keys:
++            self.prize_tab = keys[0]
++        tw = (r.w - 60 - 8 * (len(keys) - 1)) // len(keys)
++        for i, (key, title) in enumerate(PRIZE_TABS):     # 3.33: украшения, персонажи, эффекты, прочее, трофеи
+             on = self.prize_tab == key
+-            self.button((r.x + 30 + i * (tw + 10), r.y + 74, tw, 38), title, lambda k=key: setattr(self, "prize_tab", k),
+-                        (245, 175, 50) if on else BTN_BLUE, True, 17)
+-        if self.prize_tab not in ("trophy", "cosmetic"):
+-            self.prize_tab = "trophy"
+-        items = sorted((p for p in PRIZES if p["kind"] == self.prize_tab),
+-                       key=lambda p: (bool(p.get("jackpot")), p["cost"]))    # 3.27: скины джекпота — в конце
++            self.button((r.x + 30 + i * (tw + 8), r.y + 74, tw, 38), title, lambda k=key: setattr(self, "prize_tab", k),
++                        (245, 175, 50) if on else BTN_BLUE, True, 15)
++        if self.prize_tab == "trophy":
++            pool = [p for p in PRIZES if p["kind"] == "trophy"]
++        else:
++            pool = [p for p in PRIZES if p["kind"] == "cosmetic" and p.get("cat", "decor") == self.prize_tab]
++        items = sorted(pool, key=lambda p: (bool(p.get("jackpot") or p.get("achievement")), p["cost"]))  # не продающиеся — в конце
+         per = 4
+         pages = max(1, (len(items) + per - 1) // per)
+         self.prize_page = min(getattr(self, "prize_page", 0), pages - 1) if self.prize_tab == getattr(
+@@ -420,6 +423,9 @@ class CasinoUI:
+                             BTN_GREEN if on else BTN_GREY, True, 16)
+             elif state == "owned":
+                 skin_max(s, bt, "В таверне")
++            elif p.get("achievement"):    # 3.34: трофей за достижение
++                self.button(bt, "За достижение", lambda: None, BTN_GREY, False, 14)
++                self.tip(bt, "Дают в «Достижениях»: " + p["text"])
+             elif p.get("jackpot"):        # 3.27: не продаётся — выпадает джекпотом колеса фортуны в Игровой
+                 self.button(bt, "Джекпот колеса", lambda: None, BTN_GREY, False, 14)
+                 self.tip(bt, "Выпадает только джекпотом колеса фортуны в Игровой")
+@@ -567,6 +573,8 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
+             pygame.draw.circle(s, (255, 212, 80), (int(x - 14 * k + i * 6 * k), int(y + 8 * k - i * 4 * k)),
+                                max(1, int((1 + i) * k)))
+         poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
++    elif draw_new_prize_icon(s, pid, x, y, k):         # 3.33–3.34: новые призы
++        pass
+     elif pid in ("bard_girl", "fiddler", "bagpiper"):              # 3.23: артисты сцены
+         from .tavern_ui import draw_person, ARTIST_LOOKS
+         draw_person(s, x, y + 16 * k, 0.42 * k, ARTIST_LOOKS[pid])
+@@ -588,3 +596,81 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
+             by = y - 4 * k + 10 * k * 4 * u * (1 - u)
+             pygame.draw.circle(s, OUT, (int(bx), int(by + 4 * k)), int(5 * k) + 1)
+             pygame.draw.circle(s, col, (int(bx), int(by + 4 * k)), int(5 * k))
++
++
++def draw_new_prize_icon(s, pid, x, y, k=1.0):
++    """3.33–3.34: значки новых призов кодом. True — нарисовано."""
++    from . import decor_art as da
++    if pid == "acorn":
++        ellipse(s, (176, 118, 62), x, y + 4 * k, 22 * k, 26 * k)
++        ellipse(s, (130, 86, 46), x, y - 9 * k, 28 * k, 12 * k)
++        pygame.draw.line(s, OUT, (x, int(y - 15 * k)), (int(x + 3 * k), int(y - 21 * k)), max(2, int(3 * k)))
++        blit_light(s, x - 4 * k, y, 16 * k, (255, 230, 170), 120, 0.0)
++    elif pid == "seal_trophy":
++        pygame.draw.circle(s, OUT, (x, y), int(17 * k) + 2)
++        pygame.draw.circle(s, (190, 40, 45), (x, y), int(17 * k))
++        pygame.draw.circle(s, (150, 25, 30), (x, y), int(11 * k), max(1, int(2 * k)))
++        poly(s, GOLD, [(x - 8 * k, y + 4 * k), (x - 8 * k, y - 5 * k), (x - 4 * k, y), (x, y - 7 * k), (x + 4 * k, y),
++                       (x + 8 * k, y - 5 * k), (x + 8 * k, y + 4 * k)], 1)
++    elif pid == "crown":
++        poly(s, GOLD, [(x - 18 * k, y + 10 * k), (x - 20 * k, y - 10 * k), (x - 9 * k, y - 1 * k), (x, y - 16 * k),
++                       (x + 9 * k, y - 1 * k), (x + 20 * k, y - 10 * k), (x + 18 * k, y + 10 * k)], 2)
++        for dx, col in ((-10, (210, 60, 60)), (0, (80, 160, 230)), (10, (90, 190, 90))):
++            pygame.draw.circle(s, col, (int(x + dx * k), int(y + 4 * k)), max(2, int(3 * k)))
++        for dx in (-9, 9):
++            poly(s, (240, 200, 90), [(x + dx * k - 3 * k, y + 13 * k), (x + dx * k, y + 8 * k), (x + dx * k + 3 * k, y + 13 * k),
++                                     (x + dx * k, y + 18 * k)], 1)
++    elif pid == "snowflake":
++        for i in range(6):
++            a = i * math.pi / 3
++            ex, ey = x + math.cos(a) * 17 * k, y + math.sin(a) * 17 * k
++            pygame.draw.line(s, (150, 200, 235), (x, y), (ex, ey), max(2, int(4 * k)))
++            pygame.draw.line(s, (235, 248, 255), (x, y), (ex, ey), max(1, int(2 * k)))
++            mx, my = x + math.cos(a) * 10 * k, y + math.sin(a) * 10 * k
++            for da_ in (-0.7, 0.7):
++                pygame.draw.line(s, (220, 240, 255), (mx, my), (mx + math.cos(a + da_) * 6 * k, my + math.sin(a + da_) * 6 * k), 2)
++        blit_light(s, x, y, 30 * k, (200, 235, 255), 140, 0.0)
++    elif pid == "golden_squirrel":
++        ellipse(s, (245, 200, 60), x - 2 * k, y + 4 * k, 20 * k, 22 * k)
++        ellipse(s, (250, 210, 70), x + 2 * k, y - 10 * k, 16 * k, 14 * k)
++        ellipse(s, (235, 185, 50), x + 13 * k, y - 4 * k, 14 * k, 30 * k)
++        pygame.draw.circle(s, OUT, (int(x + 4 * k), int(y - 12 * k)), max(1, int(2 * k)))
++        blit_light(s, x, y - 4 * k, 34 * k, (255, 230, 120), 150, 0.0)
++    elif pid == "golden_pitchfork":
++        pygame.draw.line(s, OUT, (x, int(y + 18 * k)), (x, int(y - 6 * k)), max(4, int(7 * k)))
++        pygame.draw.line(s, (200, 150, 60), (x, int(y + 18 * k)), (x, int(y - 6 * k)), max(2, int(4 * k)))
++        pygame.draw.line(s, GOLD, (int(x - 10 * k), int(y - 6 * k)), (int(x + 10 * k), int(y - 6 * k)), max(2, int(4 * k)))
++        for dx in (-10, 0, 10):
++            pygame.draw.line(s, GOLD, (int(x + dx * k), int(y - 6 * k)), (int(x + dx * k), int(y - 20 * k)), max(2, int(3 * k)))
++        blit_light(s, x, y - 8 * k, 30 * k, (255, 230, 120), 140, 0.0)
++    elif pid == "wreath":
++        da.draw_wreath(s, x, y, 0.55 * k, 0.0)
++    elif pid == "lanterns":
++        da.draw_lantern(s, x, y - 26 * k, 1.0 * k, 0.0)
++    elif pid == "rocking_chair":
++        da.draw_rocking_chair(s, x + 4 * k, y + 18 * k, 0.36 * k, 0.0)
++    elif pid == "dog":
++        da.draw_dog(s, x, y + 14 * k, 0.42 * k, 0.0)
++    elif pid == "owl":
++        da.draw_owl(s, x, y + 22 * k, 0.75 * k, 1.0)
++    elif pid == "own_mug":
++        da.draw_own_mug(s, x, y + 14 * k, 1.1 * k, 0.0)
++    elif pid == "fireflies":
++        for i, (dx, dy) in enumerate(((-12, 6), (4, -10), (12, 8), (-2, 14))):
++            blit_light(s, x + dx * k, y + dy * k, 18 * k, (200, 255, 120), 200, 0.0)
++            pygame.draw.circle(s, (240, 255, 190), (int(x + dx * k), int(y + dy * k)), max(1, int(2 * k)))
++    elif pid in ("leaf_trail", "bubble_trail"):
++        for i in range(5):
++            cx, cy = x - 14 * k + i * 6 * k, y + 8 * k - i * 4 * k
++            if pid == "leaf_trail":
++                poly(s, da.TRAIL_LEAVES[i % 4], [(cx - 4 * k, cy), (cx, cy - 3 * k), (cx + 4 * k, cy), (cx, cy + 3 * k)], 1)
++            else:
++                pygame.draw.circle(s, (150, 200, 240), (int(cx), int(cy)), max(2, int((2 + i * 0.8) * k)), 1)
++        poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
++    elif pid in ("cards_gold", "cards_winter"):
++        from .blackjack_ui import draw_card, CARD_BACKS
++        draw_card(s, x - 6 * k, y + 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
++        draw_card(s, x + 6 * k, y - 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
++    else:
++        return False
++    return True
+diff --git a/farmgame/config.py b/farmgame/config.py
+index 0b54699..468a002 100644
+--- a/farmgame/config.py
++++ b/farmgame/config.py
+@@ -6,7 +6,7 @@ import sys
+ 
+ W, H = 1000, 640
+ FPS = 60
+-GAME_VERSION = "3.32"   # версия игры: видна в «Настройках» и в заголовке окна
++GAME_VERSION = "3.33"   # версия игры: видна в «Настройках» и в заголовке окна
+ SAVE_VERSION = 2
+ DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
+ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
+@@ -74,33 +74,71 @@ CASINO_UNLOCK_TOKENS = 100
+ # Призовая стойка таверны — только косметика (решение автора 24.11: «магазин таверны — исключительно косметика»):
+ # kind — trophy (навсегда, встаёт в таверне), cosmetic (навсегда, вкл/выкл). Бафы «Счастливая монета» и «Клевер»
+ # (3.14–3.17) убраны.
++# 3.33 (просьба пользователя 25.11): у косметики раздел cat — вкладка стойки: decor (украшения), chars (персонажи),
++# fx (эффекты), misc (прочее). group — «одно из»: включил одно — остальные из группы выключились (stage — сцена,
++# trail — шлейф курсора, notes — ноты барда, cards — рубашка карт). achievement — даётся за достижение (3.34),
++# jackpot — выпадает джекпотом колеса фортуны; ни то, ни другое не продаётся.
+ PRIZES = [
+     dict(id="horseshoe", kind="trophy", name="Бронзовая подкова", cost=50, text="первый трофей для таверны"),
+     dict(id="cup", kind="trophy", name="Серебряный кубок", cost=150, text="кубок удачливого фермера"),
+     dict(id="statue", kind="trophy", name="Золотой крестьянин", cost=500, text="статуэтка с кривым зубом"),
+     dict(id="crystal", kind="trophy", name="Хрустальный колос", cost=1500, text="для настоящих завсегдатаев"),
+-    dict(id="gold_notes", kind="cosmetic", name="Нарядные ноты", cost=80, text="ноты барда золотые и блестят"),
+-    dict(id="gold_trail", kind="cosmetic", name="Золотой шлейф", cost=120, text="за курсором тянется золото"),
+-    dict(id="garland", kind="cosmetic", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
+-    # 3.19: уют у камина (видно в зале и в «посиделках у камина»)
+-    dict(id="flowers", kind="cosmetic", name="Полевые цветы", cost=60, text="кувшин с цветами на столе в зале"),
+-    dict(id="rug", kind="cosmetic", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
+-    dict(id="kettle", kind="cosmetic", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
+-    dict(id="cat", kind="cosmetic", name="Кот у камина", cost=150, text="спит у огня; его можно погладить"),
+-    dict(id="bard_girl", kind="cosmetic", name="Певица Мила", cost=300, stage="tavern_girl", timing="music_girl",
+-         text="крестьянка поёт свою песню вместо барда"),
++    # 3.33: ещё трофеи на каминную полку
++    dict(id="acorn", kind="trophy", name="Резной жёлудь", cost=300, text="белки смотрят с завистью"),
++    dict(id="seal_trophy", kind="trophy", name="Королевская печать", cost=800, text="настоящая, с королевским гербом"),
++    dict(id="crown", kind="trophy", name="Корона урожая", cost=2500, text="её надевают на празднике урожая"),
++    dict(id="snowflake", kind="trophy", name="Хрустальная снежинка", cost=4000, text="не тает даже у огня"),
++    # 3.34: трофеи за достижения (висят на трубе камина)
++    dict(id="golden_squirrel", kind="trophy", name="Золотая белка", cost=0, achievement="squirrel_3",
++         text="за 100 пойманных белок"),
++    dict(id="golden_pitchfork", kind="trophy", name="Золотые вилы", cost=0, achievement="earned_4",
++         text="за $1aa, заработанный за всю игру"),
++    # --- украшения (decor)
++    dict(id="flowers", kind="cosmetic", cat="decor", name="Полевые цветы", cost=60, text="кувшин с цветами на столе в зале"),
++    dict(id="rug", kind="cosmetic", cat="decor", name="Коврик у огня", cost=90, text="тканый коврик — когда сидишь у камина"),
++    dict(id="kettle", kind="cosmetic", cat="decor", name="Котелок над огнём", cost=120, text="булькает над огнём и пускает пар"),
++    dict(id="garland", kind="cosmetic", cat="decor", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
++    dict(id="wreath", kind="cosmetic", cat="decor", name="Венок из колосьев", cost=140, text="висит на стене у камина"),
++    dict(id="lanterns", kind="cosmetic", cat="decor", name="Фонарики", cost=180, text="три фонаря под балконом зала"),
++    dict(id="rocking_chair", kind="cosmetic", cat="decor", name="Кресло-качалка", cost=250,
++         text="само покачивается у огня"),
++    # --- персонажи (chars)
++    dict(id="cat", kind="cosmetic", cat="chars", name="Кот Рыжик", cost=150, text="спит у огня; его можно погладить"),
++    dict(id="dog", kind="cosmetic", cat="chars", name="Пёс Буян", cost=220, text="дремлет у камина и виляет хвостом"),
++    dict(id="owl", kind="cosmetic", cat="chars", name="Сова Ухта", cost=260, text="сидит на балке в зале и моргает"),
++    dict(id="bard_girl", kind="cosmetic", cat="chars", group="stage", name="Певица Мила", cost=300, stage="tavern_girl",
++         timing="music_girl", text="крестьянка поёт свою песню вместо барда"),
+     # 3.23: ещё артисты на сцену. stage — имя своей песни (assets/music/<имя>.ogg; нет файла — музыка таверны),
+     # timing — ключ темпа в разметке таверны. На сцене один артист: включил одного — остальные выключились.
+-    dict(id="fiddler", kind="cosmetic", name="Скрипач Тимоха", cost=400, stage="tavern_fiddler", timing="music_fiddler",
+-         text="весёлый парень со скрипкой вместо барда"),
+-    dict(id="bagpiper", kind="cosmetic", name="Волынщик Ерёма", cost=500, stage="tavern_bagpipe", timing="music_bagpipe",
+-         text="старый волынщик с бородой до пояса"),
++    dict(id="fiddler", kind="cosmetic", cat="chars", group="stage", name="Скрипач Тимоха", cost=400,
++         stage="tavern_fiddler", timing="music_fiddler", text="весёлый парень со скрипкой вместо барда"),
++    dict(id="bagpiper", kind="cosmetic", cat="chars", group="stage", name="Волынщик Ерёма", cost=500,
++         stage="tavern_bagpipe", timing="music_bagpipe", text="старый волынщик с бородой до пояса"),
++    # --- эффекты (fx)
++    dict(id="gold_notes", kind="cosmetic", cat="fx", group="notes", name="Нарядные ноты", cost=80,
++         text="ноты барда золотые и блестят"),
++    dict(id="gold_trail", kind="cosmetic", cat="fx", group="trail", name="Золотой шлейф", cost=120,
++         text="за курсором тянется золото"),
++    dict(id="leaf_trail", kind="cosmetic", cat="fx", group="trail", name="Листопад", cost=160,
++         text="за курсором кружатся листья"),
++    dict(id="bubble_trail", kind="cosmetic", cat="fx", group="trail", name="Мыльные пузыри", cost=160,
++         text="за курсором летят пузыри"),
++    dict(id="fireflies", kind="cosmetic", cat="fx", name="Светлячки", cost=230, text="порхают в зале и у камина"),
+     # 3.27: скины джекпота колеса фортуны в Игровой — не продаются, только выпадают (jackpot=True)
+-    dict(id="rainbow_notes", kind="cosmetic", name="Радужные ноты", cost=0, jackpot=True,
++    dict(id="rainbow_notes", kind="cosmetic", cat="fx", group="notes", name="Радужные ноты", cost=0, jackpot=True,
+          text="ноты барда — всех цветов радуги"),
+-    dict(id="star_trail", kind="cosmetic", name="Звёздный шлейф", cost=0, jackpot=True,
++    dict(id="star_trail", kind="cosmetic", cat="fx", group="trail", name="Звёздный шлейф", cost=0, jackpot=True,
+          text="за курсором — разноцветные звёзды"),
++    # --- прочее (misc)
++    dict(id="own_mug", kind="cosmetic", cat="misc", name="Своя кружка", cost=70,
++         text="твоя кружка с сердечком на стойке"),
++    dict(id="cards_gold", kind="cosmetic", cat="misc", group="cards", name="Золотая рубашка", cost=200,
++         text="карты блэкджека с золотой рубашкой"),
++    dict(id="cards_winter", kind="cosmetic", cat="misc", group="cards", name="Зимняя рубашка", cost=200,
++         text="карты блэкджека со снежинками"),
+ ]
++PRIZE_TABS = (("decor", "Украшения"), ("chars", "Персонажи"), ("fx", "Эффекты"), ("misc", "Прочее"),
++              ("trophy", "Трофеи"))
+ # лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES
+ PRIZE_SHEET_IDS = ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail", "garland"]
+ GOLDEN_SPEED, GOLDEN_SIT = 1.35, 1.0          # она быстрее и сидит меньше
+diff --git a/farmgame/decor_art.py b/farmgame/decor_art.py
+new file mode 100644
+index 0000000..e052c53
+--- /dev/null
++++ b/farmgame/decor_art.py
+@@ -0,0 +1,188 @@
++# -*- coding: utf-8 -*-
++"""3.33: новые призы стойки — рисунки кодом (свои картинки подставляются по именам, если есть):
++
++    decor/wreath, decor/lantern, decor/rocking_chair, decor/own_mug — украшения;
++    characters/dog, characters/owl — персонажи;
++    светлячки и шлейфы «Листопад» / «Мыльные пузыри» — только кодом.
++Всё рисуется в координатах экрана 1000×640; k — масштаб.
++"""
++import math
++
++import pygame
++
++from .art import OUT, ellipse, poly, blit_light, blit_sprite, blit_tf
++from .particles import draw_shadow
++
++WHEAT = (232, 186, 92)
++WHEAT_DARK = (196, 146, 62)
++RIBBON = (205, 70, 60)
++
++
++def draw_wreath(s, x, y, k=1.0, t=0.0):
++    """Венок из колосьев с красной лентой; (x, y) — центр. Чуть покачивается на гвозде."""
++    if blit_tf(s, "decor/wreath", x, y, k * 0.5, angle=1.5 * math.sin(t * 0.7), pivot="center"):
++        return
++    r = 30 * k
++    for i in range(20):
++        a = i / 20 * math.tau + 0.15 * math.sin(t * 0.7)
++        cx, cy = x + math.cos(a) * r, y + math.sin(a) * r
++        ang = a + math.pi / 2
++        dx, dy = math.cos(ang) * 9 * k, math.sin(ang) * 9 * k
++        poly(s, WHEAT if i % 2 else WHEAT_DARK,
++             [(cx - dx, cy - dy), (cx - dy * 0.4, cy + dx * 0.4), (cx + dx, cy + dy), (cx + dy * 0.4, cy - dx * 0.4)], 2)
++    pygame.draw.circle(s, OUT, (int(x), int(y - r - 6 * k)), max(2, int(3 * k)))          # гвоздь
++    poly(s, RIBBON, [(x - 10 * k, y + r - 4 * k), (x, y + r + 4 * k), (x + 10 * k, y + r - 4 * k),
++                     (x + 4 * k, y + r + 18 * k), (x, y + r + 8 * k), (x - 4 * k, y + r + 18 * k)], 2)
++
++
++def draw_lantern(s, x, y, k=1.0, t=0.0, ph=0.0):
++    """Фонарь на верёвке; (x, y) — где верёвка крепится к балке. Мягко качается и светит."""
++    sway = 4 * math.sin(t * 0.9 + ph)
++    length = 34 * k
++    lx, ly = x + sway, y + length
++    flick = 0.8 + 0.2 * math.sin(t * 9 + ph * 3) * math.sin(t * 5.3 + ph)
++    blit_light(s, lx, ly + 10 * k, 70 * k, (255, 196, 110), 110 * flick, 0.0)
++    pygame.draw.line(s, (60, 45, 35), (int(x), int(y)), (int(lx), int(ly)), 2)
++    if blit_tf(s, "decor/lantern", lx, ly, k * 0.5, angle=-sway * 1.5, pivot="midtop"):
++        return
++    body = pygame.Rect(0, 0, int(18 * k), int(22 * k))
++    body.midtop = (int(lx), int(ly + 4 * k))
++    pygame.draw.rect(s, OUT, body.inflate(4, 4), border_radius=int(4 * k))
++    pygame.draw.rect(s, (255, 214, 120), body, border_radius=int(3 * k))
++    pygame.draw.rect(s, (255, 245, 200), body.inflate(-int(8 * k), -int(8 * k)), border_radius=int(2 * k))
++    poly(s, (90, 70, 55), [(lx - 12 * k, ly + 5 * k), (lx, ly - 2 * k), (lx + 12 * k, ly + 5 * k)], 2)
++    pygame.draw.rect(s, (90, 70, 55), (int(lx - 10 * k), body.bottom, int(20 * k), max(3, int(4 * k))))
++
++
++def draw_rocking_chair(s, x, y, k=1.0, t=0.0):
++    """Кресло-качалка сбоку; (x, y) — середина полозьев на полу. Само покачивается."""
++    a = 5 * math.sin(t * 0.8)
++    draw_shadow(s, x, y + 2, 120 * k, 16, 70)
++    if blit_tf(s, "decor/rocking_chair", x, y, k * 0.5, angle=a, pivot="midbottom"):
++        return
++    rad = math.radians(a)
++
++    def rot(px, py):
++        return (x + px * math.cos(rad) - py * math.sin(rad), y + px * math.sin(rad) + py * math.cos(rad))
++
++    wood, dark = (150, 98, 58), (118, 74, 44)
++    rocker = pygame.Rect(x - 62 * k, y - 46 * k + 2 * k * math.sin(rad * 6), 124 * k, 46 * k)    # низ дуги — на полу
++    pygame.draw.arc(s, OUT, rocker, math.pi * 1.1, math.pi * 1.9, max(4, int(9 * k)))
++    pygame.draw.arc(s, dark, rocker, math.pi * 1.1, math.pi * 1.9, max(3, int(6 * k)))
++    for p0, p1 in (((-30, -6), (-26, -50)), ((26, -6), (22, -50)), ((-26, -50), (26, -50)),
++                   ((22, -50), (36, -118)), ((-26, -50), (-30, -78)), ((36, -118), (30, -122))):
++        pygame.draw.line(s, OUT, rot(*[v * k for v in p0]), rot(*[v * k for v in p1]), max(5, int(11 * k)))
++        pygame.draw.line(s, wood, rot(*[v * k for v in p0]), rot(*[v * k for v in p1]), max(3, int(7 * k)))
++    for i in range(4):          # перекладины спинки
++        u = 0.2 + i * 0.2
++        p0 = (22 + 14 * u, -50 - 68 * u)
++        pygame.draw.line(s, dark, rot(p0[0] * k, p0[1] * k), rot((p0[0] - 34) * k, (p0[1] + 4) * k), max(2, int(4 * k)))
++    poly(s, (196, 80, 70), [rot(-26 * k, -56 * k), rot(24 * k, -56 * k), rot(26 * k, -48 * k), rot(-28 * k, -48 * k)], 2)
++
++
++def draw_dog(s, x, y, k=1.0, t=0.0, wag=0.0, awake=False):
++    """Пёс спит, свернувшись; (x, y) — низ по центру. wag 0..1 — виляет хвостом (после ласки)."""
++    breath = math.sin(t * 1.7)
++    draw_shadow(s, x, y, 120 * k, 14, 70)
++    if blit_tf(s, "characters/dog", x, y, k * 0.5, sy=1 + 0.03 * breath, pivot="midbottom"):
++        return
++    fur, dark, light = (176, 120, 70), (140, 90, 52), (226, 190, 150)
++    tail = math.sin(t * 14) * 0.6 * wag
++    tx, ty = x + 52 * k, y - 14 * k
++    ex, ey = tx + math.cos(-0.8 + tail) * 26 * k, ty + math.sin(-0.8 + tail) * 26 * k
++    pygame.draw.line(s, OUT, (tx, ty), (ex, ey), max(6, int(12 * k)))
++    pygame.draw.line(s, fur, (tx, ty), (ex, ey), max(4, int(8 * k)))
++    ellipse(s, fur, x + 6 * k, y - 20 * k, 100 * k, (40 + 2 * breath) * k)               # тело
++    ellipse(s, light, x + 4 * k, y - 10 * k, 60 * k, 14 * k, 0)
++    hx, hy = x - 40 * k, y - 22 * k
++    ellipse(s, fur, hx, hy, 42 * k, 32 * k)                                               # голова
++    ellipse(s, light, hx - 14 * k, hy + 6 * k, 22 * k, 16 * k)                            # морда
++    pygame.draw.circle(s, OUT, (int(hx - 24 * k), int(hy + 3 * k)), max(2, int(4 * k)))   # нос
++    ear = 0.25 * math.sin(t * 0.6) * (1 if awake else 0.3)
++    ellipse(s, dark, hx + 8 * k, hy + 2 * k + ear * 6 * k, 14 * k, 26 * k)                # висячее ухо
++    if awake:
++        pygame.draw.circle(s, OUT, (int(hx - 8 * k), int(hy - 3 * k)), max(2, int(3 * k)))
++    else:
++        pygame.draw.arc(s, OUT, pygame.Rect(hx - 13 * k, hy - 6 * k, 10 * k, 6 * k), math.pi, 2 * math.pi, 2)
++
++
++def draw_owl(s, x, y, k=1.0, t=0.0, hoot=0.0):
++    """Сова на насесте; (x, y) — лапы. Моргает, иногда поворачивает голову; hoot — «Уху!» (0..1)."""
++    blink = (t % 4.3) < 0.14
++    turn = 6 * math.sin(t * 0.35) if (t % 11) > 7 else 0.0
++    bob = 2 * hoot * math.sin(t * 20)
++    if blit_tf(s, "characters/owl", x, y - bob, k * 0.5, sy=0.98 if blink else 1.0, angle=turn * 0.5,
++               pivot="midbottom"):
++        return
++    body, belly, dark = (150, 112, 78), (226, 200, 160), (110, 80, 54)
++    ellipse(s, body, x, y - 22 * k - bob, 36 * k, 42 * k)
++    ellipse(s, belly, x, y - 18 * k - bob, 22 * k, 28 * k, 0)
++    hx, hy = x + turn, y - 46 * k - bob
++    ellipse(s, body, hx, hy, 36 * k, 28 * k)
++    for sx in (-1, 1):
++        poly(s, dark, [(hx + sx * 16 * k, hy - 8 * k), (hx + sx * 13 * k, hy - 20 * k), (hx + sx * 6 * k, hy - 10 * k)], 2)
++        ex = hx + sx * 8 * k
++        pygame.draw.circle(s, OUT, (int(ex), int(hy)), int(8 * k) + 1)
++        pygame.draw.circle(s, (250, 240, 210), (int(ex), int(hy)), int(8 * k))
++        if blink:
++            pygame.draw.line(s, OUT, (ex - 6 * k, hy), (ex + 6 * k, hy), 2)
++        else:
++            pygame.draw.circle(s, (245, 170, 40), (int(ex), int(hy)), int(5 * k))
++            pygame.draw.circle(s, OUT, (int(ex), int(hy)), max(1, int(2.5 * k)))
++    poly(s, (240, 170, 60), [(hx - 3 * k, hy + 6 * k), (hx + 3 * k, hy + 6 * k), (hx, hy + 12 * k)], 1)
++    for sx in (-1, 1):
++        pygame.draw.line(s, (240, 170, 60), (x + sx * 6 * k, y - 4 * k), (x + sx * 7 * k, y), max(2, int(3 * k)))
++
++
++def draw_own_mug(s, x, y, k=1.0, t=0.0):
++    """Своя кружка с сердечком; (x, y) — дно по центру."""
++    if blit_sprite(s, "decor/own_mug", x, y, k * 0.5, "midbottom"):
++        return
++    body = pygame.Rect(0, 0, int(20 * k), int(24 * k))
++    body.midbottom = (int(x), int(y))
++    pygame.draw.circle(s, OUT, (body.right + int(3 * k), body.centery), int(7 * k) + 1, max(2, int(4 * k)))
++    pygame.draw.circle(s, (225, 190, 110), (body.right + int(3 * k), body.centery), int(7 * k), max(1, int(2 * k)))
++    pygame.draw.rect(s, OUT, body.inflate(4, 4), border_radius=3)
++    pygame.draw.rect(s, (235, 200, 120), body, border_radius=3)
++    pygame.draw.rect(s, (250, 248, 238), (body.x, body.y - int(4 * k), body.w, int(6 * k)), border_radius=3)
++    hx, hy = body.centerx, body.centery + 2 * k
++    for dx in (-3, 3):
++        pygame.draw.circle(s, (215, 60, 70), (int(hx + dx * k), int(hy - 2 * k)), max(2, int(3.4 * k)))
++    poly(s, (215, 60, 70), [(hx - 6.2 * k, hy - 1 * k), (hx + 6.2 * k, hy - 1 * k), (hx, hy + 6 * k)], 0)
++
++
++def draw_fireflies(s, t, area, n=10, seed=1):
++    """Светлячки порхают в прямоугольнике area (x0, y0, x1, y1): мерцают и плавают по своим «восьмёркам»."""
++    x0, y0, x1, y1 = area
++    for i in range(n):
++        ph = seed * 7.13 + i * 2.39
++        u = 0.5 + 0.45 * math.sin(t * (0.11 + 0.013 * (i % 5)) + ph)
++        v = 0.5 + 0.45 * math.sin(t * (0.17 + 0.011 * (i % 3)) + ph * 1.7)
++        x = x0 + (x1 - x0) * u + 12 * math.sin(t * 1.3 + ph)
++        y = y0 + (y1 - y0) * v + 8 * math.sin(t * 1.7 + ph * 2)
++        glow = max(0.0, math.sin(t * (0.9 + 0.1 * (i % 4)) + ph * 3))
++        if glow < 0.05:
++            continue
++        blit_light(s, x, y, 26, (200, 255, 120), 150 * glow, 0.0)
++        pygame.draw.circle(s, (240, 255, 190), (int(x), int(y)), 2)
++
++
++TRAIL_LEAVES = ((120, 180, 70), (230, 160, 50), (210, 100, 50), (170, 200, 80))
++
++
++def trail_leaf(layer, mx, my, k, col, ang):
++    """Листик для шлейфа «Листопад»: (mx, my) — центр, k 0..1 — свежесть."""
++    r = 5 + 7 * k
++    c, sn = math.cos(ang), math.sin(ang)
++    pts = [(mx + c * r, my + sn * r), (mx - sn * r * 0.45, my + c * r * 0.45),
++           (mx - c * r, my - sn * r), (mx + sn * r * 0.45, my - c * r * 0.45)]
++    pygame.draw.polygon(layer, col + (int(235 * k),), pts)
++    pygame.draw.line(layer, (90, 70, 40, int(160 * k)), pts[0], pts[2], 1)      # прожилка
++
++
++def trail_bubble(layer, mx, my, k, n):
++    """Пузырёк для шлейфа «Мыльные пузыри»."""
++    r = int(5 + 7 * (1 - k) + (n % 3))
++    pygame.draw.circle(layer, (210, 240, 255, int(60 * k)), (int(mx), int(my)), r)
++    pygame.draw.circle(layer, (120, 190, 240, int(220 * k)), (int(mx), int(my)), r, 2)
++    pygame.draw.circle(layer, (255, 255, 255, int(200 * k)), (int(mx - r * 0.35), int(my - r * 0.35)), max(1, r // 4))
+diff --git a/farmgame/fireside_art.py b/farmgame/fireside_art.py
+index 4fe642b..bd4b0b0 100644
+--- a/farmgame/fireside_art.py
++++ b/farmgame/fireside_art.py
+@@ -23,7 +23,10 @@ FIRESIDE_LAYOUT = dict(
+     chain_top=150,                # где висит цепь котелка
+     rug=[440, 566],               # коврик: центр
+     cat=[392, 566],               # кот: низ по центру
+-    trophies=[[500, 84, "hang", 1.5], [560, 118, "stand", 1.6], [250, 121, "stand", 1.6], [624, 116, "stand", 1.6]],
++    trophies=[[500, 84, "hang", 1.5], [560, 118, "stand", 1.6], [250, 121, "stand", 1.6], [624, 116, "stand", 1.6],
++              [300, 120, "stand", 1.5], [440, 118, "stand", 1.5], [690, 116, "stand", 1.5], [740, 116, "stand", 1.5],
++              [400, 70, "hang", 1.4], [600, 70, "hang", 1.4]],
++    wreath=[900, 200], chair=[250, 610], dog=[820, 606],          # 3.33: венок, кресло-качалка, пёс
+ )
+ # 3.20: под свой фон пользователя assets/backgrounds/fireside (камин по центру, на углях лежат два полена).
+ # Огонь горит над поленьями фона; свои угли и поленья код не рисует.
+@@ -35,7 +38,11 @@ FIRESIDE_CUSTOM = dict(
+     kettle=[508, 352], kettle_k=1.7, chain_top=252,
+     # 3.21: трофеи на камине (порядок: подкова, кубок, крестьянин, колос): подкова — на трубе над полкой,
+     # остальные стоят на полке (её верх y≈142; свеча слева, x≈267). [x, низ, "hang"|"stand", масштаб]
+-    trophies=[[508, 96, "hang", 1.5], [648, 143, "stand", 1.6], [378, 143, "stand", 1.6], [738, 143, "stand", 1.6]],
++    trophies=[[508, 96, "hang", 1.5], [648, 143, "stand", 1.6], [378, 143, "stand", 1.6], [738, 143, "stand", 1.6],
++              # 3.33: ещё четыре на полке (жёлудь, печать, корона, снежинка) и два за достижения — на трубе
++              [318, 143, "stand", 1.5], [448, 143, "stand", 1.5], [578, 143, "stand", 1.5], [788, 143, "stand", 1.5],
++              [398, 84, "hang", 1.4], [618, 84, "hang", 1.4]],
++    wreath=[940, 180], chair=[250, 612], dog=[835, 610],          # 3.33: венок на стене, кресло слева, пёс справа
+     rug=[506, 592], rug_k=1.25,
+     cat=[436, 590],
+ )
+diff --git a/farmgame/fireside_ui.py b/farmgame/fireside_ui.py
+index 871c2ee..36600f6 100644
+--- a/farmgame/fireside_ui.py
++++ b/farmgame/fireside_ui.py
+@@ -15,6 +15,7 @@ from .fireside_art import (FIRESIDE_LAYOUT, FIRESIDE_CUSTOM, Fire, draw_coals, d
+ FIRESIDE_HINTS = ["Огонь потрескивает. Ферма работает сама — можно просто посидеть",
+                   "Клик по огню — подбросить полено"]
+ CAT_LINES = ["Мрр…", "Мрр-мрр…", "*кот приоткрыл один глаз*", "*кот потянулся и снова уснул*"]
++DOG_LINES = ["Гав!", "*пёс стучит хвостом по полу*", "*Буян лизнул тебе руку*", "Вуф… *и снова уснул*"]   # 3.33
+ 
+ 
+ def load_fireside_layout(custom):
+@@ -86,6 +87,7 @@ class FiresideUI:
+                 self.fs_fire.update(1 / 60)
+         self.fs_fire.update(rdt, 1.0 + 0.8 * self.fs_flare)
+         self.fs_purr = max(0.0, self.fs_purr - rdt)
++        self.fs_wag = max(0.0, getattr(self, "fs_wag", 0.0) - rdt)
+         self.fs_twitch = max(0.0, self.fs_twitch - rdt * 4)
+         if self.fs_twitch <= 0 and random.random() < rdt / 9:
+             self.fs_twitch = 1.0
+@@ -129,6 +131,28 @@ class FiresideUI:
+         self.fs_twitch = 1.0
+         self.floater(x + 20, y - 50, random.choice(CAT_LINES), (255, 236, 200))
+ 
++    def draw_fireside_extras(self, s, tt):
++        from .decor_art import draw_wreath, draw_rocking_chair, draw_dog, draw_fireflies
++        t, L = self.tavern, self.fs_lay
++        if t.prize_on("wreath"):
++            draw_wreath(s, *L.get("wreath", (940, 180)), 1.3, tt)
++        if t.prize_on("rocking_chair"):
++            draw_rocking_chair(s, *L.get("chair", (250, 612)), 1.2, tt)
++        if t.prize_on("dog"):
++            x, y = L.get("dog", (835, 610))
++            wag = max(0.0, getattr(self, "fs_wag", 0.0))
++            draw_dog(s, x, y, 1.4, tt, min(1.0, wag), wag > 0)
++            zone = pygame.Rect(int(x - 85), int(y - 70), 170, 72)
++            self.zone(zone, self.pet_dog)
++            self.tip(zone, "Погладить пса")
++        if t.prize_on("fireflies"):
++            draw_fireflies(s, tt, (120, 160, 880, 520), 14, 2)
++
++    def pet_dog(self):
++        x, y = self.fs_lay.get("dog", (835, 610))
++        self.fs_wag = 3.0
++        self.floater(x - 30, y - 80, random.choice(DOG_LINES), (255, 236, 200))
++
+     def draw_fireside_trophies(self, s):
+         """3.21: купленные трофеи — на каминной полке у огня (в зале их больше нет)."""
+         from .casino_ui import draw_prize_icon
+@@ -179,6 +203,7 @@ class FiresideUI:
+             r = 5 + 14 * k
+             s.blit(soft_dot(r, (250, 246, 240), 70 * math.sin(math.pi * k)),
+                    (int(x + math.sin(ph + age * 1.6) * 8 * k - r), int(y - 70 * k - r)))
++        self.draw_fireside_extras(s, tt)          # 3.33: венок, кресло-качалка, пёс, светлячки
+         if t.prize_on("cat"):
+             cx, cy = L["cat"]
+             draw_cat(s, cx, cy, 1.6, tt, self.fs_twitch, self.fs_purr > 0)
+diff --git a/farmgame/spritefit.py b/farmgame/spritefit.py
+index f13afd7..68bc39e 100644
+--- a/farmgame/spritefit.py
++++ b/farmgame/spritefit.py
+@@ -77,12 +77,23 @@ GNOMES_SHEET_ORDER = ["gnome_worker_1", "gnome_worker_2", "gnome_worker_3",
+ # 3.29: второй лист призов (3×3, assets/icons/prizes_2.png) — украшения 3.19–3.27, у которых не было картинок;
+ # девятая клетка — запас (пропуск)
+ PRIZE2_SHEET_ORDER = ["flowers", "rug", "kettle", "cat", "fiddler", "bagpiper", "rainbow_notes", "star_trail", "_unused"]
++# 3.33: значки новых призов — два листа 3×3 (assets/icons/prizes_3.png и prizes_4.png)
++PRIZE3_SHEET_ORDER = ["acorn", "seal_trophy", "crown", "snowflake", "golden_squirrel", "golden_pitchfork",
++                      "wreath", "lanterns", "rocking_chair"]
++PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubble_trail", "cards_gold", "cards_winter",
++                      "_unused"]
++# 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
++DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
++                      "characters/owl"]
+ FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
+ SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
+     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
+     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER, 3, 3),
+     "icons/prizes": ("icons/prize_", PRIZE_SHEET_ORDER, 3, 3),
+     "icons/prizes_2": ("icons/prize_", PRIZE2_SHEET_ORDER, 3, 3),   # 3.29: украшения без картинок
++    "icons/prizes_3": ("icons/prize_", PRIZE3_SHEET_ORDER, 3, 3),   # 3.33: трофеи и украшения
++    "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
++    "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
+     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
+     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
+     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
+@@ -113,7 +124,10 @@ UI_TRIM = {"panel": (520, 400), "card": (420, 140), "panel_header": (440, 110),
+            "pill": (360, 100), "toast": (480, 90), "banner": (520, 110), "bar_frame": (400, 60),
+            "bar_fill": (400, 60), "sign_board": (264, 208), "sign_casino": (300, 108)}
+ DECOR_SIZE = {"cat": (120, 80, "bottom"), "kettle": (110, 110, "bottom"), "flowers": (60, 110, "bottom"),
+-              "rug": (600, 130, "center")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
++              "rug": (600, 130, "center"),
++              # 3.33: венок (на стене у камина), фонарь (под балкой зала, верх — крючок), кресло-качалка, своя кружка
++              "wreath": (130, 150, "center"), "lantern": (60, 100, "top"), "rocking_chair": (190, 190, "bottom"),
++              "own_mug": (60, 64, "bottom")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
+ FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
+ STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
+ 
+@@ -239,6 +253,10 @@ def _fit_spec_base(name):
+             return _spec(*_box(56, 68, 2, 2, 2, 0), "bottom")     # 3.27: крупнее (на поле — ×1.25)
+         if last.startswith("gnome_shaman"):   # 3.26: гном-шаман с бубном над головой; 3.27: варианты _1, _2
+             return _spec(*_box(90, 112, 2, 2, 2, 0), "bottom")    # 3.27: крупнее (на лужайке — ×1.6)
++        if last == "dog":                  # 3.33: пёс Буян спит у камина (лежит боком)
++            return _spec(*_box(220, 120, 2, 2, 2, 0), "bottom")
++        if last == "owl":                  # 3.33: сова Ухта сидит на бочке в зале
++            return _spec(*_box(100, 140, 2, 2, 2, 0), "bottom")
+         if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
+             return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
+         return None
+diff --git a/farmgame/tavern.py b/farmgame/tavern.py
+index faf069b..245fc0f 100644
+--- a/farmgame/tavern.py
++++ b/farmgame/tavern.py
+@@ -116,6 +116,11 @@ BARMAN_EXTRA = {
+ }
+ 
+ 
++def prize_group(prize):
++    """3.33: группа «одно из» у приза (артисты сцены — stage)."""
++    return prize.get("group") or ("stage" if prize.get("stage") else None)
++
++
+ def barman_lines(tavern):
+     """Что бармен может сказать сейчас: общие реплики и то, что подходит к залу (3.20)."""
+     from .config import PRIZES
+@@ -240,14 +245,21 @@ class Tavern:
+         return True
+ 
+     def _one_on_stage(self, pid):
+-        """3.23: на сцене один артист — включили pid, остальных артистов выключаем."""
++        """3.23: на сцене один артист; 3.33 — так же любая группа «одно из» (шлейф, ноты, рубашка карт):
++        включили pid — остальных из его группы выключаем."""
+         from .config import PRIZES
+-        if not any(p["id"] == pid and p.get("stage") for p in PRIZES):
++        grp = prize_group(next((p for p in PRIZES if p["id"] == pid), {}))
++        if not grp:
+             return
+         for p in PRIZES:
+-            if p.get("stage") and p["id"] != pid and self.prizes.get(p["id"]) and p["id"] not in self.prize_off:
++            if prize_group(p) == grp and p["id"] != pid and self.prizes.get(p["id"]) and p["id"] not in self.prize_off:
+                 self.prize_off.append(p["id"])
+ 
++    def group_on(self, group):
++        """3.33: какой приз группы сейчас включён (id) или None."""
++        from .config import PRIZES
++        return next((p["id"] for p in PRIZES if prize_group(p) == group and self.prize_on(p["id"])), None)
++
+     def stage_artist(self):
+         """Кто сейчас на сцене вместо барда: приз-артист (dict) или None — поёт бард."""
+         from .config import PRIZES
+@@ -264,6 +276,8 @@ class Tavern:
+             return False, "Уже есть"
+         if prize.get("jackpot"):                 # 3.27: только из джекпота колеса фортуны
+             return False, "Этот приз выпадает только джекпотом колеса фортуны"
++        if prize.get("achievement"):             # 3.34: только за достижение
++            return False, "Этот трофей дают только за достижение"
+         if self.tokens < prize["cost"]:
+             return False, f"Нужно жетонов: {prize['cost']}"
+         self.tokens -= prize["cost"]
+diff --git a/farmgame/tavern_art.py b/farmgame/tavern_art.py
+index dfe4508..c834d45 100644
+--- a/farmgame/tavern_art.py
++++ b/farmgame/tavern_art.py
+@@ -62,6 +62,12 @@ PATRONS = [   # гости у левого стола
+ ]
+ 
+ 
++# 3.33: где в зале новые призы, если в разметке ("decor" в tavern.json) их мест нет: фонарики (x под балкой),
++# своя кружка (низ на стойке), сова (лапы на бочке за барменом), светлячки (прямоугольник x0, y0, x1, y1)
++DECOR_DEFAULTS = dict(lanterns=[300, 525, 770], own_mug=[634, 369], owl=[824, 303], fireflies=[300, 60, 900, 330])
++OWL_LINES = ["Уху!", "Уху-уху!", "Ух... (сова смотрит на тебя очень внимательно)", "Уху! (кажется, она одобряет)"]
++
++
+ # --- раскладка зала: где бармен, бард, вывески, кто болтает и что стоит ПЕРЕД персонажами ---
+ def _layout_procedural():
+     return dict(
+diff --git a/farmgame/tavern_life_ui.py b/farmgame/tavern_life_ui.py
+index 6b17a4b..91ddbf9 100644
+--- a/farmgame/tavern_life_ui.py
++++ b/farmgame/tavern_life_ui.py
+@@ -25,6 +25,7 @@ class TavernLifeUI:
+ 
+     def tick_tavern_life(self, rdt):
+         """Ноты в такт, искры камина, пар, блик на кружке бармена."""
++        self.tick_owl(rdt)
+         d = self.tl["bard"]
+         self.tv_solo = max(0.0, self.tv_solo - rdt)
+         if self.farm.song_left > 0 and self.farm.song:
+@@ -139,6 +140,38 @@ class TavernLifeUI:
+         if t.prize_on("flowers"):
+             for x, y in d.get("flowers") or []:
+                 draw_flowers(s, x, y, 1.0, tt)          # 3.21: крупнее — стоит на столе
++        if t.prize_on("lanterns"):                      # 3.33: фонарики висят на балке под балконом
++            from .decor_art import draw_lantern
++            y0 = self.tl.get("garland_y", 212)
++            for n, x in enumerate(d.get("lanterns") or DECOR_DEFAULTS["lanterns"]):
++                draw_lantern(s, x, y0 - 2, 1.0, tt, n * 1.7)
++
++    def draw_tavern_front_decor(self, s, tt):
++        """3.33: то, что стоит перед стойкой и персонажами: своя кружка, сова на бочке; светлячки над залом."""
++        from .decor_art import draw_own_mug, draw_owl, draw_fireflies
++        t, d = self.tavern, self.tl.get("decor") or {}
++        if t.prize_on("own_mug"):
++            x, y = d.get("own_mug") or DECOR_DEFAULTS["own_mug"]
++            draw_own_mug(s, x, y, 1.0, tt)
++            self.tip(pygame.Rect(int(x - 14), int(y - 30), 30, 32), "Твоя кружка")
++        if t.prize_on("owl"):
++            x, y = d.get("owl") or DECOR_DEFAULTS["owl"]
++            hoot = max(0.0, getattr(self, "owl_hoot", 0.0))
++            draw_owl(s, x, y, 1.0, tt, hoot)
++            zone = pygame.Rect(int(x - 24), int(y - 66), 48, 68)
++            self.zone(zone, self.poke_owl)
++            self.tip(zone, "Сова Ухта")
++        if t.prize_on("fireflies"):
++            draw_fireflies(s, tt, d.get("fireflies") or DECOR_DEFAULTS["fireflies"], 12, 1)
++
++    def poke_owl(self):
++        d = self.tl.get("decor") or {}
++        x, y = d.get("owl") or DECOR_DEFAULTS["owl"]
++        self.owl_hoot = 1.2
++        self.tv_bubble = [x, y - 70, random.choice(OWL_LINES), 2.5]
++
++    def tick_owl(self, rdt):
++        self.owl_hoot = max(0.0, getattr(self, "owl_hoot", 0.0) - rdt)
+ 
+     def draw_garland(self, s, tt):
+         """3.14, приз казино: гирлянда огоньков провисает под балконом, лампочки мигают по очереди."""
+diff --git a/farmgame/tavern_ui.py b/farmgame/tavern_ui.py
+index 3df46f2..611f42b 100644
+--- a/farmgame/tavern_ui.py
++++ b/farmgame/tavern_ui.py
+@@ -275,6 +275,7 @@ class TavernUI:
+             s.blit(self.tavern_fg, (0, 0))
+         for img, pos in self.tavern_occ:          # стойка и всё, что стоит перед персонажами
+             s.blit(img, pos)
++        self.draw_tavern_front_decor(s, tt)      # 3.33: своя кружка на стойке, сова
+         # бард на сцене
+         d = L["bard"]
+         beat = self.tv_beat()
+@@ -293,8 +294,9 @@ class TavernUI:
+             draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
+             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
+         notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
+-        fancy = self.tavern.prize_on("gold_notes")     # 3.14: приз «Нарядные ноты»
+-        rainbow = self.tavern.prize_on("rainbow_notes")   # 3.27: джекпот колеса — ноты переливаются
++        notes_skin = self.tavern.group_on("notes")      # 3.33: одно из — «Нарядные ноты» (3.14) или «Радужные» (3.27)
++        fancy = notes_skin == "gold_notes"
++        rainbow = notes_skin == "rainbow_notes"
+         for x, y, life, _vx, col in self.tv_notes:
+             if rainbow:
+                 col = RAINBOW[int(life * 6 + x * 0.02) % len(RAINBOW)]
+diff --git a/farmgame/templates.py b/farmgame/templates.py
+index a1cb7fa..6e5e44c 100644
+--- a/farmgame/templates.py
++++ b/farmgame/templates.py
+@@ -251,6 +251,10 @@ def spec_list():
+         add(f"icons/{key}", (40, 40), "центр", desc + " (мельница)", 1, lambda s: None)
+     # 3.14: казино
+     add("backgrounds/casino", (W, H), "весь экран", "игорный зал (без колеса и разметки стола)", 1, lambda s: None)
++    add("characters/dog", (220, 120), "низ по центру = пол у камина",
++        "пёс Буян спит, свернувшись (вид сбоку) — приз таверны", 1, lambda s: None)
++    add("characters/owl", (100, 140), "низ по центру = лапы (сидит на бочке)",
++        "сова Ухта сидит, смотрит вперёд — приз таверны", 1, lambda s: None)
+     add("characters/dealer_gnome", (150, 150), "низ по центру (75, 150) = край стола",
+         "дилер блэкджека: рыжий гном Ворчун по пояс", 1,
+         lambda s: __import__("farmgame.blackjack_ui", fromlist=["x"]).draw_dealer_gnome(s, 75, 148, 1.6))
+@@ -275,7 +279,12 @@ def spec_list():
+         "(огонь рисует игра; разметка — backgrounds/fireside.json)", 1, lambda s: None)
+     from .spritefit import DECOR_SIZE
+     decor_desc = {"cat": "рыжий кот спит клубком (вид сбоку)", "kettle": "чугунный котелок с крышкой, без цепи",
+-                  "flowers": "глиняный кувшин с полевыми цветами", "rug": "круглый тканый коврик на полу (вид сбоку, сплющен)"}
++                  "flowers": "глиняный кувшин с полевыми цветами", "rug": "круглый тканый коврик на полу (вид сбоку, сплющен)",
++                  # 3.33
++                  "wreath": "венок из колосьев с красной лентой (висит на гвозде)",
++                  "lantern": "фонарь со свечой, крючок сверху (верёвку рисует игра)",
++                  "rocking_chair": "деревянное кресло-качалка сбоку, полозья внизу",
++                  "own_mug": "глиняная кружка с красным сердечком"}
+     for key, (w, h, align) in DECOR_SIZE.items():
+         add(f"decor/{key}", (w, h), "низ по центру" if align == "bottom" else "центр", decor_desc[key] + " — приз таверны",
+             1, lambda s: None)
+diff --git a/farmgame/wheel.py b/farmgame/wheel.py
+index c6c35b0..90fa18b 100644
+--- a/farmgame/wheel.py
++++ b/farmgame/wheel.py
+@@ -80,6 +80,7 @@ def spin(tavern, d=None, rng=random):
+         tavern.tokens += reward["amount"]
+     if reward["prize"]:
+         tavern.prizes[reward["prize"]] = True
++        tavern._one_on_stage(reward["prize"])     # 3.33: выпавший скин сразу включён (а другой из группы — нет)
+     tavern.wheel_day = day_key(d)
+     tavern.wheel_last = {"text": reward["text"]}
+     return idx, reward
+diff --git a/tests/test_casino.py b/tests/test_casino.py
+index 8de92a5..ee439e4 100644
+--- a/tests/test_casino.py
++++ b/tests/test_casino.py
+@@ -116,7 +116,7 @@ class PlayerCasino(unittest.TestCase):
+         base = self.f.cycle_income(0)
+         self.t.tokens = 10 ** 6
+         for p in PRIZES:
+-            if p.get("jackpot"):          # 3.27: скины джекпота колеса фортуны не продаются
++            if p.get("jackpot") or p.get("achievement"):   # 3.27/3.34: джекпот колеса и трофеи за достижения не продаются
+                 self.assertFalse(self.t.buy_prize(self.f, p["id"])[0], p["id"])
+                 continue
+             self.assertTrue(self.t.buy_prize(self.f, p["id"])[0], p["id"])
+diff --git a/tests/test_fireside.py b/tests/test_fireside.py
+index c469834..31a05fb 100644
+--- a/tests/test_fireside.py
++++ b/tests/test_fireside.py
+@@ -36,9 +36,13 @@ class CosmeticShop(unittest.TestCase):
+             self.assertIn(f'"{p["id"]}"', body, f"нет значка кодом для приза {p['id']}")
+ 
+     def test_every_cosmetic_is_visible_somewhere(self):
+-        code = "".join(source(n) for n in os.listdir(GAME) if n.endswith(".py"))
++        code = "".join(source(n) for n in os.listdir(GAME) if n.endswith(".py") and n != "config.py")
+         for p in PRIZES:
+             if p["kind"] == "cosmetic" and not p.get("stage"):     # артисты сцены рисуются через stage_artist()
++                if p.get("group"):     # 3.33: «одно из» — через group_on("<группа>") и сравнение с id
++                    self.assertIn(f'group_on("{p["group"]}")', code, p["id"])
++                    self.assertGreaterEqual(code.count(f'"{p["id"]}"'), 2, p["id"])     # значок + где рисуется
++                    continue
+                 self.assertTrue(f'prize_on("{p["id"]}")' in code, f"украшение {p['id']} нигде не рисуется")
+ 
+     def test_ids_unique(self):
+diff --git a/tests/test_prize_tabs.py b/tests/test_prize_tabs.py
+new file mode 100644
+index 0000000..6864be7
+--- /dev/null
++++ b/tests/test_prize_tabs.py
+@@ -0,0 +1,53 @@
++# -*- coding: utf-8 -*-
++"""3.33: призовая стойка по вкладкам, группы «одно из», новые призы."""
++import unittest
++
++from tests.helpers import summer_farm
++from farmgame.config import PRIZES, PRIZE_TABS
++from farmgame.tavern import Tavern, prize_group
++
++
++class PrizeTabs(unittest.TestCase):
++    def test_trophies_are_last_tab(self):
++        self.assertEqual([k for k, _ in PRIZE_TABS], ["decor", "chars", "fx", "misc", "trophy"])
++
++    def test_every_cosmetic_has_a_tab(self):
++        tabs = {k for k, _ in PRIZE_TABS}
++        for p in PRIZES:
++            if p["kind"] == "cosmetic":
++                self.assertIn(p.get("cat"), tabs, p["id"])
++        for key in tabs - {"trophy"}:
++            self.assertGreaterEqual(sum(1 for p in PRIZES if p.get("cat") == key), 3, key)
++
++    def test_groups_are_one_of(self):
++        t, f = Tavern(), summer_farm()
++        t.tokens = 10 ** 6
++        for pid in ("gold_trail", "leaf_trail", "bubble_trail"):
++            self.assertTrue(t.buy_prize(f, pid)[0])
++            self.assertEqual(t.group_on("trail"), pid)
++        t.toggle_prize("gold_trail")            # включить старый — новый выключится
++        self.assertEqual(t.group_on("trail"), "gold_trail")
++        self.assertFalse(t.prize_on("bubble_trail"))
++        t.buy_prize(f, "cards_gold")
++        t.buy_prize(f, "cards_winter")
++        self.assertEqual(t.group_on("cards"), "cards_winter")
++
++    def test_stage_group_still_works(self):
++        self.assertEqual(prize_group(next(p for p in PRIZES if p["id"] == "fiddler")), "stage")
++
++    def test_trophy_spots_cover_all_trophies(self):
++        import ast
++        import os
++        path = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "farmgame", "fireside_art.py")
++        tree = ast.parse(open(path, encoding="utf-8").read())
++        n = sum(1 for p in PRIZES if p["kind"] == "trophy")
++        found = 0
++        for node in ast.walk(tree):          # FIRESIDE_LAYOUT и FIRESIDE_CUSTOM — dict(..., trophies=[...])
++            if isinstance(node, ast.keyword) and node.arg == "trophies":
++                self.assertGreaterEqual(len(ast.literal_eval(node.value)), n)
++                found += 1
++        self.assertEqual(found, 2)
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+
+From a23050a8a970d5a2d71f30ff09c1c3f51b1a922a Mon Sep 17 00:00:00 2001
+From: Claude <noreply@anthropic.com>
+Date: Wed, 25 Nov 2026 16:23:36 +0200
+Subject: [PATCH 4/4] =?UTF-8?q?=D0=92=D0=B5=D1=80=D1=81=D0=B8=D1=8F=203.34?=
+ =?UTF-8?q?:=2042=20=D0=B4=D0=BE=D1=81=D1=82=D0=B8=D0=B6=D0=B5=D0=BD=D0=B8?=
+ =?UTF-8?q?=D1=8F=20(=D0=B6=D0=B5=D1=82=D0=BE=D0=BD=D1=8B,=20=D0=B4=D0=B2?=
+ =?UTF-8?q?=D0=B0=20=D1=82=D1=80=D0=BE=D1=84=D0=B5=D1=8F),=20=D1=80=D0=B0?=
+ =?UTF-8?q?=D0=B7=D0=B3=D0=BE=D0=B2=D0=BE=D1=80=D1=8B=20=D1=81=20=D0=B1?=
+ =?UTF-8?q?=D0=B0=D1=80=D0=BC=D0=B5=D0=BD=D0=BE=D0=BC=20=D0=BF=D0=BE=20?=
+ =?UTF-8?q?=D1=82=D0=B5=D0=BC=D0=B0=D0=BC?=
+MIME-Version: 1.0
+Content-Type: text/plain; charset=UTF-8
+Content-Transfer-Encoding: 8bit
+
+Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
+Claude-Session: https://claude.ai/code/session_0174tYV1TtJbt2bc9kHkJwmK
+---
+ devtools/scenarios/ach334.py |  13 ++++
+ docs/changes/changes_3.34.md |  30 ++++++++
+ farmgame/achievements.py     | 121 +++++++++++++++++++++++++++++
+ farmgame/achievements_ui.py  | 135 ++++++++++++++++++++++++++++++++
+ farmgame/app.py              |   6 +-
+ farmgame/barman_talk.py      | 144 +++++++++++++++++++++++++++++++++++
+ farmgame/blackjack_ui.py     |   4 +
+ farmgame/casino_ui.py        |   4 +
+ farmgame/config.py           |   2 +-
+ farmgame/fireside_ui.py      |   3 +
+ farmgame/gameroom_ui.py      |   3 +
+ farmgame/hud_ui.py           |   2 +
+ farmgame/songs_ui.py         |   1 +
+ farmgame/tavern.py           |  18 ++++-
+ farmgame/tavern_art.py       |   4 +-
+ farmgame/tavern_hud_ui.py    |  15 +++-
+ farmgame/tavern_ui.py        |  49 +++++++++++-
+ farmgame/windows_ui.py       |   6 +-
+ tests/test_achievements.py   | 114 +++++++++++++++++++++++++++
+ 19 files changed, 660 insertions(+), 14 deletions(-)
+ create mode 100644 devtools/scenarios/ach334.py
+ create mode 100644 docs/changes/changes_3.34.md
+ create mode 100644 farmgame/achievements.py
+ create mode 100644 farmgame/achievements_ui.py
+ create mode 100644 farmgame/barman_talk.py
+ create mode 100644 tests/test_achievements.py
+
+diff --git a/devtools/scenarios/ach334.py b/devtools/scenarios/ach334.py
+new file mode 100644
+index 0000000..2f5e2d4
+--- /dev/null
++++ b/devtools/scenarios/ach334.py
+@@ -0,0 +1,13 @@
++# 3.34: достижения (окно, кнопка в таверне, тост) и разговор с барменом
++set_medieval(); A.tavern.unlocked = True; A.tavern.tokens = 300
++A.tavern.on("squirrel", 120); A.tavern.on("collect", 900); A.tavern.on("pet_cat", 20)
++A.farm.total_earned = 5e12
++A.ach_t = 0; frames(3)
++A.open_achievements(); A.skip_anims(); frames(20); snap("ach_field")
++A.ach_claim("squirrel_3"); A.ach_set_section("farm"); frames(10); snap("ach_farm")
++A.modal = None; A.toasts.clear()
++A.open_tavern(); A.tv_bubble = None; frames(20)
++A.poke_barman(); frames(10); snap("talk_menu")
++A.barman_topic("story"); frames(10); snap("talk_story")
++A.barman_topic("news"); frames(10); snap("talk_news")
++A.open_modal("settings"); A.settings_tab = "game"; A.skip_anims(); frames(10); snap("settings_game")
+diff --git a/docs/changes/changes_3.34.md b/docs/changes/changes_3.34.md
+new file mode 100644
+index 0000000..9a40c88
+--- /dev/null
++++ b/docs/changes/changes_3.34.md
+@@ -0,0 +1,30 @@
++# Версия 3.34 — достижения и разговоры с барменом
++
++Просьба пользователя 25.11: «косметика и общение с барменом; больше скинов, больше трофеев и достижений».
++
++## Достижения (`achievements.py`, окно — `achievements_ui.py`)
++- 42 достижения в 4 разделах: **Поле** (урожай, уровни, вехи, белки, вороны, разбойники, солнце, погода),
++  **Хозяйство** (продажи, дерево, заработок за всю игру, главы, сарай, хлеб, помощники), **Таверна** (задания,
++  песни, разговоры с барменом, призы, кот, пёс, камин), **Игровая** (колесо, рулетка, блэкджек).
++- Счётчики событий — `Tavern.stats` (общие для всех ферм, считаются с начала игры, даже пока таверна закрыта;
++  каждое событие `App.quest(...)` попадает туда). Новые события: `song`, `barman_talk`, `pet_cat`, `pet_dog`,
++  `fire_poke`, `wheel_spin`, `wheel_jackpot`, `roulette_spin`, `roulette_number`, `bj_win`, `bj_natural`.
++- Старые сохранения: продажи ферм (`prestiges`) и выполненные задания (`daily_done_total`) засчитываются.
++- Награда — жетоны (5–100), медаль бронза/серебро/золото по размеру награды. Два трофея только за достижения:
++  **Золотая белка** (100 белок) и **Золотые вилы** ($1aa за всю игру) — сразу висят на трубе камина.
++- Проверка раз в секунду; выполнено — тост и звук; жетоны — кнопкой «Забрать» / «Забрать всё».
++- Где: «Настройки» → «Игра» → «Достижения» (рядом со «Статистикой»), и кнопка в таверне над «Призами»
++  (с «!», когда есть награда; своя картинка — `ui/btn_achievements`).
++
++## Бармен Гаврила (`barman_talk.py`)
++- Щелчок по бармену — темы на стойке: **«Как дела?»** (по времени суток на часах ПК), **«Что нового?»** (награды
++  на доске, ближайшее задание, задание недели, колесо фортуны, новые достижения, песня), **«Дай совет»** (по делу:
++  листья, жетоны на призы, свободные помощники; иначе общий), **«Расскажи историю»** (12 историй по порядку:
++  прадед и король, «Хмельной колос», кривозубый крестьянин, золотая белка, разбойники и плясовая, Мила, Ерёма,
++  гномы севера...). «Пока!» закрывает.
++- Длинный ответ — облачко шире (до 7 строк) и висит дольше.
++
++## Исправлено
++- Значок «!» у «Призов» в таверне горел всегда (в расчёт попадали джекпоты колеса с ценой 0).
++
++Тесты `tests/test_achievements.py`; сценарий кадров `devtools/scenarios/ach334.py`.
+diff --git a/farmgame/achievements.py b/farmgame/achievements.py
+new file mode 100644
+index 0000000..d9eafec
+--- /dev/null
++++ b/farmgame/achievements.py
+@@ -0,0 +1,121 @@
++# -*- coding: utf-8 -*-
++"""3.34: достижения. Без графики.
++
++Счётчики событий живут в таверне (Tavern.stats) — они общие для всех ферм и не сбрасываются ни грузовиком,
++ни переездом, и считаются с самого начала игры (даже пока таверна закрыта). Часть достижений смотрит на ферму
++(заработано за всю игру, до какой главы дошёл) или на таверну (сколько призов собрано).
++
++Каждое достижение: id, раздел (sec), название, что сделать, откуда брать число (stat — счётчик события, или
++особые ключи ниже), цель (target), награда в жетонах (tokens) и, иногда, трофей (prize — id из PRIZES с
++achievement=<id достижения>). Награду забирают в окне «Достижения» (кнопка в «Настройках» и в таверне).
++"""
++
++SECTIONS = (("field", "Поле"), ("farm", "Хозяйство"), ("tavern", "Таверна"), ("games", "Игровая"))
++
++
++def A(id, sec, title, text, stat, target, tokens, prize=None):
++    return dict(id=id, sec=sec, title=title, text=text, stat=stat, target=target, tokens=tokens, prize=prize)
++
++
++ACHIEVEMENTS = [
++    # --- поле
++    A("collect_1", "field", "Первый урожай", "Собери урожай 100 раз", "collect", 100, 5),
++    A("collect_2", "field", "Жнец", "Собери урожай 2 000 раз", "collect", 2000, 15),
++    A("collect_3", "field", "Хозяин полей", "Собери урожай 20 000 раз", "collect", 20000, 40),
++    A("buy_1", "field", "Стройка", "Купи 1 000 уровней грядок", "buy_levels", 1000, 10),
++    A("buy_2", "field", "Большая стройка", "Купи 20 000 уровней грядок", "buy_levels", 20000, 30),
++    A("milestone_1", "field", "Быстрый рост", "Достигни 50 вех на грядках", "milestone", 50, 15),
++    A("squirrel_1", "field", "Ловкие руки", "Поймай 10 белок", "squirrel", 10, 10),
++    A("squirrel_2", "field", "Беличий друг", "Поймай 50 белок", "squirrel", 50, 25),
++    A("squirrel_3", "field", "Повелитель белок", "Поймай 100 белок", "squirrel", 100, 50, "golden_squirrel"),
++    A("golden_1", "field", "Золотоискатель", "Поймай 10 золотых белок", "golden", 10, 20),
++    A("crow_1", "field", "Пугало на ножках", "Прогони 30 ворон", "crow", 30, 15),
++    A("bandit_1", "field", "Гроза разбойников", "Прогони 50 разбойников", "bandit", 50, 25),
++    A("sun_1", "field", "Солнечный зайчик", "Забери солнечный бонус 100 раз", "sun", 100, 15),
++    A("weather_1", "field", "Любитель праздников", "Вызови дождь или праздник 30 раз", "weather", 30, 15),
++    # --- хозяйство
++    A("truck_1", "farm", "Первая сделка", "Продай ферму скупщику", "truck", 1, 10),
++    A("truck_2", "farm", "Купец", "Продай ферму 25 раз", "truck", 25, 30),
++    A("tree_1", "farm", "Мудрец", "Купи 25 улучшений в дереве", "tree", 25, 20),
++    A("earned_1", "farm", "Первый миллион", "Заработай $1M за всю игру", "earned", 1e6, 5),
++    A("earned_2", "farm", "Миллиардер", "Заработай $1B за всю игру", "earned", 1e9, 15),
++    A("earned_3", "farm", "Триллионер", "Заработай $1T за всю игру", "earned", 1e12, 30),
++    A("earned_4", "farm", "Золотые вилы", "Заработай $1aa за всю игру", "earned", 1e15, 60, "golden_pitchfork"),
++    A("chapter_1", "farm", "Новая глава", "Переедь на Средневековое поле", "chapter", 1, 30),
++    A("chapter_2", "farm", "Зимовка", "Переедь на Зимнее поле", "chapter", 2, 50),
++    A("feed_1", "farm", "Скотник", "Покорми зверей 200 раз", "feed", 200, 15),
++    A("product_1", "farm", "Ярмарочный день", "Собери продукты сарая 500 раз", "product", 500, 25),
++    A("bread_1", "farm", "Пекарь", "Продай хлеб 100 раз", "bread", 100, 20),
++    A("peasant_1", "farm", "Артель", "Найми 30 помощников", "peasant", 30, 20),
++    # --- таверна
++    A("daily_1", "tavern", "Завсегдатай", "Выполни 10 заданий с доски", "daily_done", 10, 15),
++    A("daily_2", "tavern", "Душа таверны", "Выполни 100 заданий с доски", "daily_done", 100, 60),
++    A("song_1", "tavern", "Меценат", "Закажи 10 песен", "song", 10, 15),
++    A("talk_1", "tavern", "Свой человек", "Поговори с барменом 30 раз", "barman_talk", 30, 15),
++    A("prize_1", "tavern", "Коллекционер", "Собери 10 призов", "prizes", 10, 30),
++    A("prize_2", "tavern", "Всё для дома", "Купи все призы стойки", "prizes_all", 1, 100),
++    A("cat_1", "tavern", "Кошатник", "Погладь кота 50 раз", "pet_cat", 50, 10),
++    A("dog_1", "tavern", "Лучший друг", "Погладь пса 50 раз", "pet_dog", 50, 10),
++    A("fire_1", "tavern", "Хранитель очага", "Подбрось полено 100 раз", "fire_poke", 100, 10),
++    # --- игровая
++    A("wheel_1", "games", "Крутим-вертим", "Покрути колесо фортуны 7 раз", "wheel_spin", 7, 15),
++    A("wheel_2", "games", "Джекпот!", "Выиграй джекпот колеса фортуны", "wheel_jackpot", 1, 30),
++    A("roulette_1", "games", "Ставки сделаны", "Сыграй в рулетку 50 раз", "roulette_spin", 50, 15),
++    A("roulette_2", "games", "Тридцать пять к одному", "Угадай число в рулетке", "roulette_number", 1, 30),
++    A("bj_1", "games", "Ворчун ворчит", "Выиграй у Ворчуна 25 раз", "bj_win", 25, 25),
++    A("bj_2", "games", "Очко!", "Набери 21 с раздачи в блэкджеке", "bj_natural", 1, 20),
++]
++BY_ID = {a["id"]: a for a in ACHIEVEMENTS}
++
++
++def value(a, farm, tavern):
++    """Сколько уже сделано для достижения a."""
++    st = a["stat"]
++    if st == "earned":
++        return farm.total_earned
++    if st == "chapter":
++        return farm.farm_index
++    if st == "truck":            # продажи до 3.34 тоже считаются
++        return max(tavern.stats.get(st, 0), farm.prestiges)
++    if st == "daily_done":
++        return max(tavern.stats.get(st, 0), tavern.daily_done_total)
++    if st == "prizes":
++        return sum(1 for v in tavern.prizes.values() if v)
++    if st == "prizes_all":
++        from .config import PRIZES
++        shop = [p["id"] for p in PRIZES if not (p.get("jackpot") or p.get("achievement"))]
++        return 1 if all(tavern.prizes.get(pid) for pid in shop) else 0
++    return tavern.stats.get(st, 0)
++
++
++def check(farm, tavern):
++    """Отмечает выполненные достижения. Возвращает список только что выполненных (для тоста).
++    Трофей за достижение выдаётся сразу (жетоны — по кнопке «Забрать»)."""
++    new = []
++    for a in ACHIEVEMENTS:
++        if a["id"] in tavern.ach_done:
++            continue
++        if value(a, farm, tavern) >= a["target"]:
++            tavern.ach_done.append(a["id"])
++            if a["prize"]:
++                tavern.prizes[a["prize"]] = True
++            new.append(a)
++    return new
++
++
++def claimable(tavern):
++    return [aid for aid in tavern.ach_done if aid not in tavern.ach_claimed and aid in BY_ID]
++
++
++def claim(tavern, aid):
++    """Забрать жетоны за выполненное достижение. Возвращает число жетонов (0 — нечего забирать)."""
++    if aid not in tavern.ach_done or aid in tavern.ach_claimed or aid not in BY_ID:
++        return 0
++    tavern.ach_claimed.append(aid)
++    tokens = BY_ID[aid]["tokens"]
++    tavern.tokens += tokens
++    return tokens
++
++
++def claim_all(tavern):
++    return sum(claim(tavern, aid) for aid in claimable(tavern))
+diff --git a/farmgame/achievements_ui.py b/farmgame/achievements_ui.py
+new file mode 100644
+index 0000000..0dc1b3f
+--- /dev/null
++++ b/farmgame/achievements_ui.py
+@@ -0,0 +1,135 @@
++# -*- coding: utf-8 -*-
++"""3.34: окно «Достижения» и проверка достижений. Открывается из «Настроек» (вкладка «Игра») и из таверны
++(кнопка над «Призами»). Выполненное достижение — тост сразу; жетоны забираются кнопкой «Забрать»."""
++import math
++
++import pygame
++
++from .ui_common import *  # noqa: F401,F403
++from .tavern_ui import draw_token
++from . import achievements as ach
++
++MEDALS = ((205, 127, 50), (200, 205, 215), (245, 200, 60))     # бронза, серебро, золото — по награде
++
++
++def draw_medal(s, x, y, tier, done=True, k=1.0):
++    """Медаль на ленточке: tier 0..2; не выполнено — серая."""
++    col = MEDALS[tier] if done else (185, 178, 170)
++    for dx, rib in ((-6, (200, 70, 60)), (6, (70, 120, 200))):
++        poly(s, rib if done else (165, 160, 155), [(x + dx * k - 5 * k, y - 22 * k), (x + dx * k + 5 * k, y - 22 * k),
++                                                  (x + dx * k * 0.3 + 4 * k, y - 6 * k), (x + dx * k * 0.3 - 4 * k, y - 6 * k)], 2)
++    pygame.draw.circle(s, OUT, (int(x), int(y + 4 * k)), int(14 * k) + 2)
++    pygame.draw.circle(s, col, (int(x), int(y + 4 * k)), int(14 * k))
++    pygame.draw.circle(s, tuple(max(0, c - 40) for c in col), (int(x), int(y + 4 * k)), int(9 * k), max(1, int(2 * k)))
++    if done:
++        poly(s, WHITE, [(x - 4 * k, y + 1 * k), (x - 1 * k, y + 6 * k), (x + 6 * k, y - 3 * k)], 0)
++
++
++def medal_tier(a):
++    return 2 if a["tokens"] >= 40 or a["prize"] else (1 if a["tokens"] >= 20 else 0)
++
++
++class AchievementsUI:
++    ACH_PER_PAGE = 5
++
++    def ach_tick(self, dt):
++        """Проверка раз в секунду: новые достижения — тост и звук."""
++        self.ach_t = getattr(self, "ach_t", 0.0) - dt
++        if self.ach_t > 0:
++            return
++        self.ach_t = 1.0
++        for a in ach.check(self.farm, self.tavern):
++            self.sfx.play("fanfare" if a["prize"] else "levelup")
++            extra = ""
++            if a["prize"]:
++                p = next((p for p in PRIZES if p["id"] == a["prize"]), None)
++                extra = f" Трофей «{p['name']}» — на камине!" if p else ""
++            self.toast(f"Достижение: «{a['title']}»!{extra} Жетоны — в «Достижениях»", 5)
++            self.save()
++
++    def open_achievements(self):
++        self.open_modal("achievements")
++
++    def draw_achievements(self):
++        s, t = self.screen, self.tavern
++        brown, soft = (90, 70, 60), (140, 110, 95)
++        r = self.panel(720, 520, "ДОСТИЖЕНИЯ")
++        done, total = len([a for a in t.ach_done if a in ach.BY_ID]), len(ach.ACHIEVEMENTS)
++        draw_text(s, f"Получено: {done} из {total}   ·   жетонов: {t.tokens}", 15, (r.centerx, r.y + 56), brown,
++                  outline=None)
++        sec = getattr(self, "ach_sec", ach.SECTIONS[0][0])
++        tw = (r.w - 60 - 8 * (len(ach.SECTIONS) - 1)) // len(ach.SECTIONS)
++        for i, (key, title) in enumerate(ach.SECTIONS):
++            ready = any(ach.BY_ID[aid]["sec"] == key for aid in ach.claimable(t))
++            b = pygame.Rect(r.x + 30 + i * (tw + 8), r.y + 74, tw, 38)
++            self.button(b, title, lambda k=key: self.ach_set_section(k), (245, 175, 50) if sec == key else BTN_BLUE,
++                        True, 16)
++            if ready:
++                pygame.draw.circle(s, OUT, (b.right - 4, b.y + 4), 10)
++                pygame.draw.circle(s, (240, 70, 70), (b.right - 4, b.y + 4), 8)
++                draw_text(s, "!", 12, (b.right - 4, b.y + 4))
++        items = [a for a in ach.ACHIEVEMENTS if a["sec"] == sec]
++        # сначала — что можно забрать, потом невыполненные (ближе к цели — выше), в конце — забранные
++        def order(a):
++            if a["id"] in t.ach_done and a["id"] not in t.ach_claimed:
++                return (0, 0)
++            if a["id"] not in t.ach_done:
++                return (1, -min(1.0, ach.value(a, self.farm, t) / a["target"]))
++            return (2, 0)
++        items.sort(key=order)
++        per = self.ACH_PER_PAGE
++        pages = max(1, (len(items) + per - 1) // per)
++        page = min(getattr(self, "ach_page", 0), pages - 1)
++        self.ach_page = page
++        for n, a in enumerate(items[page * per:(page + 1) * per]):
++            row = pygame.Rect(r.x + 30, r.y + 122 + n * 64, r.w - 60, 58)
++            is_done, claimed = a["id"] in t.ach_done, a["id"] in t.ach_claimed
++            rounded(s, (238, 222, 192) if is_done else (226, 214, 196), row, 10, 2, skin="card")
++            draw_medal(s, row.x + 32, row.centery + 2, medal_tier(a), is_done, 0.95)
++            draw_text_fit(s, a["title"], 17, (row.x + 62, row.y + 18), row.w - 280, brown, anchor="midleft", outline=None)
++            draw_text_fit(s, a["text"], 13, (row.x + 62, row.y + 39), row.w - 280,
++                          (60, 130, 50) if is_done else soft, anchor="midleft", outline=None)
++            bt = pygame.Rect(row.right - 196, row.y + 10, 184, 38)
++            if is_done and not claimed:
++                self.button(bt, f"Забрать {a['tokens']}", lambda aid=a["id"]: self.ach_claim(aid), BTN_GREEN, True, 16)
++                draw_token(s, bt.right - 22, bt.centery, 0.6)
++            elif claimed:
++                from .skin import draw_max
++                draw_max(s, bt, 14, "Получено")
++            else:
++                v = ach.value(a, self.farm, t)
++                bar = pygame.Rect(bt.x, bt.y + 6, bt.w, 16)
++                draw_bar(s, bar, min(1.0, v / a["target"]), (120, 190, 90))
++                shown = fmt(v) if a["stat"] == "earned" else (str(int(v)) if a["target"] > 1 else "")
++                goal = ("$" + fmt(a["target"])) if a["stat"] == "earned" else fmt(a["target"])
++                draw_text(s, f"{'$' if a['stat'] == 'earned' else ''}{shown} / {goal}" if a["target"] > 1 else "ещё нет",
++                          11, bar.center)
++                reward = f"{a['tokens']} жет." + (" + трофей" if a["prize"] else "")
++                draw_text(s, reward, 12, (bt.centerx, bt.bottom + 2), soft, outline=None)
++        if ach.claimable(t):
++            self.button((r.x + 30, r.bottom - 66, 200, 40), "Забрать всё", self.ach_claim_all, BTN_GREEN, True, 17)
++        if pages > 1:
++            draw_text(s, f"{page + 1} / {pages}", 15, (r.centerx, r.bottom - 46), brown, outline=None)
++            if page > 0:
++                self.button((r.centerx - 92, r.bottom - 66, 40, 36), "<",
++                            lambda: setattr(self, "ach_page", self.ach_page - 1), BTN_BLUE)
++            if page < pages - 1:
++                self.button((r.centerx + 52, r.bottom - 66, 40, 36), ">",
++                            lambda: setattr(self, "ach_page", self.ach_page + 1), BTN_BLUE)
++
++    def ach_set_section(self, key):
++        self.ach_sec, self.ach_page = key, 0
++
++    def ach_claim(self, aid):
++        got = ach.claim(self.tavern, aid)
++        if got:
++            self.sfx.play("claim")
++            self.toast(f"+{got} жетонов за «{ach.BY_ID[aid]['title']}»", 2.5)
++            self.save()
++
++    def ach_claim_all(self):
++        got = ach.claim_all(self.tavern)
++        if got:
++            self.sfx.play("claim")
++            self.toast(f"+{got} жетонов за достижения", 2.5)
++            self.save()
+diff --git a/farmgame/app.py b/farmgame/app.py
+index 6c018dc..913399e 100644
+--- a/farmgame/app.py
++++ b/farmgame/app.py
+@@ -21,6 +21,7 @@ from .windows_ui import WindowsUI
+ from .hud_ui import HudUI
+ from .widgets_ui import WidgetsUI
+ from .screen_ui import ScreenUI
++from .achievements_ui import AchievementsUI
+ 
+ 
+ def hd_from_args():
+@@ -57,7 +58,7 @@ def saved_hd_mode():
+ #                              ПРИЛОЖЕНИЕ
+ # ======================================================================
+ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, BlackjackUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+-          ScreenUI):
++          ScreenUI, AchievementsUI):
+     def __init__(self):
+         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
+         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
+@@ -423,6 +424,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
+         f = self.farm
+         f.update(dt)
+         self.tavern_tick(dt)
++        self.ach_tick(dt)                 # 3.34: достижения
+         self.mill_tick(dt)
+         self.tut_tick(dt)
+         self.casino_tick(dt)
+@@ -549,7 +551,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
+         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
+                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
+                 "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs,
+-                "prizes": self.draw_prizes, "fortune": self.draw_fortune}
++                "prizes": self.draw_prizes, "fortune": self.draw_fortune, "achievements": self.draw_achievements}
+ 
+     def draw_modal_layer(self, name, prog, opening):
+         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно
+diff --git a/farmgame/barman_talk.py b/farmgame/barman_talk.py
+new file mode 100644
+index 0000000..f3a7dad
+--- /dev/null
++++ b/farmgame/barman_talk.py
+@@ -0,0 +1,144 @@
++# -*- coding: utf-8 -*-
++"""3.34: разговоры с барменом (Гаврила, хозяин «Хмельного колоса»). Без графики.
++
++Щелчок по бармену открывает темы: «Как дела?», «Что нового?», «Дай совет», «Расскажи историю».
++Ответы зависят от того, что сейчас в игре: время на часах компьютера, задания на доске, колесо фортуны,
++достижения, глава, песня, призы. Истории идут по порядку (Tavern.talk_story) и потом по кругу.
++"""
++import datetime
++import random
++
++TOPICS = (("mood", "Как дела?"), ("news", "Что нового?"), ("tip", "Дай совет"), ("story", "Расскажи историю"))
++
++MOOD = {
++    "morning": ["Утро доброе! Я только печь растопил — хлеб будет к полудню.",
++                "С утра пораньше? Уважаю. Самые хорошие урожаи — у тех, кто рано встаёт.",
++                "Доброе утро! Кофе нет, его ещё не изобрели. Есть квас."],
++    "day": ["Дела? Кружки моются, бард поёт, гости платят — что ещё надо трактирщику!",
++            "Жарко сегодня. Даже Рыжик ушёл в тень под лавку.",
++            "Хорошо идут дела! Половина деревни сегодня у меня обедала."],
++    "evening": ["Вечер — лучшее время в таверне. Огонь, песни, все свои.",
++                "Устал за день? Садись у очага, ферма и без тебя поработает.",
++                "Вечером у меня полный зал. Бард в ударе, гости поют громче барда."],
++    "night": ["Ночь на дворе, а ты всё не спишь? Фермеры — народ беспокойный.",
++              "Тс-с... Бард уже клюёт носом. Но для тебя кружку найду.",
++              "Ночью белки не бегают. Отдохни и ты — урожай подождёт."],
++}
++MOOD_ANY = ["Да потихоньку! Вот, кружку новую купил — смотри, какая блестящая.",
++            "Спина болит — бочки таскал. Зато погреб полный!",
++            "Всё как обычно: кто-то поёт, кто-то спорит, кто-то спит в углу."]
++
++STORIES = [
++    "Таверну построил мой прадед. Говорят, первым гостем был король — заблудился на охоте и просидел тут три дня.",
++    "Знаешь, почему «Хмельной колос»? Прадед повесил над дверью колос хмеля, а вывеску так и не заказал. Привыкли!",
++    "Был у нас крестьянин с одним кривым зубом. Улыбался так, что вороны с поля разлетались. С тех пор его все "
++    "на поле зовут — пугалом подрабатывать.",
++    "Однажды золотая белка забежала прямо в зал. Полдеревни за ней гонялось — поймал её кот. Отпустил, конечно: "
++    "Рыжик у нас добрый.",
++    "Разбойники как-то пришли и в таверну. Ограбить хотели. Бард заиграл плясовую — так они до утра проплясали "
++    "и ушли, ещё и за пиво заплатили.",
++    "Скупщик урожая раньше ездил на телеге. Потом купил грузовик, а ехать на нём боялся — неделю толкал руками.",
++    "Мельник наш, Фрол, клянётся, что жернов по ночам сам крутится. Я думаю — это мыши. Очень сильные мыши.",
++    "Говорят, далеко на севере есть поле, где круглый год снег. И живут там гномы — ростом с кружку, а работают за "
++    "десятерых.",
++    "Мила, наша певица, пришла сюда босиком с котомкой. Спела одну песню — и я её не отпустил. Лучшее решение в жизни.",
++    "Волынщик Ерёма играл на свадьбе моего деда. И на моей. Сколько ему лет — не знает никто, даже он сам.",
++    "Королевский сборщик податей у меня в долгу: я ему как-то зонтик одолжил. До сих пор не вернул!",
++    "Вот и всё, что я знаю. Хотя... приходи ещё — что-нибудь да вспомню. Таверна полна историй.",
++]
++
++TIPS_ANY = [
++    "Листья — не трать все сразу. Каждая покупка в дереве поднимает цену остальных. Подумай, что тебе нужнее.",
++    "Не тратишь лист — он даёт +2% к доходу. Иногда копить выгоднее, чем покупать.",
++    "Белку лови сразу — золотая убегает быстрее.",
++    "Задания с доски — хорошая подмога, но главное богатство — твои грядки.",
++    "Уходишь надолго? Найми фермеров на все грядки — урожай будет копиться и без тебя.",
++    "Песню барду закажи перед тем, как собирать большой урожай — с ней доход выше.",
++    "Колесо фортуны крутят раз в день. Бесплатно! Грех не крутить.",
++    "Устал — посиди у камина. Ферма работает сама, а ты отдыхаешь.",
++]
++
++
++def part_of_day(now=None):
++    h = (now or datetime.datetime.now()).hour
++    if 5 <= h < 12:
++        return "morning"
++    if 12 <= h < 18:
++        return "day"
++    if 18 <= h < 23:
++        return "evening"
++    return "night"
++
++
++def mood(rnd=random, now=None):
++    return rnd.choice(MOOD[part_of_day(now)] + MOOD_ANY[:1])
++
++
++def news(farm, tavern, rnd=random, today=None):
++    """Что нового: самые полезные новости о делах игрока (первые две)."""
++    from . import achievements as ach
++    from . import wheel as wh
++    out = []
++    ready = tavern.claimable()
++    if ready:
++        out.append(f"На доске тебя ждёт награда: {len(ready)} {_word(len(ready), 'задание', 'задания', 'заданий')} "
++                   "выполнено!")
++    left = [q for q in tavern.daily if q["progress"] < q["target"]]
++    if tavern.daily and not left and not ready:
++        out.append("Все задания на сегодня сделаны. Молодец! Новые повесят в полночь.")
++    elif left:
++        q = min(left, key=lambda q: q["target"] - q["progress"])
++        out.append(f"Ближе всего к концу — «{q['title']}»: осталось {q['target'] - q['progress']}.")
++    w = tavern.weekly
++    if w and not w["claimed"] and w["progress"] < w["target"]:
++        pct = int(100 * w["progress"] / max(1, w["target"]))
++        out.append(f"Задание недели «{w['title']}» сделано на {pct}%.")
++    if tavern.casino_open and wh.can_spin(tavern, today):
++        out.insert(0, "Колесо фортуны сегодня ещё не крутил! Загляни в Игровую.")
++    got = ach.claimable(tavern)
++    if got:
++        out.insert(0, f"Слыхал, у тебя новое достижение! Забери жетоны в «Достижениях» — их {len(got)}.")
++    if farm.song_left > 0:
++        out.append("Бард сейчас играет твою песню — слышишь, как гости притоптывают?")
++    if not out:
++        done = len(tavern.ach_done)
++        out.append(f"Новостей нет — а значит, всё хорошо. Достижений у тебя уже {done} из {len(ach.ACHIEVEMENTS)}.")
++    return " ".join(out[:2])
++
++
++def tip(farm, tavern, rnd=random):
++    """Совет: сначала по делу (что видно в игре), иначе — общий."""
++    from .config import PRIZES
++    out = []
++    if farm.leaves >= 50 and farm.any_tree_affordable():
++        out.append(f"У тебя {farm.leaves} листьев. Не спеши тратить все — каждая покупка в дереве поднимает цену остальных.")
++    if tavern.tokens >= 60 and any(tavern.prize_state(p) == "can" and not (p.get("jackpot") or p.get("achievement"))
++                                   and tavern.tokens >= p["cost"] for p in PRIZES):
++        out.append(f"Жетонов у тебя {tavern.tokens} — на призовой стойке есть что взять. Загляни в «Призы».")
++    if farm.farm_def().get("peasants") and farm.free_peasants() > 0:
++        out.append("У тебя есть свободные помощники — поставь их на грядки, пусть работают!")
++    if not out:
++        return rnd.choice(TIPS_ANY)
++    return rnd.choice(out)
++
++
++def story(tavern):
++    text = STORIES[tavern.talk_story % len(STORIES)]
++    tavern.talk_story += 1
++    return text
++
++
++def answer(topic, farm, tavern, rnd=random):
++    """Ответ бармена на тему. Считается в статистике разговоров (достижение «Свой человек»)."""
++    if topic == "mood":
++        return mood(rnd)
++    if topic == "news":
++        return news(farm, tavern, rnd)
++    if topic == "tip":
++        return tip(farm, tavern, rnd)
++    return story(tavern)
++
++
++def _word(n, one, few, many):
++    from .tavern import plural
++    return plural(n, one, few, many)
+diff --git a/farmgame/blackjack_ui.py b/farmgame/blackjack_ui.py
+index 3e02cc7..0a66b92 100644
+--- a/farmgame/blackjack_ui.py
++++ b/farmgame/blackjack_ui.py
+@@ -292,6 +292,10 @@ class BlackjackUI:
+         if g.state == "done" and self.bj_shown_res is None and not self.bj_busy():
+             self.bj_shown_res = g.result
+             self.bj_say = [random.choice(DEALER_SAY[g.result]), 3.5]
++            if g.result in ("win", "blackjack"):       # 3.34: для достижений
++                self.quest("bj_win")
++            if g.result == "blackjack":
++                self.quest("bj_natural")
+             if g.result in ("win", "blackjack"):
+                 self.sfx.play("coin_big" if g.result == "blackjack" else "coin")
+                 self.fx.sparks(500, bj_layout()["player_cards"][1] - 40, n=16 if g.result == "blackjack" else 9, up=70)
+diff --git a/farmgame/casino_ui.py b/farmgame/casino_ui.py
+index a6d25aa..d5fb0cd 100644
+--- a/farmgame/casino_ui.py
++++ b/farmgame/casino_ui.py
+@@ -189,7 +189,11 @@ class CasinoUI:
+     def cs_finish(self):
+         result = self.cs_spin["result"]
+         self.cs_spin = None
++        hit = any(k[0] == "num" and k[1] == result for k in self.roulette.bets)
+         won, staked = self.roulette.settle(self.tavern, result)
++        self.quest("roulette_spin")                  # 3.34: для достижений
++        if hit:
++            self.quest("roulette_number")
+         name = {"green": "зеро", "red": "красное", "black": "чёрное"}[cs.color_of(result)]
+         if won > 0:
+             self.cs_msg = (f"Выпало {result} ({name})! Выигрыш: {won} жет.", GOLD)
+diff --git a/farmgame/config.py b/farmgame/config.py
+index 468a002..136667a 100644
+--- a/farmgame/config.py
++++ b/farmgame/config.py
+@@ -6,7 +6,7 @@ import sys
+ 
+ W, H = 1000, 640
+ FPS = 60
+-GAME_VERSION = "3.33"   # версия игры: видна в «Настройках» и в заголовке окна
++GAME_VERSION = "3.34"   # версия игры: видна в «Настройках» и в заголовке окна
+ SAVE_VERSION = 2
+ DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
+ BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
+diff --git a/farmgame/fireside_ui.py b/farmgame/fireside_ui.py
+index 36600f6..6c86440 100644
+--- a/farmgame/fireside_ui.py
++++ b/farmgame/fireside_ui.py
+@@ -118,6 +118,7 @@ class FiresideUI:
+     def poke_fire(self):
+         """Подбросить полено: огонь вспыхивает, летят искры, трещит."""
+         self.fs_flare = 1.0
++        self.quest("fire_poke")                      # 3.34: для достижений
+         self.sfx.play("spark")
+         fx, fy = self.fs_lay["fire"]
+         for _ in range(30):
+@@ -128,6 +129,7 @@ class FiresideUI:
+     def pet_cat(self):
+         x, y = self.fs_lay["cat"]
+         self.fs_purr = 4.0
++        self.quest("pet_cat")
+         self.fs_twitch = 1.0
+         self.floater(x + 20, y - 50, random.choice(CAT_LINES), (255, 236, 200))
+ 
+@@ -151,6 +153,7 @@ class FiresideUI:
+     def pet_dog(self):
+         x, y = self.fs_lay.get("dog", (835, 610))
+         self.fs_wag = 3.0
++        self.quest("pet_dog")
+         self.floater(x - 30, y - 80, random.choice(DOG_LINES), (255, 236, 200))
+ 
+     def draw_fireside_trophies(self, s):
+diff --git a/farmgame/gameroom_ui.py b/farmgame/gameroom_ui.py
+index 5a0a266..7eba20f 100644
+--- a/farmgame/gameroom_ui.py
++++ b/farmgame/gameroom_ui.py
+@@ -208,6 +208,9 @@ class GameRoomUI:
+             self.toast(f"Колесо уже крутили сегодня. Снова — через {fmt_time(wh.seconds_to_next())}", 2.5)
+             return
+         idx, reward = got
++        self.quest("wheel_spin")                     # 3.34: для достижений
++        if reward.get("jackpot") or reward["kind"] == "prize":
++            self.quest("wheel_jackpot")
+         n = len(wh.SEGMENTS)
+         step = 2 * math.pi / n
+         # сектор idx встаёт под стрелку сверху, когда поворот колеса = -idx*step (по модулю оборота);
+diff --git a/farmgame/hud_ui.py b/farmgame/hud_ui.py
+index 0e753a1..4da3886 100644
+--- a/farmgame/hud_ui.py
++++ b/farmgame/hud_ui.py
+@@ -65,6 +65,8 @@ class HudUI:
+             self.draw_tokens_pill(14, 180 if self.farm_info()["peasants"] else 142)
+             self.draw_tavern_back("На поле", self.leave_tavern)
+             self.draw_prizes_button()
++            self.draw_achievements_button()      # 3.34
++            self.draw_barman_menu()              # 3.34: темы для разговора с барменом
+             return
+         if board:
+             if self.view == "casino":       # 3.14.2: над столом слева; 3.27: из рулетки — назад в Игровую
+diff --git a/farmgame/songs_ui.py b/farmgame/songs_ui.py
+index 7d08a2a..39d6f6c 100644
+--- a/farmgame/songs_ui.py
++++ b/farmgame/songs_ui.py
+@@ -22,6 +22,7 @@ class SongsUI:
+             self.toast(why, 2.5)
+             return
+         sg = self.song_def(sid)
++        self.quest("song")                           # 3.34: для достижений
+         self.modal = None
+         self.sfx.play("fanfare")
+         self.toast(f"Бард играет «{sg['name']}»: {sg['effect']} на {sg['minutes']} мин", 4)
+diff --git a/farmgame/tavern.py b/farmgame/tavern.py
+index 245fc0f..e3dc21a 100644
+--- a/farmgame/tavern.py
++++ b/farmgame/tavern.py
+@@ -216,6 +216,10 @@ class Tavern:
+         self.wheel_day = ""      # 3.27: день, когда крутили колесо фортуны в Игровой (раз в день)
+         self.wheel_last = None   # 3.27: что выпало в последний раз: {kind, amount, prize, text}
+         self.bj_intro = False    # 3.28: Ворчун уже рассказал правила блэкджека
++        self.stats = {}          # 3.34: счётчики событий за всю игру (для достижений): событие -> сколько раз
++        self.ach_done = []       # 3.34: выполненные достижения (id)
++        self.ach_claimed = []    # 3.34: за какие уже забрали жетоны
++        self.talk_story = 0      # 3.34: какую историю бармен расскажет следующей
+ 
+     # ---------- казино (3.14) ----------
+     def check_casino(self):
+@@ -389,7 +393,10 @@ class Tavern:
+ 
+     # ---------- прогресс ----------
+     def on(self, event, n=1):
+-        """Игровое событие (собрал урожай, поймал белку...). Возвращает список только что выполненных заданий."""
++        """Игровое событие (собрал урожай, поймал белку...). Возвращает список только что выполненных заданий.
++        3.34: каждое событие ещё и считается в stats (для достижений) — всегда, даже пока таверна закрыта."""
++        if n > 0:
++            self.stats[event] = self.stats.get(event, 0) + n
+         if not self.unlocked:
+             return []
+         done = []
+@@ -432,7 +439,8 @@ class Tavern:
+                     daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
+                     casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
+                     prize_off=self.prize_off, prize_day=self.prize_day, wheel_day=self.wheel_day,
+-                    wheel_last=self.wheel_last, bj_intro=self.bj_intro)
++                    wheel_last=self.wheel_last, bj_intro=self.bj_intro, stats=self.stats, ach_done=self.ach_done,
++                    ach_claimed=self.ach_claimed, talk_story=self.talk_story)
+ 
+     def from_dict(self, d):
+         """Читает таверну из сохранения. Испорченные записи пропускаются — задания тогда просто выдадутся заново."""
+@@ -457,6 +465,12 @@ class Tavern:
+         if isinstance(d.get("prize_off"), list):
+             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
+         self.bj_intro = bool(d.get("bj_intro", self.bj_intro))
++        if isinstance(d.get("stats"), dict):       # 3.34
++            self.stats = {k: _int(v, 0) for k, v in d["stats"].items() if isinstance(k, str) and _int(v, 0) > 0}
++        for key in ("ach_done", "ach_claimed"):
++            if isinstance(d.get(key), list):
++                setattr(self, key, list(dict.fromkeys(x for x in d[key] if isinstance(x, str))))
++        self.talk_story = _int(d.get("talk_story"), self.talk_story)
+         if isinstance(d.get("wheel_day"), str):
+             self.wheel_day = d["wheel_day"][:10]
+         if isinstance(d.get("wheel_last"), dict) and isinstance(d["wheel_last"].get("text"), str):
+diff --git a/farmgame/tavern_art.py b/farmgame/tavern_art.py
+index c834d45..afd4be1 100644
+--- a/farmgame/tavern_art.py
++++ b/farmgame/tavern_art.py
+@@ -386,9 +386,9 @@ def draw_note_icon(s, x, y, n=0, k=0.85):
+     draw_note(s, x, y, color=NOTE_COLORS[n % len(NOTE_COLORS)])
+ 
+ 
+-def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True):
++def draw_bubble(s, x, y, text, size=15, maxw=250, tail_down=True, max_lines=4):
+     """Облачко с речью: (x, y) — кончик хвостика."""
+-    lines = wrap(text, size, maxw, 4)
++    lines = wrap(text, size, maxw, max_lines)
+     imgs = [render_text(line, size, BROWN, None) for line in lines]
+     w = max(i.get_width() for i in imgs) + 24
+     h = len(imgs) * (size + 4) + 16
+diff --git a/farmgame/tavern_hud_ui.py b/farmgame/tavern_hud_ui.py
+index 44474af..3a8000e 100644
+--- a/farmgame/tavern_hud_ui.py
++++ b/farmgame/tavern_hud_ui.py
+@@ -53,14 +53,25 @@ class TavernHudUI:
+         self.icon_button(pygame.Rect(16, 478, 62, 56), "tavern", lambda r: draw_mug(self.screen, r.centerx - 3, r.centery + 4, 1.2),
+                          self.open_tavern, "Таверна", badge=bool(self.tavern.claimable()), tip=TAVERN_TIP)
+ 
++    def draw_achievements_button(self):
++        """3.34: «Достижения» в таверне — над «Призами». Своя картинка — ui/btn_achievements."""
++        from . import achievements as ach
++        from .achievements_ui import draw_medal
++        r = pygame.Rect(16, 392, 62, 56)
++        ready = bool(ach.claimable(self.tavern))
++        done = len(self.tavern.ach_done)
++        self.icon_button(r, "achievements", lambda rr: draw_medal(self.screen, rr.centerx, rr.centery, 2, True, 0.9),
++                         self.open_achievements, "Достижения", badge=ready,
++                         tip=f"Достижения: {done} из {len(ach.ACHIEVEMENTS)}" + (" — есть награда!" if ready else ""))
++
+     def draw_prizes_button(self):
+         """3.16.7: «Призы» прямо в таверне — над «На поле» (как «Таверна» над «Магазином» на поле).
+         Своя картинка — ui/btn_prizes; без неё деревянная плашка с жетоном, в тон остальным кнопкам."""
+         from .config import PRIZES as _P
+         r = pygame.Rect(16, 478, 62, 56)
+         t = self.tavern
+-        cheapest = min(p["cost"] for p in _P if t.prize_state(p) == "can") if any(
+-            t.prize_state(p) == "can" for p in _P) else None
++        shop = [p for p in _P if t.prize_state(p) == "can" and not (p.get("jackpot") or p.get("achievement"))]
++        cheapest = min(p["cost"] for p in shop) if shop else None     # 3.34: джекпоты и трофеи за достижения не в счёт
+         badge = cheapest is not None and t.tokens >= cheapest
+         tip = f"Призы за жетоны: трофеи и украшения (у тебя {t.tokens})"
+         if not has_sprite("ui/btn_prizes") and has_sprite("ui/btn_shop"):
+diff --git a/farmgame/tavern_ui.py b/farmgame/tavern_ui.py
+index 611f42b..cd472ca 100644
+--- a/farmgame/tavern_ui.py
++++ b/farmgame/tavern_ui.py
+@@ -80,6 +80,7 @@ class TavernUI:
+ 
+     def leave_tavern(self):
+         self.view = "field"
++        self.tv_menu = False
+ 
+     def sync_scene_audio(self):
+         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
+@@ -160,13 +161,49 @@ class TavernUI:
+         self.save()
+ 
+     # ---------- жители ----------
+-    def say_barman(self, text=None):
++    def say_barman(self, text=None, life=None):
+         if text is None:
+             lines = tv.barman_lines(self.tavern)
+             text = lines[self.barman_line % len(lines)]
+             self.barman_line += 1
+         b = self.tl["barman"]
+-        self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, 4.5]
++        life = life or max(4.5, min(12.0, len(text) / 14))     # длинную историю дочитать успеешь
++        self.tv_bubble = [b["x"], b["waist"] - 112 * b["k"], text, life]
++
++    # ---------- 3.34: разговор с барменом ----------
++    def poke_barman(self):
++        """Щелчок по бармену: открыть/закрыть темы разговора (и он здоровается)."""
++        self.tv_menu = not getattr(self, "tv_menu", False)
++        if self.tv_menu:
++            self.say_barman(random.choice(("Чем могу помочь?", "Слушаю тебя, друг!", "Ну, рассказывай — или спрашивай.",
++                                           "О чём поболтаем?")))
++
++    def barman_topic(self, topic):
++        from . import barman_talk
++        self.say_barman(barman_talk.answer(topic, self.farm, self.tavern))
++        self.quest("barman_talk")
++        self.sfx.play("hover")
++
++    def draw_barman_menu(self):
++        """Темы — дощечки на стойке под барменом; «Пока!» закрывает."""
++        if not getattr(self, "tv_menu", False) or self.modal is not None:
++            return
++        from . import barman_talk
++        b = self.tl["barman"]
++        bw, bh, gap = 172, 34, 6
++        x0 = int(min(W - 2 * bw - gap - 10, b["x"] - bw - gap // 2))
++        y0 = int(min(H - 3 * (bh + gap) - 60, b["waist"] + 48))
++        items = list(barman_talk.TOPICS) + [("bye", "Пока!")]
++        for i, (key, title) in enumerate(items):
++            rect = (x0 + (i % 2) * (bw + gap), y0 + (i // 2) * (bh + gap), bw, bh)
++            if key == "bye":
++                self.button(rect, title, self.close_barman_menu, BTN_GREY, True, 15)
++            else:
++                self.button(rect, title, lambda k=key: self.barman_topic(k), (235, 170, 70), True, 15)
++
++    def close_barman_menu(self):
++        self.tv_menu = False
++        self.say_barman(random.choice(("Заходи ещё!", "Удачного урожая!", "Береги грядки!")), 2.5)
+ 
+     def poke_bard(self):
+         """Клик по барду — соло: 8 долей ноты летят на каждую полудолю, бард качается сильнее."""
+@@ -315,7 +352,8 @@ class TavernUI:
+             else:
+                 draw_note(s, x, y, color=col)
+         self.draw_fireplace_zone(s)
+-        self.zone(L["barman_zone"], self.say_barman)
++        self.zone(L["barman_zone"], self.poke_barman)     # 3.34: темы для разговора
++        self.tip(L["barman_zone"], "Бармен Гаврила: поговорить")
+         self.zone(L["bard_zone"], self.open_songs)
+         self.tip(L["bard_zone"], "Бард: заказать песню за жетоны")
+         # стрелка к доске заданий
+@@ -369,7 +407,10 @@ class TavernUI:
+             draw_bubble(s, tx, ty, text, 13, 140)
+         if self.tv_bubble:
+             x, y, text, _ = self.tv_bubble
+-            draw_bubble(s, x, y, text)
++            if len(text) > 100:              # 3.34: истории бармена — облачко шире и выше
++                draw_bubble(s, x, y, text, 15, 360, max_lines=7)
++            else:
++                draw_bubble(s, x, y, text)
+         for x, y, text, life, color in self.floaters:
+             draw_text(s, text, 18, (x, y), color)
+         if self.tavern_debug:
+diff --git a/farmgame/windows_ui.py b/farmgame/windows_ui.py
+index 8a27367..b387517 100644
+--- a/farmgame/windows_ui.py
++++ b/farmgame/windows_ui.py
+@@ -382,7 +382,11 @@ class WindowsUI:
+                         lambda: self.set_option("show_fps", not self.show_fps),
+                         BTN_GREEN if self.show_fps else BTN_GREY, True, 18)
+         else:
+-            self.button((x, y, w, 46), "Статистика фермы", lambda: self.open_modal("stats"), (235, 170, 70), True, 18)
++            half0 = (w - 12) // 2       # 3.34: рядом со статистикой — достижения
++            self.button((x, y, half0, 46), "Статистика", lambda: self.open_modal("stats"), (235, 170, 70), True, 18)
++            from . import achievements as _ach
++            self.button((x + w - half0, y, half0, 46), "Достижения" + (" (!)" if _ach.claimable(self.tavern) else ""),
++                        self.open_achievements, (235, 170, 70), True, 18)
+             self.button((x, y + 56, w, 46), "Подсказки у кнопок: " + ("включены" if self.show_tips else "выключены"),
+                         lambda: self.set_option("show_tips", not self.show_tips),
+                         BTN_GREEN if self.show_tips else BTN_GREY, True, 18)
+diff --git a/tests/test_achievements.py b/tests/test_achievements.py
+new file mode 100644
+index 0000000..1c84c52
+--- /dev/null
++++ b/tests/test_achievements.py
+@@ -0,0 +1,114 @@
++# -*- coding: utf-8 -*-
++"""3.34: достижения и разговоры с барменом."""
++import datetime
++import json
++import random
++import unittest
++
++from tests.helpers import summer_farm
++from farmgame import achievements as ach
++from farmgame import barman_talk as bt
++from farmgame.config import PRIZES
++from farmgame.tavern import Tavern
++
++
++class Achievements(unittest.TestCase):
++    def setUp(self):
++        self.f, self.t = summer_farm(), Tavern()
++
++    def test_ids_unique_and_prizes_exist(self):
++        ids = [a["id"] for a in ach.ACHIEVEMENTS]
++        self.assertEqual(len(ids), len(set(ids)))
++        prize_ids = {p["id"] for p in PRIZES}
++        for a in ach.ACHIEVEMENTS:
++            self.assertIn(a["sec"], dict(ach.SECTIONS))
++            if a["prize"]:
++                self.assertIn(a["prize"], prize_ids)
++        for p in PRIZES:                      # каждый трофей «за достижение» кто-то выдаёт
++            if p.get("achievement"):
++                self.assertEqual(ach.BY_ID[p["achievement"]]["prize"], p["id"])
++
++    def test_events_count_even_when_tavern_closed(self):
++        self.assertFalse(self.t.unlocked)
++        self.t.on("squirrel", 10)
++        self.assertEqual(self.t.stats["squirrel"], 10)
++        new = [a["id"] for a in ach.check(self.f, self.t)]
++        self.assertIn("squirrel_1", new)
++        self.assertNotIn("squirrel_2", new)
++        self.assertEqual(ach.check(self.f, self.t), [])          # повторно то же самое не «выполняется»
++
++    def test_trophy_given_at_once_tokens_on_claim(self):
++        self.t.on("squirrel", 100)
++        ach.check(self.f, self.t)
++        self.assertTrue(self.t.prizes.get("golden_squirrel"))
++        before = self.t.tokens
++        self.assertEqual(ach.claim(self.t, "squirrel_3"), 50)
++        self.assertEqual(ach.claim(self.t, "squirrel_3"), 0)          # дважды не дают
++        self.assertEqual(self.t.tokens, before + 50)
++        got = ach.claim_all(self.t)
++        self.assertEqual(got, 10 + 25)                                 # squirrel_1 и squirrel_2
++        self.assertEqual(ach.claimable(self.t), [])
++
++    def test_farm_based(self):
++        self.f.total_earned = 2e12
++        self.f.farm_index = 1
++        ids = {a["id"] for a in ach.check(self.f, self.t)}
++        self.assertTrue({"earned_1", "earned_2", "earned_3", "chapter_1"} <= ids)
++        self.assertNotIn("earned_4", ids)
++
++    def test_old_saves_count_trucks_and_dailies(self):
++        self.f.prestiges = 30
++        self.t.daily_done_total = 12
++        ids = {a["id"] for a in ach.check(self.f, self.t)}
++        self.assertTrue({"truck_1", "truck_2", "daily_1"} <= ids)
++
++    def test_save_roundtrip(self):
++        self.t.on("collect", 150)
++        ach.check(self.f, self.t)
++        ach.claim(self.t, "collect_1")
++        self.t.talk_story = 3
++        t2 = Tavern()
++        t2.from_dict(json.loads(json.dumps(self.t.to_dict())))
++        self.assertEqual(t2.stats["collect"], 150)
++        self.assertEqual(t2.ach_done, self.t.ach_done)
++        self.assertEqual(t2.ach_claimed, ["collect_1"])
++        self.assertEqual(t2.talk_story, 3)
++
++    def test_broken_save_is_ignored(self):
++        t2 = Tavern()
++        t2.from_dict({"stats": {"collect": "много", "x": -5, 3: 4}, "ach_done": "все", "ach_claimed": [1, "a", "a"]})
++        self.assertEqual(t2.stats, {})
++        self.assertEqual(t2.ach_done, [])
++        self.assertEqual(t2.ach_claimed, ["a"])
++
++
++class BarmanTalk(unittest.TestCase):
++    def setUp(self):
++        self.f, self.t = summer_farm(), Tavern()
++
++    def test_every_topic_answers(self):
++        for key, _title in bt.TOPICS:
++            text = bt.answer(key, self.f, self.t, random.Random(1))
++            self.assertTrue(isinstance(text, str) and len(text) > 5, key)
++
++    def test_stories_go_in_order(self):
++        a = bt.answer("story", self.f, self.t)
++        b = bt.answer("story", self.f, self.t)
++        self.assertEqual((a, b), (bt.STORIES[0], bt.STORIES[1]))
++
++    def test_mood_by_time(self):
++        self.assertEqual(bt.part_of_day(datetime.datetime(2026, 1, 1, 8)), "morning")
++        self.assertEqual(bt.part_of_day(datetime.datetime(2026, 1, 1, 2)), "night")
++
++    def test_news_mentions_achievement_reward(self):
++        self.t.on("squirrel", 10)
++        ach.check(self.f, self.t)
++        self.assertIn("достижение", bt.news(self.f, self.t))
++
++    def test_tip_about_leaves(self):
++        self.f.leaves = self.f.home_leaves = 500
++        self.assertIn("листьев", bt.tip(self.f, self.t, random.Random(0)))
++
++
++if __name__ == "__main__":
++    unittest.main()
+-- 
+2.43.0
+

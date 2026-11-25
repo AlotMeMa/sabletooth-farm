@@ -326,13 +326,14 @@ class MoveUI:
             (f"Новая глава: всё начинается с нуля — деньги, грядки, здания, {CUR['title'].lower()} и дерево улучшений.",
              (190, 80, 70)),
             (f"С собой: доход x{FARM_BONUS} навсегда за каждую пройденную ферму и трофей «{trophy['name']}»"
-             + (f": {trophy['text']}." if trophy["text"] and not trophy["text"].startswith("(") else "."), brown),
+             + (f": {trophy['text']}." if trophy["text"] and not trophy["text"].startswith("(") else ".")
+             + (f" Цены там x{FARM_PRICE}." if FARM_PRICE != 1 else ""), brown),
             ("Таверна, жетоны и призы остаются с тобой.", brown),
         ]
-        if nxt and nxt["peasants"]:
+        if nxt and nxt["frost"]:          # 3.30: зима тоже с артелью (peasants) — проверяем её первой
+            parts.append(("Там: гномье пришествие вместо дождя, мороз вместо вороны.", soft))
+        elif nxt and nxt["peasants"]:
             parts.append(("Там: крестьяне, мельница с пекарней, разбойники, печати.", soft))
-        elif nxt and nxt["frost"]:
-            parts.append(("Там: вместо дождя гномье пришествие, вместо вороны мороз.", soft))
         y = box.y + 66
         for text, col in parts:
             for line in wrap(text, 15, box.w - 60, 3):

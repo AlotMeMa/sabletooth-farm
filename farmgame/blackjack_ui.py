@@ -22,6 +22,12 @@ BJ = dict(dealer=(500, 238), dealer_k=2.5, shoe=(812, 258),
           chips_y=565, chips_x=150, bet=(500, 404),
           deal=pygame.Rect(748, 540, 175, 48), hit=pygame.Rect(608, 540, 150, 48), stand=pygame.Rect(768, 540, 155, 48),
           clear=pygame.Rect(300, 546, 88, 38), msg=(500, 404))
+# 3.28.2: раскладка под нарисованный стол пользователя backgrounds/blackjack (полукруг, лоток и башмак на картинке):
+# карты дилера — на прямоугольнике, ставка — в средней дуге игрока, карты игрока — над ней, Ворчун — за лотком
+BJ_PAINTED = dict(dealer=(500, 232), shoe=None, dealer_cards=(500, 336), player_cards=(500, 450), bet=(500, 508),
+                  result=(500, 574), side_bet=(612, 508), chips_y=560, chips_x=262,
+                  clear=pygame.Rect(236, 580, 88, 32), rules=(175, 292), history=(112, 500))
+BJ_CODE = dict(shoe=(812, 258), result=(500, 404), side_bet=(720, 404), rules=None, history=(70, 470))
 CARD_STEP = 0.32          # через сколько секунд выкладывается следующая карта
 DEALER_NAME = "Ворчун"
 DEALER_INTRO = [
@@ -134,6 +140,11 @@ def draw_shoe(s, x, y, k=1.0):
         return
     poly(s, (110, 64, 36), [(x - 50 * k, y), (x + 40 * k, y), (x + 50 * k, y - 34 * k), (x - 34 * k, y - 50 * k)], 3)
     draw_card(s, x - 26 * k, y - 46 * k, None, False, 0.45 * k)
+
+
+def bj_layout():
+    """Раскладка стола: под свою картинку backgrounds/blackjack или под стол, нарисованный кодом."""
+    return dict(BJ, **(BJ_PAINTED if has_sprite("backgrounds/blackjack") else BJ_CODE))
 
 
 class BlackjackUI:
@@ -264,13 +275,14 @@ class BlackjackUI:
             self.bj_say = [random.choice(DEALER_SAY[g.result]), 3.5]
             if g.result in ("win", "blackjack"):
                 self.sfx.play("coin_big" if g.result == "blackjack" else "coin")
-                self.fx.sparks(500, BJ["player_cards"][1] - 40, n=16 if g.result == "blackjack" else 9, up=70)
+                self.fx.sparks(500, bj_layout()["player_cards"][1] - 40, n=16 if g.result == "blackjack" else 9, up=70)
             elif g.result in ("lose", "bust"):
                 self.sfx.play("shoo")
 
     # ------------------------------------------------------------ рисование
     def draw_blackjack_view(self):
         s, g, t = self.screen, self.bj, self.t_real
+        L = bj_layout()
         if getattr(self, "bj_bg", None) is None:
             self.bj_bg = self.build_blackjack_background()
         s.blit(self.bj_bg, (0, 0))
@@ -283,29 +295,31 @@ class BlackjackUI:
         np_, nd, reveal = self.bj_counts()
         grumpy = 1.0 if self.bj_shown_res in ("win", "blackjack") else 0.4
         talking = self.bj_say is not None and int(t * 6) % 2 == 0
-        dx, dy = BJ["dealer"]
-        draw_dealer_gnome(s, dx, dy, BJ["dealer_k"], t, talking, grumpy)
+        dx, dy = L["dealer"]
+        draw_dealer_gnome(s, dx, dy, L["dealer_k"], t, talking, grumpy)
         zone = pygame.Rect(dx - 80, dy - 230, 160, 230)
         self.zone_btn(zone, self.bj_poke, 12)
         self.tip(zone, f"{DEALER_NAME}: щёлкни — проворчит что-нибудь")
         q = pygame.Rect(dx + 100, dy - 44, 32, 32)
         self.button(q, "?", self.bj_rules, BTN_BLUE, True, 16)
         self.tip(q, "Правила ещё раз")
-        draw_shoe(s, *BJ["shoe"])
+        if L["shoe"]:
+            draw_shoe(s, *L["shoe"])
         # карты дилера и игрока
-        self.bj_draw_hand(s, g.dealer[:nd], BJ["dealer_cards"], hide_second=not reveal, t=t)
-        self.bj_draw_hand(s, g.player[:np_], BJ["player_cards"], t=t)
+        self.bj_draw_hand(s, g.dealer[:nd], L["dealer_cards"], hide_second=not reveal, t=t)
+        self.bj_draw_hand(s, g.player[:np_], L["player_cards"], t=t)
         if g.dealer[:nd]:
             val = bj.hand_value(g.dealer[:nd]) if reveal else bj.card_value(g.dealer[0])
-            self.bj_value_tag(s, BJ["dealer_cards"], val, nd, not reveal)
+            self.bj_value_tag(s, L["dealer_cards"], val, nd, not reveal)
         if g.player[:np_]:
-            self.bj_value_tag(s, BJ["player_cards"], bj.hand_value(g.player[:np_]), np_)
+            self.bj_value_tag(s, L["player_cards"], bj.hand_value(g.player[:np_]), np_)
         # ставка — круг посередине стола
-        bx, by = BJ["bet"]
+        bx, by = L["bet"]
         busy = self.bj_busy()
         if g.state == "bet":
-            ring = pygame.Rect(bx - 44, by - 44, 88, 88)
-            pygame.draw.circle(s, (240, 210, 130), (bx, by), 44, 3)
+            rr = 36 if L["shoe"] is None else 44     # на своём столе — в дуге игрока, кольцо поменьше
+            ring = pygame.Rect(bx - rr, by - rr, 2 * rr, 2 * rr)
+            pygame.draw.circle(s, (240, 210, 130), (bx, by), rr, 3)
             if g.bet:
                 draw_chip(s, bx, by, chip_for(g.bet), 1.25, str(g.bet))
             else:
@@ -314,18 +328,18 @@ class BlackjackUI:
             self.zone_btn(ring, self.bj_place, 44)
             self.tip(ring, "Щёлкни — поставить выбранную фишку")
         elif g.bet:
-            draw_chip(s, bx + 220, by, chip_for(g.bet), 1.0, str(g.bet))
+            draw_chip(s, *L["side_bet"], chip_for(g.bet), 1.0, str(g.bet))
         # итог
         if g.state == "done" and not busy:
             text, col = RESULT_TEXT[g.result]
             msg = text.format(p=g.paid - g.bet if g.result in ("win", "blackjack") else g.paid)
             plate = pygame.Rect(0, 0, 300, 44)
-            plate.center = (bx, by)
+            plate.center = L["result"]
             if not skin.plate(s, "toast", plate):
                 rounded(s, (40, 30, 28), plate, 12, 2, skin=None)
             draw_text(s, msg, 20, plate.center, col)
         # фишки
-        x0, y = BJ["chips_x"], BJ["chips_y"]
+        x0, y = L["chips_x"], L["chips_y"]
         if g.state == "bet":
             draw_text(s, "Фишка:", 16, (x0 - 60, y), WHITE, anchor="midright")
             for i, v in enumerate(cs.CHIPS):
@@ -335,17 +349,20 @@ class BlackjackUI:
                     blit_light(s, x, y, 64, (255, 230, 140), 200)
                 draw_chip(s, x, y, v, 1.05 if v == self.bj_chip else 0.9)
                 self.zone_btn(rect, lambda v=v: setattr(self, "bj_chip", v), 19)
-            self.button(BJ["clear"], "Убрать", self.bj_clear, BTN_BLUE, g.bet > 0, 16)
-            self.button(BJ["deal"], "Раздать", self.bj_deal, BTN_GREEN, g.bet >= bj.MIN_BET, 20)
+            self.button(L["clear"], "Убрать", self.bj_clear, BTN_BLUE, g.bet > 0, 16)
+            self.button(L["deal"], "Раздать", self.bj_deal, BTN_GREEN, g.bet >= bj.MIN_BET, 20)
         elif g.state == "player":
-            self.button(BJ["hit"], "Взять", self.bj_hit, BTN_GREEN, not busy, 20)
-            self.button(BJ["stand"], "Хватит", self.bj_stand, (245, 175, 50), not busy, 20)
+            self.button(L["hit"], "Взять", self.bj_hit, BTN_GREEN, not busy, 20)
+            self.button(L["stand"], "Хватит", self.bj_stand, (245, 175, 50), not busy, 20)
         elif not busy:
-            self.button(BJ["deal"], "Ещё раз", self.bj_again, BTN_GREEN, True, 20)
-            self.tip(BJ["deal"], "Новая раздача с той же ставкой")
+            self.button(L["deal"], "Ещё раз", self.bj_again, BTN_GREEN, True, 20)
+            self.tip(L["deal"], "Новая раздача с той же ставкой")
         # последние итоги
-        hx, hy = 70, 470
-        for i, r in enumerate(g.history[:8]):
+        if L["rules"]:                           # на своём фоне правила пишет игра (на столе кодом — в самом фоне)
+            for n, line in enumerate(("Дилер берёт до 17", "Выигрыш — 1 к 1", "Очко с раздачи — 3 к 2")):
+                draw_text(s, line, 13, (L["rules"][0], L["rules"][1] + n * 19), (235, 205, 120), outline=None)
+        hx, hy = L["history"]
+        for i, r in enumerate(g.history[:6 if L["shoe"] is None else 8]):
             col = {"win": (110, 200, 90), "blackjack": (255, 205, 60), "push": (200, 190, 170)}.get(r, (200, 80, 70))
             pygame.draw.circle(s, OUT, (hx, hy - i * 22), 9)
             pygame.draw.circle(s, col, (hx, hy - i * 22), 7)

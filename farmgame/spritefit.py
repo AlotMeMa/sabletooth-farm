@@ -86,6 +86,7 @@ PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubbl
 FISHING_SHEET_ORDER = ["creatures/crab", "creatures/crab_gold", "creatures/gull", "creatures/gull_fly", "icons/fisherman",
                        "icons/hook", "ui/btn_fishfest", "characters/fisher_worker", "characters/fisher_dancer"]
 FISHCART_SHEET_ORDER = ["vehicles/fishcart_0", "vehicles/fishcart_1", "vehicles/fishcart_2"]
+PREDATOR_SHEET_ORDER = ["pike", "asp", "zander", "burbot", "catfish", "eel", "taimen", "sturgeon", "beluga", "swordfish"]
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
                       "characters/owl"]
@@ -110,6 +111,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
     "vehicles/fishcart_sheet": ("", FISHCART_SHEET_ORDER, 1, 3),    # 3.36: повозка рыботорговца, 3 уровня
+    "fish/predators_sheet": ("fish/", PREDATOR_SHEET_ORDER, 2, 5),  # 3.37: хищники садка, порядок = PREDATORS
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
@@ -211,6 +213,8 @@ def _fit_spec_base(name):
         m = re.match(r"^(.*)_([123])$", last)
         c, b = _box(110, 120, 3, 2, 3, 4)
         return _spec(c, b, "bottom", STAGE_HEIGHT[int(m.group(2))] if m else 1.0)
+    if folder == "fish" and last != "predators_sheet":   # 3.37: хищник садка, смотрит влево; рисуется с 0.45 * k
+        return _spec(*_box(200, 100, 6, 6, 6, 6), "center")
     if folder == "tiles":
         return _spec(*_box(184, 104, 9, 5, 9, 5), "center")
     if folder == "props" and last == "fence_strip":

@@ -125,3 +125,13 @@ class Fishery(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class PredatorArt(unittest.TestCase):
+    def test_sheet_order_matches_predators(self):
+        import ast, os
+        src = open(os.path.join(os.path.dirname(__file__), "..", "farmgame", "spritefit.py"), encoding="utf-8").read()
+        for node in ast.walk(ast.parse(src)):
+            if isinstance(node, ast.Assign) and getattr(node.targets[0], "id", "") == "PREDATOR_SHEET_ORDER":
+                order = ast.literal_eval(node.value)
+        self.assertEqual(order, [p["id"] for p in cfg.PREDATORS])

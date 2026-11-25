@@ -228,7 +228,7 @@ PRED_LOOKS = {
 def draw_predator(s, x, y, k, pid, t=0.0, flip=False):
     """Хищник в садке: плывёт, чуть виляя хвостом. (x, y) — центр. Картинка fish/<id> (смотрит влево) или кодом."""
     wig = math.sin(t * 5) * 4 * k
-    if blit_tf(s, f"fish/{pid}", x, y, 0.5 * k, flip=flip, angle=math.sin(t * 2) * 3, pivot="center"):
+    if blit_tf(s, f"fish/{pid}", x, y, 0.45 * k, flip=flip, angle=math.sin(t * 2) * 3, pivot="center"):
         return
     back, belly, fin, mark, ln = PRED_LOOKS.get(pid, PRED_LOOKS["pike"])
     d = 1 if flip else -1                     # куда смотрит голова: -1 влево

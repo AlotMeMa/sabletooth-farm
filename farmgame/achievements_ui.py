@@ -12,8 +12,11 @@ from . import achievements as ach
 MEDALS = ((205, 127, 50), (200, 205, 215), (245, 200, 60))     # бронза, серебро, золото — по награде
 
 
-def draw_medal(s, x, y, tier, done=True, k=1.0):
-    """Медаль на ленточке: tier 0..2; не выполнено — серая."""
+def draw_medal(s, x, y, tier, done=True, k=1.0, aid=None):
+    """Медаль на ленточке: tier 0..2; не выполнено — серая. aid — своя картинка icons/ach_<id> (3.34.2):
+    невыполненное достижение показывает её бледной."""
+    if aid and blit_tf(s, f"icons/ach_{aid}", x, y, 0.5 * k, pivot="center", alpha=None if done else 85):
+        return
     col = MEDALS[tier] if done else (185, 178, 170)
     for dx, rib in ((-6, (200, 70, 60)), (6, (70, 120, 200))):
         poly(s, rib if done else (165, 160, 155), [(x + dx * k - 5 * k, y - 22 * k), (x + dx * k + 5 * k, y - 22 * k),
@@ -85,7 +88,7 @@ class AchievementsUI:
             row = pygame.Rect(r.x + 30, r.y + 122 + n * 64, r.w - 60, 58)
             is_done, claimed = a["id"] in t.ach_done, a["id"] in t.ach_claimed
             rounded(s, (238, 222, 192) if is_done else (226, 214, 196), row, 10, 2, skin="card")
-            draw_medal(s, row.x + 32, row.centery + 2, medal_tier(a), is_done, 0.95)
+            draw_medal(s, row.x + 32, row.centery + 2, medal_tier(a), is_done, 0.95, a["id"])
             draw_text_fit(s, a["title"], 17, (row.x + 62, row.y + 18), row.w - 280, brown, anchor="midleft", outline=None)
             draw_text_fit(s, a["text"], 13, (row.x + 62, row.y + 39), row.w - 280,
                           (60, 130, 50) if is_done else soft, anchor="midleft", outline=None)

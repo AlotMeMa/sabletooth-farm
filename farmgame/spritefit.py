@@ -71,6 +71,9 @@ GAMEROOM_SHEET_ORDER = ["props/fortune_wheel", "props/fortune_pointer", "icons/g
 CARDS_SHEET_ORDER = ["props/card_back", "props/card_face", "props/card_shoe",
                      "icons/suit_hearts", "icons/suit_diamonds", "icons/suit_clubs",
                      "icons/suit_spades", "props/card_back_gold", "props/card_back_winter"]
+# 3.27: разные гномы зимы одним запросом (лист 2×3, assets/characters/gnomes_sheet.png): 4 работника и 2 шамана
+GNOMES_SHEET_ORDER = ["gnome_worker_1", "gnome_worker_2", "gnome_worker_3",
+                      "gnome_worker_4", "gnome_shaman_1", "gnome_shaman_2"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -85,6 +88,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/winter_sheet": ("", WINTER_SHEET_ORDER, 3, 3),   # полные имена: иконки, кнопка и гномы зимы
     "icons/gameroom_sheet": ("", GAMEROOM_SHEET_ORDER, 2, 3),   # 3.27: Игровая
     "icons/cards_sheet": ("", CARDS_SHEET_ORDER, 3, 3),         # 3.27: заготовка под блэкджек
+    "characters/gnomes_sheet": ("characters/", GNOMES_SHEET_ORDER, 2, 3),   # 3.27: разные гномы одним запросом
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)

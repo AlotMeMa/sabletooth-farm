@@ -22,7 +22,7 @@ import pygame
 
 from .config import BASE_DIR, W, H, PRIZE_SHEET_IDS
 
-CACHE_VERSION = "fit8"   # 3.26.1: крошки (след значка нейросети в углу) убираются — картинки пересчитаются
+CACHE_VERSION = "fit9d"   # 3.26.1: крошки (след значка нейросети в углу) убираются — картинки пересчитаются
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
@@ -874,6 +874,31 @@ def is_strip(img, path=None):
     return result
 
 
+# 3.34.1: у этих картинок нейросеть нарисовала свечение прямо поверх маджента-фона — после вырезания фона
+# по краям оставался розовый ореол (фонарь в зале). Розоватые полупрозрачные следы убираем.
+DESPILL = ("decor/lantern", "icons/prize_lanterns", "icons/prize_fireflies")
+
+
+def despill(name, surf):
+    """Убирает розовый ореол (смесь маджента-фона со свечением) у картинок из DESPILL."""
+    base = name[:-len(HI)] if HI and name.endswith(HI) else name
+    if surf is None or base not in DESPILL:
+        return surf
+    surf = surf.copy()
+    w, h = surf.get_size()
+    for y in range(h):
+        for x in range(w):
+            r, g, b, a = surf.get_at((x, y))
+            if a == 0:
+                continue
+            m = min(r, b) - g                  # насколько пиксель «маджентовый»
+            if m > 6:                          # и светлые, и тёмные (по краю) розовые пиксели
+                surf.set_at((x, y), (r, g, g, int(a * max(0.0, 1 - (m - 6) / 14))))
+            elif a < 240 and r - g > 20 and abs(g - b) < 35:    # бледно-розовая дымка свечения
+                surf.set_at((x, y), (r, g, b, 0))
+    return surf
+
+
 def load_fitted(name, path, part=None):
     """Загружает картинку path для спрайта name, подгоняя её под нужный размер.
     part: None — обычный файл; ("strip", stage) — стадия из полоски;
@@ -907,11 +932,11 @@ def load_fitted(name, path, part=None):
         elif spec["align"] == "full":
             return fit_single(img, spec)   # простое растяжение, кэш не нужен
         else:
-            out = fit_single(img, spec)
+            out = despill(name, fit_single(img, spec))
     elif part[0] == "strip":
         base = name.rsplit("_", 1)[0]
         specs = [fit_spec(f"{base}_3")] * 3
-        outs = fit_strip(img, specs)
+        outs = [despill(f"{base}_{st}", o) for st, o in enumerate(fit_strip(img, specs), 1)]
         for st, surf in enumerate(outs, 1):
             if surf is not None and st != part[1]:
                 _save_cache(_cache_path(f"{base}_{st}", path), surf)
@@ -919,7 +944,8 @@ def load_fitted(name, path, part=None):
     else:  # sheet: ("sheet", номер, префикс, порядок, строк, столбцов)
         _kind, idx, prefix, order, rows, cols = part
         sfx = HI if name.endswith(HI) else ""
-        outs = fit_sheet(img, rows, cols, lambda i: fit_spec(prefix + order[i] + sfx))
+        outs = [despill(prefix + order[i] + sfx, o)
+                for i, o in enumerate(fit_sheet(img, rows, cols, lambda i: fit_spec(prefix + order[i] + sfx)))]
         for i, surf in enumerate(outs):
             if surf is not None and i != idx:
                 _save_cache(_cache_path(prefix + order[i] + sfx, path, (_kind, i, prefix, order, rows, cols)), surf)

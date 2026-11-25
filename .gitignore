@@ -12,3 +12,4 @@ assets/**/*.wav
 # шаблоны спрайтов — выгружаются командой python farm_idle.py --export-templates
 assets_templates/
 devtools/shots/
+*.patch

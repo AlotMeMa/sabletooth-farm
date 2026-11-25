@@ -428,6 +428,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.tavern_tick(dt)
         self.ach_tick(dt)                 # 3.34: достижения
         self.mill_tick(dt)
+        self.fishery_tick(dt)             # 3.38: события аквариума (хищник приплыл, съел, уплыл)
         self.tut_tick(dt)
         self.casino_tick(dt)
         self.gameroom_tick(dt)

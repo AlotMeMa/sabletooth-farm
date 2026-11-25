@@ -263,3 +263,46 @@ def draw_predator(s, x, y, k, pid, t=0.0, flip=False):
     for n in range(3):                                            # зубки
         zx = hx - d * (3 + n * 4) * k
         poly(s, WHITE, [(zx - 1.5 * k, y + 2 * k), (zx + 1.5 * k, y + 2 * k), (zx, y + 5 * k)], 0)
+
+
+def draw_swim_fish(s, x, y, k, key, d=-1, t=0.0, glow=False):
+    """3.38: рыбка в аквариуме (без кругов на воде). (x, y) — центр тела, d: -1 смотрит влево, +1 вправо."""
+    back, belly, fin, mark = FISH_LOOKS.get(key, FISH_LOOKS["roach"])
+    m = -d                                   # +1 — как в draw_fish (голова слева)
+    w = math.sin(t * 6) * 2.5 * k            # виляет хвостом
+    if glow:                                 # взрослая — можно продавать
+        pygame.draw.circle(s, (255, 245, 190), (P(x), P(y)), max(2, P(19 * k)), max(1, P(1.5 * k)))
+    tail = [(x + m * 11 * k, y), (x + m * 20 * k, y - 8 * k + w), (x + m * 19 * k, y + 8 * k + w)]
+    poly(s, fin, tail, 2)
+    poly(s, fin, [(x - m * 2 * k, y - 8 * k), (x + m * 6 * k, y - 13 * k), (x + m * 8 * k, y - 6 * k)], 2)
+    ellipse(s, back, x, y, 26 * k, 17 * k)
+    ellipse(s, belly, x - m * 1 * k, y + 3 * k, 20 * k, 8 * k, 0)
+    if mark == "stripes":
+        for dx in (-3, 2, 7):
+            pygame.draw.line(s, (70, 100, 50), (P(x + m * dx * k), P(y - 7 * k)), (P(x + m * dx * k), P(y + 2 * k)),
+                             max(1, P(2 * k)))
+    elif mark == "spots":
+        for dx, dy in ((-2, -4), (4, -3), (7, 0), (1, 1)):
+            pygame.draw.circle(s, (60, 80, 70), (P(x + m * dx * k), P(y + dy * k)), max(1, P(1.2 * k)))
+    elif mark == "scales":
+        for dx in (-1, 4, 9):
+            pygame.draw.circle(s, (140, 100, 50), (P(x + m * dx * k), P(y - 1 * k)), max(1, P(2.6 * k)), 1)
+    elif mark == "koi":
+        for dx, dy, r in ((-3, -3, 4), (6, 1, 3.5)):
+            pygame.draw.circle(s, (235, 80, 50), (P(x + m * dx * k), P(y + dy * k)), max(1, P(r * k)))
+    elif mark == "crown":
+        cx = x - m * 2 * k
+        poly(s, (255, 225, 90), [(cx - 4 * k, y - 7 * k), (cx - 3 * k, y - 13 * k), (cx, y - 9 * k),
+                                 (cx + 3 * k, y - 14 * k), (cx + 5 * k, y - 8 * k)], 1)
+    face(s, x - m * 6 * k, y - 1 * k, k * 0.75)
+
+
+def draw_roe(s, x, y, k, t, ripe):
+    """3.38: икра — гроздь оранжевых икринок, чуть покачивается; ripe 0..1 — скоро малёк (внутри темнеют глазки)."""
+    sway = math.sin(t * 1.3 + x * 0.05) * 2 * k
+    for n, (dx, dy) in enumerate(((0, 0), (-5, 3), (5, 3), (-2, 7), (3, -4), (-6, -3), (7, -2))):
+        cx, cy = x + dx * k + sway * (dy + 8) / 15, y + dy * k
+        pygame.draw.circle(s, (230, 120, 60), (P(cx), P(cy)), max(2, P(3.6 * k)))
+        pygame.draw.circle(s, (255, 190, 120), (P(cx), P(cy)), max(1, P(2.6 * k)))
+        if ripe > 0.5:
+            pygame.draw.circle(s, OUT, (P(cx + 0.6 * k), P(cy)), max(1, P(0.9 * k)))

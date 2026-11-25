@@ -22,6 +22,8 @@ class Farm:
         self.last_lucky = False
         self.farm_index = 0          # 0 — летняя ферма, 1 — средневековое поле, 2 — зима (позже)
         self.prestiges = 0
+        self.fy_runs = 0                    # 3.38: сколько забегов уже было в Рыбацкой деревне (первый хищник сильнее)
+        self._offline = False               # 3.38: идёт подсчёт офлайна — хищники не приплывают и не едят
         self.total_earned = 0.0
         self.rain_left = 0.0
         self.rain_cd = 0.0
@@ -56,13 +58,21 @@ class Farm:
         self.bread = 0.0                    # готовый хлеб, ждёт сбора
         self.oven_load = 0.0                # мука в печи (текущая партия)
         # 3.37: рыборазводня (Рыбацкая деревня). Номера с 1: 0 — «нет»
-        self.fy_species = 0                 # какая рыба в садке 1 (1..9 — участок пруда), 0 — пусто
-        self.fy_pop = 0.0                   # сколько рыб в садке 1
-        self.fy_lvl = 1                     # уровень садка 1 (вместимость FISH_POND_CAP)
-        self.fy_slots = 1                   # открыто мест в садке хищников
-        self.fy_type = [0] * FISH_SLOTS     # хищник на месте: 1..10 (PREDATORS), 0 — пусто
-        self.fy_eaten = [0.0] * FISH_SLOTS  # сколько рыбок съел
-        self.fy_value = [0.0] * FISH_SLOTS  # сколько он стоит (накоплено от съеденного)
+        # 3.38: аквариум (Рыбацкая деревня). Рыбка: [вид 1..9, цена малька, рост 0..1, зерно пути];
+        # икра: [вид, x, y, сколько секунд до малька] (x, y — доли аквариума: где её отложили, там и висит).
+        self.fy_fish = []
+        self.fy_eggs = []
+        self.fy_cap = FISH_TANK_START       # мест в аквариуме (рыбки + икра)
+        self.fy_clock = 0.0                 # часы аквариума: по ним плавают рыбки (fish_swim)
+        self.fy_timer = FISH_PRED_EVERY     # секунд до следующего хищника
+        self.fy_pred = 0                    # хищник в аквариуме: 1..10 (PREDATORS), 0 — нет
+        self.fy_pred_val = 0.0              # сколько он сейчас стоит
+        self.fy_pred_eaten = 0              # сколько рыбок съел
+        self.fy_bite = FISH_BITE            # секунд до следующего укуса
+        self.fy_grace = 0.0                 # съел всех: тлеющий отсчёт до ухода (0 — не идёт)
+        self.fy_rank = 0                    # ранг прошлого хищника этого забега (0 — ещё не было)
+        self.fy_up = FISH_UP_START          # шанс, что следующий рангом выше
+        self.fy_events = []                 # для экрана: ("arrive"|"bite"|"left"|"egg"|"hatch", ...) — не сохраняются
         self.oven_prog = 0.0
         self.oven_wait = 0.0                # сколько печь ждёт муку на полную партию
         self.m_carry_t = 0.0
@@ -620,7 +630,7 @@ class Farm:
     def run_total(self):
         """Заработок забега вместе с несобранным урожаем — его тоже забирает грузовик."""
         return (self.run_earned + self.total_stash() + sum(self.a_feed) + sum(self.a_store)
-                + self.hopper + self.flour + self.bread + self.oven_load + sum(self.fy_value))
+                + self.hopper + self.flour + self.bread + self.oven_load + self.aquarium_value())
 
     def truck_mult(self):
         return 1 + 0.1 * self.up("truck")
@@ -653,6 +663,8 @@ class Farm:
         self.home_leaves += gained
         self.leaves_earned += gained
         self.prestiges += 1
+        if self.has_fishery():
+            self.fy_runs += 1
         self.reset_run()
         return gained
 
@@ -676,119 +688,190 @@ class Farm:
         self.reset_run()
         return True
 
-    # ---------- 3.37: рыборазводня ----------
+    # ---------- 3.38: аквариум ----------
     def has_fishery(self):
         return self.farm_def().get("barn") == "fishery"
 
-    def fish_value(self, i):
-        """Ценность одной рыбки вида i (участок пруда) — FISH_FEED_SECONDS секунд дохода участка (без фестиваля)."""
+    @staticmethod
+    def fish_swim(seed, t, speed=1.0):
+        """Где плывёт рыбка (доли аквариума x 0..1, y 0..1) и куда смотрит (+1 вправо, -1 влево)."""
+        a = seed * 2.399963
+        ph = t * 0.11 * speed * (0.8 + 0.4 * ((seed * 7) % 10) / 10) + a
+        x = 0.5 + 0.42 * math.sin(ph) + 0.04 * math.sin(ph * 2.3 + a)
+        y = 0.5 + 0.30 * math.sin(ph * 0.7 + a * 1.7) + 0.06 * math.sin(ph * 3.1)
+        d = 1 if math.cos(ph) * 0.42 + 0.04 * 2.3 * math.cos(ph * 2.3 + a) > 0 else -1
+        return min(0.97, max(0.03, x)), min(0.95, max(0.05, y)), d
+
+    def fish_price(self, i):
+        """Цена малька вида i: доход его участка (без фестиваля) x время роста x FISH_PRICE_K. Участок закрыт — 0."""
         if self.levels[i] <= 0:
             return 0.0
-        return self.income_per_sec(i, with_rain=False) * FISH_FEED_SECONDS
+        return self.income_per_sec(i, with_rain=False) * FISH_GROW[i] * FISH_PRICE_K
 
-    def fish_cap(self):
-        return FISH_POND_CAP[min(self.fy_lvl, len(FISH_POND_CAP)) - 1]
+    @staticmethod
+    def fish_worth(f):
+        return f[1] * (1 + (FISH_ADULT_MULT - 1) * min(1.0, f[2]))
 
-    def fish_stock_cost(self, i):
-        return self.fish_value(i) * FISH_STOCK * FISH_STOCK_PRICE
+    def aquarium_value(self):
+        return sum(self.fish_worth(f) for f in self.fy_fish) + (self.fy_pred_val if self.fy_pred else 0.0)
 
-    def can_stock(self, i):
-        return self.has_fishery() and self.levels[i] > 0 and self.money >= self.fish_stock_cost(i) and (
-            self.fy_species != i + 1 or self.fy_pop < self.fish_cap())
+    def tank_used(self):
+        return len(self.fy_fish) + len(self.fy_eggs)
 
-    def stock_fish(self, i):
-        """Запустить стайку рыбы вида i. Другой вид — садок перезапускается (старые рыбки уплывают на волю)."""
-        if not self.can_stock(i):
+    def can_buy_fish(self, i):
+        return (self.has_fishery() and self.levels[i] > 0 and self.tank_used() < self.fy_cap
+                and self.money >= self.fish_price(i))
+
+    def _new_seed(self):
+        return random.randint(1, 10_000)
+
+    def buy_fish(self, i):
+        if not self.can_buy_fish(i):
             return False
-        self.money -= self.fish_stock_cost(i)
-        if self.fy_species != i + 1:
-            self.fy_species, self.fy_pop = i + 1, 0.0
-        self.fy_pop = min(float(self.fish_cap()), self.fy_pop + FISH_STOCK)
+        price = self.fish_price(i)
+        self.money -= price
+        self.fy_fish.append([i + 1, price, 0.0, self._new_seed()])
+        self.fy_grace = 0.0
         return True
 
-    def fish_pond_cost(self):
-        if self.fy_lvl >= len(FISH_POND_CAP):
+    def sell_fish(self, n):
+        """Продать рыбку номер n (по текущей цене). Возвращает деньги или None."""
+        if not 0 <= n < len(self.fy_fish):
             return None
-        return FISH_POND_COST * FISH_POND_STEP ** (self.fy_lvl - 1) * self.price_mult
-
-    def upgrade_fish_pond(self):
-        cost = self.fish_pond_cost()
-        if cost is None or self.money < cost:
-            return False
-        self.money -= cost
-        self.fy_lvl += 1
-        return True
-
-    def fish_slot_cost(self):
-        if self.fy_slots >= FISH_SLOTS:
-            return None
-        return FISH_SLOT_COST[self.fy_slots] * self.price_mult
-
-    def buy_fish_slot(self):
-        cost = self.fish_slot_cost()
-        if cost is None or self.money < cost:
-            return False
-        self.money -= cost
-        self.fy_slots += 1
-        return True
-
-    def predator_cost(self, t):
-        return PREDATORS[t]["cost"] * self.price_mult
-
-    def buy_predator(self, slot, t):
-        if not self.has_fishery() or slot >= self.fy_slots or self.fy_type[slot] or self.money < self.predator_cost(t):
-            return False
-        self.money -= self.predator_cost(t)
-        self.fy_type[slot], self.fy_eaten[slot], self.fy_value[slot] = t + 1, 0.0, 0.0
-        return True
-
-    def predator(self, slot):
-        t = self.fy_type[slot]
-        return PREDATORS[t - 1] if t else None
-
-    def predator_full(self, slot):
-        p = self.predator(slot)
-        return p is not None and self.fy_eaten[slot] >= p["fish"] - 1e-6
-
-    def predator_kg(self, slot):
-        p = self.predator(slot)
-        if p is None:
-            return 0.0
-        return p["kg"] * (0.08 + 0.92 * min(1.0, self.fy_eaten[slot] / p["fish"]))   # малёк весит 8% полного
-
-    def catch_predator(self, slot):
-        """Вылов: хищник продаётся за накопленную цену (в 3.38 — после мини-игры). Возвращает (деньги, вид)."""
-        p = self.predator(slot)
-        if p is None or self.fy_eaten[slot] <= 0:
-            return None
-        amt = self.fy_value[slot]
+        amt = self.fish_worth(self.fy_fish.pop(n))
         self.earn(amt)
-        self.fy_type[slot], self.fy_eaten[slot], self.fy_value[slot] = 0, 0.0, 0.0
+        return amt
+
+    def adults(self):
+        return [n for n, f in enumerate(self.fy_fish) if f[2] >= 1.0]
+
+    def sell_adults(self):
+        idx = self.adults()
+        amt = sum(self.fish_worth(self.fy_fish[n]) for n in idx)
+        self.fy_fish = [f for f in self.fy_fish if f[2] < 1.0]
+        if amt > 0:
+            self.earn(amt)
+        return amt, len(idx)
+
+    def tank_cost(self):
+        if self.fy_cap >= FISH_TANK_MAX:
+            return None
+        n = (self.fy_cap - FISH_TANK_START) // FISH_TANK_STEP
+        return FISH_TANK_COST * FISH_TANK_MULT ** n * self.price_mult
+
+    def upgrade_tank(self):
+        cost = self.tank_cost()
+        if cost is None or self.money < cost:
+            return False
+        self.money -= cost
+        self.fy_cap = min(FISH_TANK_MAX, self.fy_cap + FISH_TANK_STEP)
+        return True
+
+    def predator(self):
+        return PREDATORS[self.fy_pred - 1] if self.fy_pred else None
+
+    def predator_kg(self):
+        p = self.predator()
+        return p["kg"] * (1 + 0.15 * self.fy_pred_eaten) if p else 0.0
+
+    def next_rank(self):
+        """Ранг следующего хищника. Первый в забеге — 1 (с прошлых забегов главы шанс сразу выше),
+        дальше — тот же или на 1 выше; шанс «выше» растёт после каждого «того же» (до FISH_UP_MAX)."""
+        if self.fy_rank == 0:
+            rank, c = 1, min(FISH_RUN_BONUS_MAX, FISH_RUN_BONUS * self.fy_runs)
+            while rank < 5 and random.random() < c:
+                rank += 1
+            return rank
+        if self.fy_rank < 5 and random.random() < self.fy_up:
+            self.fy_up = FISH_UP_START
+            return self.fy_rank + 1
+        self.fy_up = min(FISH_UP_MAX, self.fy_up + FISH_UP_STEP)
+        return self.fy_rank
+
+    def spawn_predator(self):
+        rank = self.next_rank()
+        self.fy_rank = rank
+        kinds = [n for n, p in enumerate(PREDATORS) if p["rank"] == rank]
+        t = random.choice(kinds)
+        self.fy_pred = t + 1
+        self.fy_pred_val = self.total_income() / max(1e-9, self.growth_speed()) * FISH_PRED_BASE[rank]
+        self.fy_pred_eaten, self.fy_bite, self.fy_grace = 0, FISH_BITE, 0.0
+        self.fy_events.append(("arrive", PREDATORS[t]))
+        return PREDATORS[t]
+
+    def _pred_gone(self):
+        self.fy_pred, self.fy_pred_val, self.fy_pred_eaten, self.fy_grace = 0, 0.0, 0, 0.0
+        self.fy_timer = FISH_PRED_EVERY
+
+    def catch_predator(self):
+        """Вылов (в 3.39 — после мини-игры): хищник продаётся за накопленную цену. Возвращает (деньги, вид)."""
+        p = self.predator()
+        if p is None:
+            return None
+        amt = self.fy_pred_val
+        self.earn(amt)
+        self._pred_gone()
         return amt, p
 
-    def fish_floor(self):
-        """Маточное стадо: хищники не трогают половину садка — там нерест быстрее всего (логистика пикует на K/2)."""
-        return max(FISH_KEEP, self.fish_cap() * FISH_HERD)
+    def grace_left(self):
+        """Доля тлеющего отсчёта (1 -> 0) или None, если он не идёт."""
+        return self.fy_grace / FISH_GRACE if self.fy_pred and self.fy_grace > 0 else None
 
     def _run_fishery(self, dt):
-        if not self.fy_species or not self.has_fishery():
+        if not self.has_fishery():
             return
-        i = self.fy_species - 1
-        cap = self.fish_cap()
-        if self.fy_pop > 0:                                         # икра -> мальки: логистический рост
-            self.fy_pop = min(float(cap), self.fy_pop + FISH_BREED * self.fy_pop * (1 - self.fy_pop / cap) * dt)
-        v = self.fish_value(i)
-        floor = self.fish_floor()
-        for s in range(self.fy_slots):
-            p = self.predator(s)
-            if p is None or self.predator_full(s):
-                continue
-            eat = min(FISH_EAT * dt, max(0.0, self.fy_pop - floor), p["fish"] - self.fy_eaten[s])
-            if eat <= 0:
-                continue
-            self.fy_pop -= eat
-            self.fy_eaten[s] += eat
-            self.fy_value[s] += eat * v * p["ratio"]
+        self.fy_clock += dt
+        sp = self.growth_speed()                         # фестиваль: рыба растёт быстрее
+        for f in self.fy_fish:
+            if f[2] < 1.0:
+                f[2] = min(1.0, f[2] + dt * sp / FISH_GROW[f[0] - 1])
+        for e in self.fy_eggs:
+            e[3] -= dt * sp
+        for e in [e for e in self.fy_eggs if e[3] <= 0]:
+            self.fy_eggs.remove(e)
+            i = e[0] - 1
+            price = self.fish_price(i) or (FISH_GROW[i] * FISH_PRICE_K)
+            self.fy_fish.append([e[0], price, 0.0, self._new_seed()])
+            self.fy_grace = 0.0
+            self.fy_events.append(("hatch", e[0], e[1], e[2]))
+        # икра: две взрослые одного вида, есть место
+        by_kind = {}
+        for f in self.fy_fish:
+            if f[2] >= 1.0:
+                by_kind.setdefault(f[0], []).append(f)
+        for kind, grown in by_kind.items():
+            if len(grown) >= 2 and self.tank_used() < self.fy_cap and random.random() < dt / FISH_LAY_EVERY:
+                mom = random.choice(grown)
+                x, y, _d = self.fish_swim(mom[3], self.fy_clock)
+                self.fy_eggs.append([kind, x, y, FISH_HATCH])
+                self.fy_events.append(("egg", kind, x, y))
+        if self._offline:                                # офлайн хищники не приплывают и не едят
+            return
+        if not self.fy_pred:
+            if self.fy_fish:
+                self.fy_timer -= dt
+                if self.fy_timer <= 0:
+                    self.spawn_predator()
+            return
+        p = self.predator()
+        if self.fy_fish:
+            self.fy_grace = 0.0
+            self.fy_bite -= dt
+            if self.fy_bite <= 0:
+                self.fy_bite = FISH_BITE * (1 + FISH_FULLER * (self.fy_pred_eaten + 1))   # толстеет — ест реже
+                n = random.randrange(len(self.fy_fish))
+                f = self.fy_fish.pop(n)
+                gain = self.fish_worth(f) * p["ratio"]
+                self.fy_pred_val += gain
+                self.fy_pred_eaten += 1
+                self.fy_events.append(("bite", f[0], gain))
+        else:
+            if self.fy_grace <= 0:
+                self.fy_grace = FISH_GRACE
+            self.fy_grace -= dt
+            if self.fy_grace <= 0:
+                self.fy_events.append(("left", p))
+                self._pred_gone()
 
     # ---------- офлайн ----------
     def offline_cap(self):
@@ -804,10 +887,15 @@ class Farm:
         seconds = max(0.0, min(self.offline_cap(), seconds))
         before = self.farm_value()
         left = seconds
-        while left > 1e-6:
-            dt = min(OFFLINE_STEP, left)
-            self.update(dt, automation=OFFLINE_AUTOMATION)
-            left -= dt
+        self._offline = True
+        try:
+            while left > 1e-6:
+                dt = min(OFFLINE_STEP, left)
+                self.update(dt, automation=OFFLINE_AUTOMATION)
+                left -= dt
+        finally:
+            self._offline = False
+        self.fy_events.clear()
         return max(0.0, self.farm_value() - before)
 
     # ---------- сохранение ----------
@@ -816,10 +904,14 @@ class Farm:
               "money", "run_earned", "levels", "fert", "farmers", "progress", "ready", "stash",
               "a_levels", "a_feed", "a_prog", "a_store", "a_keeper",
               "peasants", "m_levels", "m_workers", "hopper", "flour", "bread", "oven_load", "oven_prog",
-              "fy_species", "fy_pop", "fy_lvl", "fy_slots", "fy_type", "fy_eaten", "fy_value"]
+              "fy_cap", "fy_clock", "fy_timer", "fy_pred", "fy_pred_val", "fy_pred_eaten", "fy_bite", "fy_grace",
+              "fy_rank", "fy_up", "fy_runs"]
 
     def to_dict(self):
-        return {k: getattr(self, k) for k in self.FIELDS}
+        d = {k: getattr(self, k) for k in self.FIELDS}
+        d["fy_fish"] = [list(f) for f in self.fy_fish]      # 3.38: списки переменной длины — отдельно
+        d["fy_eggs"] = [list(e) for e in self.fy_eggs]
+        return d
 
     @staticmethod
     def _clean(default, v):
@@ -835,6 +927,31 @@ class Farm:
                 raise ValueError(v)
             return max(0, int(v))
         return max(0.0, min(MONEY_CAP, float(v)))
+
+    @staticmethod
+    def _clean_rows(v, fn):
+        out = []
+        for row in v if isinstance(v, list) else []:
+            try:
+                out.append(fn(row))
+            except (ValueError, TypeError, IndexError):
+                pass
+        return out
+
+    @classmethod
+    def _fish_row(cls, r):
+        kind = cls._clean(0, r[0])
+        if not 1 <= kind <= N_CROPS:
+            raise ValueError(r)
+        return [kind, cls._clean(0.0, r[1]), min(1.0, cls._clean(0.0, r[2])), cls._clean(0, r[3])]
+
+    @classmethod
+    def _egg_row(cls, r):
+        kind = cls._clean(0, r[0])
+        if not 1 <= kind <= N_CROPS:
+            raise ValueError(r)
+        return [kind, min(1.0, cls._clean(0.0, r[1])), min(1.0, cls._clean(0.0, r[2])),
+                min(FISH_HATCH, cls._clean(0.0, r[3]))]
 
     def from_dict(self, d):
         """Читает сохранение. Каждое поле проверяется: испорченное значение пропускается (остаётся значение
@@ -874,17 +991,15 @@ class Farm:
         self.m_levels = [min(MILL_MAX_LVL, x) for x in self.m_levels]
         self.m_workers = [min(w, lvl) for w, lvl in zip(self.m_workers, self.m_levels)]
         self.a_keeper = [k and lvl > 0 for k, lvl in zip(self.a_keeper, self.a_levels)]
-        # 3.37: рыборазводня — номера в своих границах
-        self.fy_species = min(self.fy_species, N_CROPS)
-        self.fy_lvl = max(1, min(self.fy_lvl, len(FISH_POND_CAP)))
-        self.fy_slots = max(1, min(self.fy_slots, FISH_SLOTS))
-        self.fy_pop = min(self.fy_pop, float(self.fish_cap()))
-        self.fy_type = [t if t <= len(PREDATORS) else 0 for t in self.fy_type]
-        for s in range(FISH_SLOTS):
-            p = self.predator(s)
-            self.fy_eaten[s] = min(self.fy_eaten[s], p["fish"]) if p else 0.0
-            if not p:
-                self.fy_value[s] = 0.0
+        # 3.38: аквариум — номера в своих границах, рыбки и икра по одной
+        self.fy_cap = max(FISH_TANK_START, min(FISH_TANK_MAX, self.fy_cap))
+        self.fy_pred = self.fy_pred if self.fy_pred <= len(PREDATORS) else 0
+        self.fy_rank = min(self.fy_rank, 5)
+        self.fy_up = min(FISH_UP_MAX, self.fy_up)
+        self.fy_timer = min(self.fy_timer, FISH_PRED_EVERY)
+        self.fy_grace = min(self.fy_grace, FISH_GRACE)
+        self.fy_fish = self._clean_rows(d.get("fy_fish"), self._fish_row)[:FISH_TANK_MAX]
+        self.fy_eggs = self._clean_rows(d.get("fy_eggs"), self._egg_row)[:max(0, self.fy_cap - len(self.fy_fish))]
         if self.farm_def()["peasants"]:                     # крестьян занято не больше, чем нанято
             self.peasants = max(self.peasants, PEASANT_START)   # сверху не режем: «Крепостные» дают крестьян сверх найма
             for b in (1, 0):

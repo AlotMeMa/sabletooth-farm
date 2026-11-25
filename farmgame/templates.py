@@ -158,16 +158,16 @@ def spec_list():
         add(f"icons/{an['icon']}", (30, 30), "центр", an["product"] + " (зима)", 1, lambda s: None)
     add("icons/frostleaf", (40, 40), "центр", "голубой листочек (валюта зимы)", 1, lambda s: None)
     add("icons/gnome", (26, 26), "центр", "гном-помощник (зима)", 1, lambda s: None)
-    add("characters/gnome_worker", (44, 54), "низ по центру (22, 54) = снег у грядки",
-        "гном из «Гномьего пришествия» с тяпкой (зима)", 1, lambda s: art.draw_gnome_worker(s, 22, 54, 1.0))
+    add("characters/gnome_worker", (56, 68), "низ по центру (28, 68) = снег у грядки",
+        "гном из «Гномьего пришествия» с тяпкой (зима)", 1, lambda s: art.draw_gnome_worker(s, 28, 68, 1 / art.GNOME_WORKER_PIC))
     for v in range(1, 5):   # 3.27: разные гномы-работники (каждой грядке свой)
-        add(f"characters/gnome_worker_{v}", (44, 54), "низ по центру (22, 54) = снег у грядки",
+        add(f"characters/gnome_worker_{v}", (56, 68), "низ по центру (28, 68) = снег у грядки",
             f"гном-работник, вариант {v} (зима)", 1, lambda s: None)
     for v in (1, 2):        # 3.27: два разных шамана
-        add(f"characters/gnome_shaman_{v}", (56, 70), "низ по центру (28, 70) = снег на лужайке",
+        add(f"characters/gnome_shaman_{v}", (90, 112), "низ по центру (45, 112) = снег на лужайке",
             f"гном-шаман, вариант {v} (зима)", 1, lambda s: None)
-    add("characters/gnome_shaman", (56, 70), "низ по центру (28, 70) = снег на лужайке",
-        "гном-шаман с бубном (зима)", 1, lambda s: art.draw_gnome_shaman(s, 28, 70, 1.0, 0.0))
+    add("characters/gnome_shaman", (90, 112), "низ по центру (45, 112) = снег на лужайке",
+        "гном-шаман с бубном (зима)", 1, lambda s: art.draw_gnome_shaman(s, 45, 112, 1 / art.GNOME_SHAMAN_PIC, 0.0))
     for v in ("sled", "sled_0", "sled_1", "sled_2"):
         add(f"vehicles/{v}", (270, 124), "низ по центру = снег", "собачья упряжка (зима)", 1, lambda s: None)
     for a, key in enumerate(keys):

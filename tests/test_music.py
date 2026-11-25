@@ -65,3 +65,13 @@ class MusicResume(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MusicFiles(unittest.TestCase):
+    def test_no_opus_in_music(self):
+        """3.27: pygame не играет .ogg с Opus внутри — такие треки молчали (скрипач, волынщик)."""
+        folder = os.path.join(helpers.ROOT, "assets", "music")
+        for fn in sorted(os.listdir(folder)):
+            if fn.lower().endswith(".ogg"):
+                with open(os.path.join(folder, fn), "rb") as f:
+                    self.assertNotIn(b"OpusHead", f.read(200), f"{fn}: Opus — пересохрани в OGG Vorbis")

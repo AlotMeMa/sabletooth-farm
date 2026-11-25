@@ -208,9 +208,9 @@ def _fit_spec_base(name):
         if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last.startswith("gnome_worker"):   # 3.26: гном из «пришествия» с тяпкой (зима); 3.27: варианты _1.._4
-            return _spec(*_box(44, 54, 2, 2, 2, 0), "bottom")
+            return _spec(*_box(56, 68, 2, 2, 2, 0), "bottom")     # 3.27: крупнее (на поле — ×1.25)
         if last.startswith("gnome_shaman"):   # 3.26: гном-шаман с бубном над головой; 3.27: варианты _1, _2
-            return _spec(*_box(56, 70, 2, 2, 2, 0), "bottom")
+            return _spec(*_box(90, 112, 2, 2, 2, 0), "bottom")    # 3.27: крупнее (на лужайке — ×1.6)
         if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
             return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
         return None

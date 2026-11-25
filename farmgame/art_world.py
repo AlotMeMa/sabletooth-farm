@@ -299,6 +299,8 @@ def _gnome_body(s, x, y, k, coat, hat, hop=0.0, lean=0.0):
 
 GNOME_WORKER_VARIANTS = 4    # 3.27: разные гномы-работники characters/gnome_worker_1..4
 GNOME_SHAMAN_VARIANTS = 2    # 3.27: разные шаманы characters/gnome_shaman_1..2
+# 3.27: картинки гномов подгоняются крупнее (холсты 56×68 и 90×112), а рисуются в этой доле — без «мыла» при k>1
+GNOME_WORKER_PIC, GNOME_SHAMAN_PIC = 44 / 56, 56 / 90
 
 
 def gnome_sprite(base, n, variants):
@@ -312,7 +314,7 @@ def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
     """3.26: гном из «пришествия» работает тяпкой. Картинка characters/gnome_worker — покачивается кодом.
     3.27: n — номер гнома (грядки): разные картинки characters/gnome_worker_1..4."""
     swing = math.sin(t * 6.0)
-    if blit_tf(s, gnome_sprite("characters/gnome_worker", n, GNOME_WORKER_VARIANTS), x, y, k, flip=flip,
+    if blit_tf(s, gnome_sprite("characters/gnome_worker", n, GNOME_WORKER_VARIANTS), x, y, k * GNOME_WORKER_PIC, flip=flip,
                sy=1 - 0.04 * abs(swing),
                angle=(4 if flip else -4) * swing, alpha=alpha):
         return
@@ -331,7 +333,7 @@ def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
     Картинка characters/gnome_shaman — прыгает и качается кодом (зеркалится на каждом повороте)."""
     hop = abs(math.sin(t * 4.2)) * 7 * k
     turn = math.sin(t * 2.1) < 0
-    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y - hop, k, flip=flip ^ turn,
+    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y - hop, k * GNOME_SHAMAN_PIC, flip=flip ^ turn,
                sy=1 + 0.05 * math.sin(t * 8.4), angle=8 * math.sin(t * 4.2), alpha=alpha):
         return
     ellipse(s, (150, 175, 200), x, y + 1, 22 * k, 6 * k, 0)              # тень на снегу
@@ -354,7 +356,7 @@ def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
 
 def draw_gnome_shaman_walk(s, x, y, k=1.0, t=0.0, flip=False, n=0):
     """Шаман идёт на лужайку или уходит с неё: семенит, бубен у пояса позвякивает."""
-    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y, k, flip=flip,
+    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y, k * GNOME_SHAMAN_PIC, flip=flip,
                angle=5 * math.sin(t * 9)):
         return
     sx, sy, tip = _gnome_body(s, x, y, k, (110, 70, 150), (70, 50, 120), lean=2 * math.sin(t * 9))

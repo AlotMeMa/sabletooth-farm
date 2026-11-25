@@ -37,7 +37,7 @@ def find_music(farm_id, scene=None):
     for fn in sorted(os.listdir(folder), key=lambda f: AUDIO_EXTS.index(os.path.splitext(f)[1].lower())
                      if os.path.splitext(f)[1].lower() in AUDIO_EXTS else 99):
         stem, ext = os.path.splitext(fn)
-        if ext.lower() in AUDIO_EXTS:
+        if ext.lower() in AUDIO_EXTS and not is_opus(os.path.join(folder, fn)):   # 3.27: Opus pygame не играет
             files.setdefault(stem.lower(), os.path.join(folder, fn))
     if scene and scene in files:
         return files[scene]
@@ -45,12 +45,34 @@ def find_music(farm_id, scene=None):
 
 
 def has_scene_music(scene):
-    """Лежит ли свой трек для места scene (например "tavern_girl")."""
+    """Лежит ли свой трек для места scene (например "tavern_girl"), который pygame сможет играть."""
     folder = music_dir()
     if not os.path.isdir(folder):
         return False
-    return any(os.path.splitext(fn)[0].lower() == scene and os.path.splitext(fn)[1].lower() in AUDIO_EXTS
-               for fn in os.listdir(folder))
+    for fn in os.listdir(folder):
+        if os.path.splitext(fn)[0].lower() == scene and os.path.splitext(fn)[1].lower() in AUDIO_EXTS:
+            return not is_opus(os.path.join(folder, fn))
+    return False
+
+
+_opus_warned = set()
+
+
+def is_opus(path):
+    """3.27: .ogg бывает внутри Opus (так сохраняют многие сайты и конвертеры) — pygame его не играет,
+    музыка молчит. Такой трек пропускаем и один раз пишем в консоль, как пережать."""
+    try:
+        with open(path, "rb") as f:
+            head = f.read(200)
+    except OSError:
+        return False
+    if b"OpusHead" not in head:
+        return False
+    if path not in _opus_warned:
+        _opus_warned.add(path)
+        print(f"Музыка {os.path.basename(path)}: формат Opus — pygame его не играет. Пересохрани в OGG Vorbis "
+              f"(Audacity: Экспорт → OGG) или MP3.")
+    return True
 
 
 RESUME_SECONDS = 5.0    # 3.20: вышел из таверны и вернулся за 5 с — песня играет дальше с того же места

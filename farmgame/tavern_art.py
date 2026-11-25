@@ -72,6 +72,7 @@ def _layout_procedural():
         talkers=[[x, BALCONY_FLOOR - 72] for x, _l, _f in BALCONY_PEOPLE],
         occluders=[],
         music=dict(MUSIC_TIMING), music_girl=dict(MUSIC_GIRL_TIMING),
+        music_fiddler=dict(MUSIC_FIDDLER_TIMING), music_bagpipe=dict(MUSIC_BAGPIPE_TIMING),
         trophies=[[640, 236, "hang"], [700, 338, "stand", "front"], [190, 268, "stand"], [300, 250, "shelf"]],
         fireside=[214, 378, 84, 60],
         decor=dict(kettle=[256, 412], kettle_top=384, flowers=[[342, 452]]),
@@ -89,6 +90,9 @@ MUSIC_TIMING = dict(bpm=86.68, offset=0.03, loop=56.31)    # под assets/music
 # Темп её трека посчитан по файлу (23.11): ровно 120 долей в минуту всю песню, первая доля через 0.08 с,
 # длина 234.88 с. Поменял трек — поправь "music_girl" в tavern.json или попроси пересчитать.
 MUSIC_GIRL_TIMING = dict(bpm=120.0, offset=0.08, loop=234.88)
+# 3.27: песни скрипача и волынщика (посчитано по трекам пользователя; у скрипача рил 172 BPM — качается на половине)
+MUSIC_FIDDLER_TIMING = dict(bpm=86.12, offset=0.19, loop=189.49)
+MUSIC_BAGPIPE_TIMING = dict(bpm=99.9, offset=0.08, loop=189.05)
 # 3.23: как рисовать артиста кодом, пока нет картинки characters/<id>
 ARTIST_LOOKS = {
     "bard": dict(top=(60, 140, 90), legs=(150, 60, 60), hair=(170, 110, 60), style="bard"),
@@ -114,6 +118,7 @@ CUSTOM_LAYOUT = dict(
     occluders=[[[604, 362], [662, 365], [796, 404], [796, 526], [698, 528], [604, 440]]],   # стойка
     # 3.5: живой зал — где на фоне огонь, свечи, что парит (хлеб, кружки), где пылинки в свете окон, кружка бармена
     music=dict(MUSIC_TIMING), music_girl=dict(MUSIC_GIRL_TIMING),
+        music_fiddler=dict(MUSIC_FIDDLER_TIMING), music_bagpipe=dict(MUSIC_BAGPIPE_TIMING),
     # трофеи стоят только на том, что нарисовано на фоне (порядок: подкова, кубок, крестьянин, колос).
     # 3.20: все — над камином: подкова прибита к трубе над свечой, остальные три — на каминной полке
     # (её верх идёт наискосок: слева y≈358, справа y≈348)

@@ -35,7 +35,7 @@ class WindowsUI:
         self.bandit = None
         self.crow = None
         self.crow_timer = self.crow_delay()
-        self.truck_state, self.truck_x = "away", W + 230.0
+        self.truck_state, self.truck_x = "away", VEHICLE_FAR
         self.confirm_reset = False
         self.modal = None
         self.tut.restart()
@@ -52,7 +52,7 @@ class WindowsUI:
         self.tavern.replace_impossible(self.farm_info(), blocked=self.quest_blocked())
         self.modal = None
         self.view, self.mode = "field", "normal"
-        self.truck_state, self.truck_x = "away", W + 230.0
+        self.truck_state, self.truck_x = "away", VEHICLE_FAR
         self.crow = None
         self.squirrel = None
         self.bandit = None

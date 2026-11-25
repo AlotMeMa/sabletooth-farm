@@ -29,6 +29,7 @@ SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне:
                                        # (по «слабому» каналу фона — строже)
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
 EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
+SLED_BOX = {"sled_1": (430, 124), "sled_2": (430, 142)}   # 3.26.2: остальные упряжки — как телега, 270×124
 MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
 SPECK_SHARE, SPECK_MIN = 0.00006, 6   # 3.26.1: крошка — отдельный кусочек меньше этой доли площади (не меньше 6 px)
 CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
@@ -58,6 +59,10 @@ TALK_SHEET_ORDER = ["bubble", "bubble_tail", "arrow"]
 PLATE_SHEET_ORDER = ["pill", "toast", "banner", "_unused", "bar_frame", "sign_casino"]
 # 3.20: лист карточек дерева 2×3 — можно копить, можно купить, всё изучено; закрыто, кружок пустой, кружок полный
 TREE_SHEET_ORDER = ["tree_node_open", "tree_node_ready", "tree_node_max", "tree_node_locked", "tree_pip_off", "tree_pip_on"]
+# 3.26.2: все мелкие картинки зимы одним запросом к нейросети (лист 3×3, assets/icons/winter_sheet.png)
+WINTER_SHEET_ORDER = ["icons/frostleaf", "icons/down", "icons/wool",
+                      "icons/cheese", "icons/jam", "icons/gnome",
+                      "ui/btn_shaman", "characters/gnome_worker", "characters/gnome_shaman"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -69,6 +74,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "fx/sheet": ("fx/", FX_SHEET_ORDER, 3, 3),
     "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 3, 2),
     "ui/tree_sheet": ("ui/", TREE_SHEET_ORDER, 2, 3),
+    "icons/winter_sheet": ("", WINTER_SHEET_ORDER, 3, 3),   # полные имена: иконки, кнопка и гномы зимы
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -211,7 +217,10 @@ def _fit_spec_base(name):
     if folder == "vehicles":
         if last.startswith("truck"):
             return _spec(*_box(240, 124, 4, 2, 4, 0), "bottom")
-        if last.startswith("cart") or last.startswith("sled"):    # 3.24: упряжка — того же размера, что телега
+        if last.startswith("sled"):        # 3.26.2: упряжки 2 и 3 уровня длиннее (4 и 8 собак) — им шире место
+            w, h = SLED_BOX.get(last.replace("_cargo", ""), (270, 124))
+            return _spec(*_box(w, h, 4, 2, 4, 0), "bottom")
+        if last.startswith("cart"):
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
         return None
     if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):

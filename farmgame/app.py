@@ -88,7 +88,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.drops = []
         self.rush_popped = set()          # 3.26: на каких грядках гном из пришествия уже выскочил
         self.truck_state = "away"     # away | arriving | parked | leaving
-        self.truck_x = W + 230.0
+        self.truck_x = VEHICLE_FAR
         self.truck_v = 0.0            # 3.3: скорость (тормозит, подъезжая, и разгоняется, уезжая)
         self.truck_t = -99.0          # когда остановился / тронулся (для «покачивания на рессорах»)
         self.truck_dust = 0.0
@@ -441,7 +441,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.truck_x -= self.truck_v * dt
             if self.truck_x < -260:
                 self.truck_state, self.truck_v = "away", 0.0
-                self.truck_x = W + 230.0
+                self.truck_x = VEHICLE_FAR
         if self.truck_state in ("arriving", "leaving") and self.view == "field":     # пыль из-под задних колёс
             self.truck_dust += dt * min(1.0, self.truck_v / 120)
             if self.truck_dust >= 0.09:

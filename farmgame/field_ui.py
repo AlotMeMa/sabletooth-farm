@@ -451,7 +451,8 @@ class FieldUI:
         tier = self.leaving_tier if self.truck_state == "leaving" else self.truck_tier()
         name, color, _ = TRUCK_TIERS[tier]
         bob, ang, sy = self.truck_pose()
-        draw_shadow(s, self.truck_x - 10, TRUCK_GROUND + 3, 220, 18, 60)
+        shift = vehicle_shift(self.farm_info()["vehicle"], tier)
+        draw_shadow(s, self.truck_x - 10 - shift, TRUCK_GROUND + 3, 220 + 2 * shift, 18, 60)
         self.draw_vehicle(self.truck_x, TRUCK_GROUND, color, cargo=self.truck_state == "leaving", bob=bob, tier=tier,
                           angle=ang, sy=sy)
         if self.truck_state == "parked" and self.modal is None:

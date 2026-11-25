@@ -306,12 +306,22 @@ def draw_cloud_body(s, x, y, raining):
 
 
 VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30}   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
+VEHICLE_FAR = W + 400.0    # 3.26.2: откуда приезжает машина (за правым краем: длинная упряжка не «выскакивает»)
+VEHICLE_WIDTH = {"sled_1": 430, "sled_2": 430}   # 3.26.2: длинные упряжки (по умолчанию 270): сани на том же месте, собаки — левее
+
+
+def vehicle_shift(vehicle, tier):
+    """Насколько середина картинки левее обычной: длинная упряжка растёт влево (сани стоят где и телега)."""
+    key = f"{vehicle}_{tier}"
+    if key in VEHICLE_WIDTH and has_sprite(f"vehicles/{key}"):
+        return (VEHICLE_WIDTH[key] - 270) / 2
+    return 0.0
 
 
 def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0.0, sy=1.0):
     """Машина (телега) смотрит влево. angle — наклон (+ — нос вниз), sy — осела на рессорах (3.3)."""
     names = ([f"vehicles/{vehicle}_{tier}_cargo"] if cargo else []) + [f"vehicles/{vehicle}_{tier}", f"vehicles/{vehicle}"]
-    if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle], y + 4 - bob, 1, sy=sy, angle=angle):
+    if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle] - vehicle_shift(vehicle, tier), y + 4 - bob, 1, sy=sy, angle=angle):
         return
     (draw_cart if vehicle in ("cart", "sled") else draw_truck)(s, x, y, color, cargo, bob)   # упряжка: пока телегой
 

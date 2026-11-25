@@ -29,3 +29,8 @@
   `"fortune"`; `Tavern.wheel_day / wheel_last` в сохранении; `PRIZES[...]["jackpot"]`; `art.RAINBOW`,
   `draw_trail(stars=True)`.
 - Тесты `tests/test_wheel.py`; сценарий `devtools/scenarios/gameroom.py`; monkey: `EXTRA_VIEWS=casino,fireside,gameroom`.
+
+## Заранее под блэкджек
+- Игра уже знает будущие картинки блэкджека: фон стола `backgrounds/blackjack` и лист карт `icons/cards_sheet`
+  (3×3: рубашка, пустое лицо карты, башмак, четыре масти, золотая и зимняя рубашки — кандидаты в джекпот колеса).
+  Промпты — в доке. Пока самого блэкджека нет, картинки просто лежат.

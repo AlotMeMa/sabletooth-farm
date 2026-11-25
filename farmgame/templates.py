@@ -251,6 +251,19 @@ def spec_list():
         add(f"icons/{key}", (40, 40), "центр", desc + " (мельница)", 1, lambda s: None)
     # 3.14: казино
     add("backgrounds/casino", (W, H), "весь экран", "игорный зал (без колеса и разметки стола)", 1, lambda s: None)
+    # 3.27: заранее под блэкджек — фон стола и лист карт (игра возьмёт их, когда появится сам блэкджек)
+    add("backgrounds/blackjack", (W, H), "весь экран", "стол для блэкджека: полукруглое сукно, без карт и надписей", 1,
+        lambda s: None)
+    for name, size, desc in (("props/card_back", (84, 120), "рубашка карты"),
+                             ("props/card_face", (84, 120), "лицо карты — пустое (знаки и буквы рисует игра)"),
+                             ("props/card_shoe", (140, 100), "башмак для карт (дилер тянет из него)"),
+                             ("icons/suit_hearts", (48, 48), "масть: червы"),
+                             ("icons/suit_diamonds", (48, 48), "масть: бубны"),
+                             ("icons/suit_clubs", (48, 48), "масть: трефы"),
+                             ("icons/suit_spades", (48, 48), "масть: пики"),
+                             ("props/card_back_gold", (84, 120), "золотая рубашка (джекпот колеса)"),
+                             ("props/card_back_winter", (84, 120), "зимняя рубашка (джекпот колеса)")):
+        add(name, size, "центр", desc + " (блэкджек, будущее)", 1, lambda s: None)
     add("props/roulette_wheel", (338, 338), "центр = ось", "колесо рулетки сверху, без цифр", 1, lambda s: None)
     add("props/roulette_ball", (40, 40), "центр", "шарик рулетки", 1, lambda s: None)
     for v in (5, 10, 25, 50):

@@ -66,6 +66,11 @@ WINTER_SHEET_ORDER = ["icons/frostleaf", "icons/down", "icons/wool",
 # 3.27: Игровая одним запросом (лист 2×3, assets/icons/gameroom_sheet.png): обод колеса фортуны, стрелка, значки игр
 GAMEROOM_SHEET_ORDER = ["props/fortune_wheel", "props/fortune_pointer", "icons/game_wheel",
                         "icons/game_roulette", "icons/game_blackjack", "icons/game_secret"]
+# 3.27: заранее под блэкджек (лист 3×3, assets/icons/cards_sheet.png): рубашка, пустое лицо, башмак, 4 масти,
+# две особые рубашки (кандидаты в джекпот колеса фортуны)
+CARDS_SHEET_ORDER = ["props/card_back", "props/card_face", "props/card_shoe",
+                     "icons/suit_hearts", "icons/suit_diamonds", "icons/suit_clubs",
+                     "icons/suit_spades", "props/card_back_gold", "props/card_back_winter"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -79,6 +84,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/tree_sheet": ("ui/", TREE_SHEET_ORDER, 2, 3),
     "icons/winter_sheet": ("", WINTER_SHEET_ORDER, 3, 3),   # полные имена: иконки, кнопка и гномы зимы
     "icons/gameroom_sheet": ("", GAMEROOM_SHEET_ORDER, 2, 3),   # 3.27: Игровая
+    "icons/cards_sheet": ("", CARDS_SHEET_ORDER, 3, 3),         # 3.27: заготовка под блэкджек
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -171,6 +177,14 @@ def _fit_spec_base(name):
         # прямой кусок забора анфас: игра сама повторит его по длине и наклонит вдоль края поля
         return _spec((640, 128), (0, 0, 640, 128), "bottom")
     if folder == "props":
+        if last == "fortune_wheel":        # 3.27: обод колеса фортуны (середина пустая — сектора кодом)
+            return _spec(*_box(300, 300, 0, 0, 0, 0), "center")
+        if last == "fortune_pointer":
+            return _spec(*_box(60, 70, 1, 1, 1, 1), "bottom")
+        if last.startswith("card_back") or last == "card_face":   # 3.27: карты блэкджека (знаки рисует игра)
+            return _spec(*_box(84, 120, 1, 1, 1, 1), "center")
+        if last == "card_shoe":
+            return _spec(*_box(140, 100, 2, 2, 2, 0), "bottom")
         table = {"tree": _box(130, 150, 2, 2, 2, 2), "bush": _box(80, 64, 1, 2, 1, 0),
                  "castle": _box(220, 200, 2, 2, 2, 2), "chapel": _box(100, 140, 2, 2, 2, 2),
                  "chapel_ringing": _box(100, 140, 2, 2, 2, 2)}
@@ -251,10 +265,8 @@ def _fit_spec_base(name):
         return _spec(*_box(w, h, 1, 1, 1, 1), align)
     if folder == "ui" and last == "gameroom_map":      # 3.27: карта Игровой (высокая полоса)
         return _spec((540, 1180), (0, 0, 540, 1180), "full")
-    if folder == "props" and last == "fortune_wheel":  # 3.27: обод колеса фортуны (середина пустая — сектора кодом)
-        return _spec(*_box(300, 300, 0, 0, 0, 0), "center")
-    if folder == "props" and last == "fortune_pointer":
-        return _spec(*_box(60, 70, 1, 1, 1, 1), "bottom")
+    if folder == "icons" and last.startswith("suit_"):
+        return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "icons" and last.startswith("game_"):  # 3.27: значки игр в кружках карты Игровой
         return _spec(*_box(100, 100, 2, 2, 2, 2), "center")
     if folder == "ui" and last == "move_map":          # 3.23: карта глав в окне «Переезд» (длинная полоса)

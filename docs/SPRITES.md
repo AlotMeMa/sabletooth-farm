@@ -385,3 +385,8 @@ y 0–160) и пол снизу (y 546–640), туда и стоит класт
 | `props/fortune_wheel.png` | 300×300 | центр | обод колеса фортуны: кольцо с гвоздиками, **середина пустая** (сектора рисует игра) |
 | `props/fortune_pointer.png` | 60×70 | низ = остриё | стрелка колеса, остриём вниз |
 | `icons/game_wheel/roulette/blackjack/secret.png` | 100×100 | центр | значки игр в кружках карты |
+
+## Блэкджек — заранее (3.27)
+Фон `backgrounds/blackjack.png` (1000×640, полукруглый стол без карт) и лист `icons/cards_sheet.png` 3×3:
+`props/card_back`, `props/card_face` (пустое лицо: цифры и масти рисует игра), `props/card_shoe`,
+`icons/suit_hearts|diamonds|clubs|spades`, `props/card_back_gold`, `props/card_back_winter`.

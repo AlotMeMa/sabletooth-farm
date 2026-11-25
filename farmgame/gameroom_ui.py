@@ -33,6 +33,7 @@ GAME_NODES = [   # id, имя, (x, y) на карте, описание
          text="Третья игра — пока секрет даже для бармена."),
 ]
 GR_NODE_R = 62
+ICON_FILL = (GR_NODE_R * 2 + 8) / 100      # значок игры (холст 100) — во весь кружок, со своим ободком поверх нашего
 # цвета секторов по смыслу: «пусто» — приглушённые, жетоны — яркие, джекпот — чёрный с золотом
 WHEEL_COLORS = ((120, 75, 85), (245, 205, 90), (80, 95, 120), (110, 190, 90),
                 (90, 160, 230), (115, 105, 95), (205, 95, 200), (40, 34, 36))
@@ -98,7 +99,7 @@ def draw_fortune_wheel(s, cx, cy, r, angle, labels=True):
 
 def draw_game_icon(s, gid, x, y, k=1.0, t=0.0):
     """Значок игры в кружке карты: картинка icons/game_<id> или кодом."""
-    if blit_sprite(s, f"icons/game_{gid}", x, y, k, "center"):
+    if blit_sprite(s, f"icons/game_{gid}", x, y, k * ICON_FILL, "center"):   # своя картинка — на весь кружок
         return
     if gid == "wheel":
         draw_fortune_wheel(s, x, y, 46 * k, t * 0.4, labels=False)
@@ -391,7 +392,7 @@ class GameRoomUI:
         """Окно колеса фортуны."""
         s = self.screen
         r = self.panel(560, 560, "КОЛЕСО ФОРТУНЫ")
-        cx, cy, rad = r.centerx, r.y + 276, 160
+        cx, cy, rad = r.centerx, r.y + 292, 148      # 3.28: ниже — стрелка не наезжает на строку джекпота
         blit_light(s, cx, cy, rad * 2.6, (255, 210, 120), 120, 0.0)
         draw_fortune_wheel(s, cx, cy, rad, self.fw_angle)
         # стрелка сверху: своя картинка props/fortune_pointer (остриём вниз) или кодом
@@ -399,7 +400,7 @@ class GameRoomUI:
             poly(s, (230, 60, 60), [(cx - 18, cy - rad - 26), (cx + 18, cy - rad - 26), (cx, cy - rad + 8)], 3)
             pygame.draw.circle(s, GOLD, (cx, cy - rad - 26), 6)
         jp = wh.jackpot_for()
-        draw_text_fit(s, f"Джекпот этой недели: {jp['name']}", 15, (cx, r.y + 62), r.w - 60, (190, 120, 40),
+        draw_text_fit(s, f"Джекпот этой недели: {jp['name']}", 15, (cx, r.y + 58), r.w - 60, (190, 120, 40),
                       outline=None)
         busy = self.fw_spin is not None
         can = wh.can_spin(self.tavern)
@@ -414,5 +415,5 @@ class GameRoomUI:
         if msg is None and not busy and not can and self.tavern.wheel_last:
             msg = (f"Сегодня выпало: {self.tavern.wheel_last['text']}", (90, 70, 60))
         if msg and not busy:
-            draw_text_fit(s, msg[0], 18, (cx, r.bottom - 96), r.w - 40, msg[1],
+            draw_text_fit(s, msg[0], 18, (cx, r.bottom - 88), r.w - 40, msg[1],
                           outline=OUT if msg[1] != (90, 70, 60) else None)

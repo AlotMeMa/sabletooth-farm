@@ -85,6 +85,16 @@ PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubbl
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
                       "characters/owl"]
+# 3.34.2: свой значок-медаль у каждого достижения — 5 листов 3×3 (assets/icons/ach_sheet_1..5.png), порядок как в
+# achievements.ACHIEVEMENTS; в последнем листе три клетки — запас (пропуск)
+def _ach_orders():
+    from .achievements import ACHIEVEMENTS
+    ids = [a["id"] for a in ACHIEVEMENTS]
+    ids += ["_unused"] * (-len(ids) % 9)
+    return [ids[i:i + 9] for i in range(0, len(ids), 9)]
+
+
+ACH_SHEET_ORDERS = _ach_orders()
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -105,6 +115,8 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/cards_sheet": ("", CARDS_SHEET_ORDER, 3, 3),         # 3.27: заготовка под блэкджек
     "characters/gnomes_sheet": ("characters/", GNOMES_SHEET_ORDER, 2, 3),   # 3.27: разные гномы одним запросом
 }
+SHEETS.update({f"icons/ach_sheet_{n}": ("icons/ach_", order, 3, 3)      # 3.34.2: медали достижений, 5 листов
+               for n, order in enumerate(ACH_SHEET_ORDERS, 1)})
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
     "millstone": (160, 160, "center"), "mill_bed": (260, 104, "bottom"), "mill_hopper": (150, 200, "bottom"),
@@ -295,6 +307,8 @@ def _fit_spec_base(name):
         return _spec((540, 1180), (0, 0, 540, 1180), "full")
     if folder == "icons" and last.startswith("suit_"):
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
+    if folder == "icons" and last.startswith("ach_") and not last.startswith("ach_sheet"):   # 3.34.2: медали
+        return _spec(*_box(96, 96, 2, 2, 2, 2), "center")
     if folder == "icons" and last.startswith("game_"):  # 3.27: значки игр в кружках карты Игровой
         return _spec(*_box(100, 100, 2, 2, 2, 2), "center")
     if folder == "ui" and last == "move_map":          # 3.23: карта глав в окне «Переезд» (длинная полоса)

@@ -74,11 +74,15 @@ CARDS_SHEET_ORDER = ["props/card_back", "props/card_face", "props/card_shoe",
 # 3.27: разные гномы зимы одним запросом (лист 2×3, assets/characters/gnomes_sheet.png): 4 работника и 2 шамана
 GNOMES_SHEET_ORDER = ["gnome_worker_1", "gnome_worker_2", "gnome_worker_3",
                       "gnome_worker_4", "gnome_shaman_1", "gnome_shaman_2"]
+# 3.29: второй лист призов (3×3, assets/icons/prizes_2.png) — украшения 3.19–3.27, у которых не было картинок;
+# девятая клетка — запас (пропуск)
+PRIZE2_SHEET_ORDER = ["flowers", "rug", "kettle", "cat", "fiddler", "bagpiper", "rainbow_notes", "star_trail", "_unused"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
     "ui/buttons": ("ui/btn_", BUTTON_SHEET_ORDER, 3, 3),
     "icons/prizes": ("icons/prize_", PRIZE_SHEET_ORDER, 3, 3),
+    "icons/prizes_2": ("icons/prize_", PRIZE2_SHEET_ORDER, 3, 3),   # 3.29: украшения без картинок
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),

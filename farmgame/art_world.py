@@ -297,10 +297,23 @@ def _gnome_body(s, x, y, k, coat, hat, hop=0.0, lean=0.0):
     return bx, y - 17 * k, tip
 
 
-def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
-    """3.26: гном из «пришествия» работает тяпкой. Картинка characters/gnome_worker — покачивается кодом."""
+GNOME_WORKER_VARIANTS = 4    # 3.27: разные гномы-работники characters/gnome_worker_1..4
+GNOME_SHAMAN_VARIANTS = 2    # 3.27: разные шаманы characters/gnome_shaman_1..2
+
+
+def gnome_sprite(base, n, variants):
+    """3.27: имя картинки гнома номер n: из тех вариантов base_1..base_<variants>, что есть, по кругу;
+    нет ни одного — base (картинка из зимнего листа). Так у каждой грядки свой гном."""
+    have = [f"{base}_{i}" for i in range(1, variants + 1) if has_sprite(f"{base}_{i}")]
+    return have[n % len(have)] if have else base
+
+
+def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
+    """3.26: гном из «пришествия» работает тяпкой. Картинка characters/gnome_worker — покачивается кодом.
+    3.27: n — номер гнома (грядки): разные картинки characters/gnome_worker_1..4."""
     swing = math.sin(t * 6.0)
-    if blit_tf(s, "characters/gnome_worker", x, y, k, flip=flip, sy=1 - 0.04 * abs(swing),
+    if blit_tf(s, gnome_sprite("characters/gnome_worker", n, GNOME_WORKER_VARIANTS), x, y, k, flip=flip,
+               sy=1 - 0.04 * abs(swing),
                angle=(4 if flip else -4) * swing, alpha=alpha):
         return
     d = -1 if flip else 1
@@ -313,12 +326,12 @@ def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
     poly(s, (160, 165, 175), [(ex, ey), (ex + d * 6 * k, ey + 2 * k), (ex + d * 5 * k, ey + 6 * k)], 2)
 
 
-def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
+def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
     """3.26: гном-шаман пляшет с бубном: подпрыгивает, кружится, трясёт бубном над головой.
     Картинка characters/gnome_shaman — прыгает и качается кодом (зеркалится на каждом повороте)."""
     hop = abs(math.sin(t * 4.2)) * 7 * k
     turn = math.sin(t * 2.1) < 0
-    if blit_tf(s, "characters/gnome_shaman", x, y - hop, k, flip=flip ^ turn,
+    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y - hop, k, flip=flip ^ turn,
                sy=1 + 0.05 * math.sin(t * 8.4), angle=8 * math.sin(t * 4.2), alpha=alpha):
         return
     ellipse(s, (150, 175, 200), x, y + 1, 22 * k, 6 * k, 0)              # тень на снегу
@@ -339,9 +352,10 @@ def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None):
         pygame.draw.circle(s, (250, 215, 90), (P(bx + math.cos(a) * 7 * k), P(by + math.sin(a) * 5.5 * k)), max(1, P(1.6 * k)))
 
 
-def draw_gnome_shaman_walk(s, x, y, k=1.0, t=0.0, flip=False):
+def draw_gnome_shaman_walk(s, x, y, k=1.0, t=0.0, flip=False, n=0):
     """Шаман идёт на лужайку или уходит с неё: семенит, бубен у пояса позвякивает."""
-    if blit_tf(s, "characters/gnome_shaman", x, y, k, flip=flip, angle=5 * math.sin(t * 9)):
+    if blit_tf(s, gnome_sprite("characters/gnome_shaman", n, GNOME_SHAMAN_VARIANTS), x, y, k, flip=flip,
+               angle=5 * math.sin(t * 9)):
         return
     sx, sy, tip = _gnome_body(s, x, y, k, (110, 70, 150), (70, 50, 120), lean=2 * math.sin(t * 9))
     for n, c in enumerate(((230, 80, 70), (250, 200, 70), (90, 180, 110))):

@@ -356,7 +356,7 @@ class FieldUI:
             self.rush_popped.add(k)
             self.fx.dust(x, y - 4, n=6, color=(245, 250, 255), size=(5, 9), spread=12, up=20, drift=20, alpha=220,
                          life=(0.35, 0.6))
-        draw_gnome_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right)
+        draw_gnome_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
 
     def draw_shamans(self):
         """Два гнома-шамана выходят справа на лужайку, пляшут с бубнами и уходят, когда пришествие кончается."""
@@ -372,9 +372,9 @@ class FieldUI:
             x, t = sx + off, self.t_real + n * 1.3
             if off > 1.0:                                   # идёт: семенит, смотрит куда идёт
                 hop = abs(math.sin(t * 9)) * 3
-                draw_gnome_shaman_walk(self.screen, x, sy - hop, 1.6, t, flip=go > 0)
+                draw_gnome_shaman_walk(self.screen, x, sy - hop, 1.6, t, flip=go > 0, n=n)
             else:
-                draw_gnome_shaman(self.screen, x, sy, 1.6, t, flip=n == 1)
+                draw_gnome_shaman(self.screen, x, sy, 1.6, t, flip=n == 1, n=n)
                 if random.random() < 0.08:                  # искорки от бубна
                     self.fx.sparks(x + random.uniform(-18, 18), sy - 80, n=1,
                                    colors=((250, 215, 90), (215, 170, 255), (255, 255, 230)), speed=(20, 50),

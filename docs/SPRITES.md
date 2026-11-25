@@ -387,7 +387,7 @@ y 0–160) и пол снизу (y 546–640), туда и стоит класт
 | `icons/game_wheel/roulette/blackjack/secret.png` | 100×100 | центр | значки игр в кружках карты |
 
 ## Блэкджек — заранее (3.27)
-Фон `backgrounds/blackjack.png` (1000×640, полукруглый стол без карт) и лист `icons/cards_sheet.png` 3×3:
+Стол — общий стол Игровой (тот же, что у рулетки; решение пользователя: все игры на одном столе). Лист `icons/cards_sheet.png` 3×3:
 `props/card_back`, `props/card_face` (пустое лицо: цифры и масти рисует игра), `props/card_shoe`,
 `icons/suit_hearts|diamonds|clubs|spades`, `props/card_back_gold`, `props/card_back_winter`.
 Дилер (3.28): `characters/dealer_gnome.png` — рыжий гном Ворчун по пояс, холст 150×150, низ = край стола.

@@ -14,8 +14,9 @@ for _ in range(3):
     A.bj_poke(); frames(2)
 A.bj_chip = 10; A.bj_place(); A.bj_place(); frames(10); snap("bj_bet")
 _r.seed(5)
-A.bj_deal(); frames(4); snap("bj_dealing")
-frames(60); snap("bj_dealt")
+A.bj_deal(); frames(10); snap("bj_dealing")
+frames(12); snap("bj_dealing2")
+frames(90); snap("bj_dealt")
 g = A.bj
 if g.state == "player":
     from farmgame import blackjack as bjm

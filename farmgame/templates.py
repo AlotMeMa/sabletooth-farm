@@ -255,8 +255,6 @@ def spec_list():
         "дилер блэкджека: рыжий гном Ворчун по пояс", 1,
         lambda s: __import__("farmgame.blackjack_ui", fromlist=["x"]).draw_dealer_gnome(s, 75, 148, 1.6))
     # 3.27: фон стола и лист карт блэкджека
-    add("backgrounds/blackjack", (W, H), "весь экран", "стол для блэкджека: полукруглое сукно, без карт и надписей", 1,
-        lambda s: None)
     for name, size, desc in (("props/card_back", (84, 120), "рубашка карты"),
                              ("props/card_face", (84, 120), "лицо карты — пустое (знаки и буквы рисует игра)"),
                              ("props/card_shoe", (140, 100), "башмак для карт (дилер тянет из него)"),

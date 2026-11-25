@@ -1,8 +1,8 @@
 # -*- coding: utf-8 -*-
 """3.28: экран блэкджека в Игровой. Логика — blackjack.py.
 
-Дилер — рыжий гном Ворчун (решение пользователя 25.11: «бормотун, вечно недовольный»). Стол — свой фон
-backgrounds/blackjack или стол рулетки кодом. Карты: свои картинки props/card_back, props/card_face (пустое лицо),
+Дилер — рыжий гном Ворчун (решение пользователя 25.11: «бормотун, вечно недовольный»). Стол — общий стол
+Игровой (тот же, что у рулетки: «все игры на одном столе, меняются правила и карты»). Карты: свои картинки props/card_back, props/card_face (пустое лицо),
 icons/suit_* и props/card_shoe (лист icons/cards_sheet) или кодом. Дилер: characters/dealer_gnome (по пояс, низ =
 край стола) или кодом. Цифры и масти на картах всегда рисует игра.
 """
@@ -22,13 +22,11 @@ BJ = dict(dealer=(500, 238), dealer_k=2.5, shoe=(812, 258),
           chips_y=565, chips_x=150, bet=(500, 404),
           deal=pygame.Rect(748, 540, 175, 48), hit=pygame.Rect(608, 540, 150, 48), stand=pygame.Rect(768, 540, 155, 48),
           clear=pygame.Rect(300, 546, 88, 38), msg=(500, 404))
-# 3.28.2: раскладка под нарисованный стол пользователя backgrounds/blackjack (полукруг, лоток и башмак на картинке):
-# карты дилера — на прямоугольнике, ставка — в средней дуге игрока, карты игрока — над ней, Ворчун — за лотком
-BJ_PAINTED = dict(dealer=(500, 232), shoe=None, dealer_cards=(500, 336), player_cards=(500, 450), bet=(500, 508),
-                  result=(500, 574), side_bet=(612, 508), chips_y=560, chips_x=262,
-                  clear=pygame.Rect(236, 580, 88, 32), rules=(175, 292), history=(112, 500))
-BJ_CODE = dict(shoe=(812, 258), result=(500, 404), side_bet=(720, 404), rules=None, history=(70, 470))
-CARD_STEP = 0.32          # через сколько секунд выкладывается следующая карта
+# 3.28.3 (решение пользователя): все игры Игровой — на одном столе (стол рулетки); меняются правила и карты
+BJ_CODE = dict(shoe=(812, 258), deck=(774, 236), result=(500, 404), side_bet=(720, 404), rules=None,
+               history=(70, 470))
+CARD_STEP = 0.36          # через сколько секунд выкладывается следующая карта
+CARD_FLY, CARD_FLIP = 0.26, 0.18   # 3.28.3: карта летит из стопки, ложится и переворачивается
 DEALER_NAME = "Ворчун"
 DEALER_INTRO = [
     "Ну, чего уставился? Я Ворчун, тут я раздаю. Правила простые — даже ты поймёшь.",
@@ -75,12 +73,20 @@ def draw_suit(s, suit, x, y, k=1.0):
         poly(s, col, [(x, y + r * 0.2), (x - r * 0.5, y + r * 1.3), (x + r * 0.5, y + r * 1.3)], 0)
 
 
-def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back"):
-    """Карта с центром (x, y): лицо (ранг и масть рисует игра) или рубашка."""
+def draw_card(s, x, y, card, face_up=True, k=1.0, back="props/card_back", sx=1.0, shadow=True):
+    """Карта с центром (x, y): лицо (ранг и масть рисует игра) или рубашка.
+    sx — ширина 0..1 (карта переворачивается: сужается до ребра и раскрывается другой стороной)."""
     w, h = BJ["card_w"] * k, BJ["card_h"] * k
-    rect = pygame.Rect(0, 0, P(w), P(h))
+    sx = max(0.04, min(1.0, sx))
+    rect = pygame.Rect(0, 0, max(2, P(w * sx)), P(h))
     rect.center = (P(x), P(y))
-    draw_shadow(s, x + 3, rect.bottom, w * 0.9, 10, 60)
+    if shadow:
+        draw_shadow(s, x + 3, rect.bottom, w * 0.9 * sx, 10, 60)
+    if sx < 0.98:                                  # в повороте: картинка — сплющенная, кодом — узкая карта
+        name = back if not face_up else "props/card_face"
+        if not blit_tf(s, name, x, y, w / 84, sx=sx, pivot="center"):
+            rounded(s, (252, 248, 238) if face_up else (170, 45, 50), rect, max(2, P(5 * k * sx)), 2, skin=None)
+        return rect
     if not face_up:
         if not blit_sprite(s, back, x, y, w / 84, "center"):
             rounded(s, (170, 45, 50), rect, max(4, P(7 * k)), 2, skin=None)
@@ -143,8 +149,8 @@ def draw_shoe(s, x, y, k=1.0):
 
 
 def bj_layout():
-    """Раскладка стола: под свою картинку backgrounds/blackjack или под стол, нарисованный кодом."""
-    return dict(BJ, **(BJ_PAINTED if has_sprite("backgrounds/blackjack") else BJ_CODE))
+    """Раскладка стола (общий стол Игровой)."""
+    return dict(BJ, **BJ_CODE)
 
 
 class BlackjackUI:
@@ -240,7 +246,8 @@ class BlackjackUI:
         return order
 
     def bj_steps(self):
-        return int((self.t_real - self.bj_t) / CARD_STEP) + 1
+        """Сколько шагов раздачи уже видно: карта считается, когда легла и перевернулась (очки — после неё)."""
+        return math.floor((self.t_real - self.bj_t - CARD_FLY - CARD_FLIP) / CARD_STEP) + 1   # floor: до первой — 0
 
     def bj_counts(self):
         """Сколько карт игрока и дилера уже лежит на столе и открыта ли вторая карта дилера."""
@@ -249,8 +256,11 @@ class BlackjackUI:
                 any(w == "reveal" for w, _ in shown))
 
     def bj_busy(self):
+        """Карты ещё выкладываются (летят, переворачиваются) — кнопки ждут."""
         order = self.bj_order()
-        return bool(order) and self.bj_steps() < len(order)
+        if not order:
+            return False
+        return self.t_real < self.bj_t + (len(order) - 1) * CARD_STEP + CARD_FLY + CARD_FLIP
 
     def bj_act(self, action):
         """«Взять»/«Хватит»: новые карты выкладываются по одной после уже лежащих (а не все сразу)."""
@@ -305,9 +315,11 @@ class BlackjackUI:
         self.tip(q, "Правила ещё раз")
         if L["shoe"]:
             draw_shoe(s, *L["shoe"])
+            if not has_sprite("props/card_shoe"):
+                for i in range(4):                                # стопка рубашек, если нет башмака
+                    draw_card(s, L["deck"][0] + i, L["deck"][1] - i * 2, None, False, 0.75, shadow=i == 0)
         # карты дилера и игрока
-        self.bj_draw_hand(s, g.dealer[:nd], L["dealer_cards"], hide_second=not reveal, t=t)
-        self.bj_draw_hand(s, g.player[:np_], L["player_cards"], t=t)
+        self.bj_draw_cards(s, L, t)
         if g.dealer[:nd]:
             val = bj.hand_value(g.dealer[:nd]) if reveal else bj.card_value(g.dealer[0])
             self.bj_value_tag(s, L["dealer_cards"], val, nd, not reveal)
@@ -373,13 +385,44 @@ class BlackjackUI:
                 f"щёлкни по {DEALER_NAME}у — дальше ({self.bj_intro + 1}/{len(DEALER_INTRO)})"
             draw_side_bubble(s, dx + 80, dy - 170, self.bj_say[0], hint)
 
-    def bj_draw_hand(self, s, cards, center, hide_second=False, t=0.0):
-        cx, cy = center
-        n = len(cards)
-        x0 = cx - (n - 1) * BJ["gap"] / 2
-        for i, c in enumerate(cards):
-            face = not (hide_second and i == 1)
-            draw_card(s, x0 + i * BJ["gap"], cy, c, face, 1.0)
+    def bj_draw_cards(self, s, L, t):
+        """3.28.3: карты вылетают из стопки у башмака, ложатся на место и переворачиваются лицом вверх.
+        Закрытая карта дилера переворачивается, когда он вскрывается после «Хватит»."""
+        g = self.bj
+        order = self.bj_order()
+        at = {step: self.bj_t + j * CARD_STEP for j, step in enumerate(order)}
+        reveal_t = at.get(("reveal", 0))
+        flying, landed = [], 0
+        for who, cards, center in (("d", g.dealer, L["dealer_cards"]), ("p", g.player, L["player_cards"])):
+            shown = [i for i in range(len(cards)) if (who, i) in at and t >= at[(who, i)]]
+            n = len(shown)
+            x0 = center[0] - (n - 1) * BJ["gap"] / 2
+            for i in shown:
+                tx, ty = x0 + i * BJ["gap"], center[1]
+                u = (t - at[(who, i)]) / CARD_FLY
+                if u < 1.0:                                       # летит рубашкой вверх, чуть растёт
+                    e = anim.ease_out_cubic(max(0.0, u))
+                    dx, dy = L["deck"]
+                    flying.append((dx + (tx - dx) * e, dy + (ty - dy) * e - math.sin(math.pi * e) * 30,
+                                   0.75 + 0.25 * e))
+                    continue
+                landed += 1
+                hole = who == "d" and i == 1
+                start = (reveal_t if reveal_t is not None else None) if hole else at[(who, i)] + CARD_FLY
+                v = None if start is None else (t - start) / CARD_FLIP
+                if v is None or v < 0:
+                    draw_card(s, tx, ty, cards[i], False, 1.0)
+                elif v < 1.0:                                     # переворот: сужается, раскрывается лицом
+                    draw_card(s, tx, ty, cards[i], v >= 0.5, 1.0, sx=abs(math.cos(math.pi * v)))
+                else:
+                    draw_card(s, tx, ty, cards[i], True, 1.0)
+        for x, y, k in flying:                                     # летящие — поверх лежащих
+            draw_card(s, x, y, None, False, k, shadow=False)
+        if landed < getattr(self, "bj_landed", 0):                # новая раздача
+            self.bj_landed = 0
+        if landed > getattr(self, "bj_landed", 0):                # карта легла — шлёп
+            self.bj_landed = landed
+            self.sfx.play("hover")
 
     def bj_value_tag(self, s, center, value, n, partial=False):
         cx, cy = center
@@ -391,10 +434,8 @@ class BlackjackUI:
         draw_text(s, txt, 16, (P(x), P(cy)), col)
 
     def build_blackjack_background(self):
-        """Свой фон backgrounds/blackjack или стол рулетки, только сукно без разметки."""
+        """Общий стол Игровой (тот же, что у рулетки) и разметка блэкджека поверх сукна."""
         bg = hd.Surface((W, H))
-        if blit_sprite(bg, "backgrounds/blackjack", 0, 0, 1, "topleft"):
-            return bg
         if self.cs_bg is None:
             self.cs_bg = self.build_casino_background()
         bg.blit(self.cs_bg, (0, 0))

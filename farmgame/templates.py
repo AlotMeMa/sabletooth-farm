@@ -251,7 +251,10 @@ def spec_list():
         add(f"icons/{key}", (40, 40), "центр", desc + " (мельница)", 1, lambda s: None)
     # 3.14: казино
     add("backgrounds/casino", (W, H), "весь экран", "игорный зал (без колеса и разметки стола)", 1, lambda s: None)
-    # 3.27: заранее под блэкджек — фон стола и лист карт (игра возьмёт их, когда появится сам блэкджек)
+    add("characters/dealer_gnome", (150, 150), "низ по центру (75, 150) = край стола",
+        "дилер блэкджека: рыжий гном Ворчун по пояс", 1,
+        lambda s: __import__("farmgame.blackjack_ui", fromlist=["x"]).draw_dealer_gnome(s, 75, 148, 1.6))
+    # 3.27: фон стола и лист карт блэкджека
     add("backgrounds/blackjack", (W, H), "весь экран", "стол для блэкджека: полукруглое сукно, без карт и надписей", 1,
         lambda s: None)
     for name, size, desc in (("props/card_back", (84, 120), "рубашка карты"),

@@ -9,7 +9,7 @@ from .ui_common import *  # noqa: F401,F403
 class HudUI:
     def draw_hud(self):
         s, f = self.screen, self.farm
-        board = self.view in ("board", "casino", "gameroom")     # на доске заданий плашки денег закрыли бы записки
+        board = self.view in ("board", "casino", "gameroom", "blackjack")     # на доске заданий плашки денег закрыли бы записки
         # плашки подстраиваются под длину текста
         def pill(y, h, text, size, icon):
             img = render_text(text, size, WHITE, OUT)
@@ -69,6 +69,8 @@ class HudUI:
         if board:
             if self.view == "casino":       # 3.14.2: над столом слева; 3.27: из рулетки — назад в Игровую
                 self.draw_tavern_back("В игровую", lambda: setattr(self, "view", "gameroom"), 170, (14, 60), 46)
+            elif self.view == "blackjack":
+                self.draw_tavern_back("В игровую", self.bj_leave, 170, (14, 60), 46)
             elif self.view == "gameroom":
                 self.draw_tavern_back("В таверну", lambda: setattr(self, "view", "tavern"), 170, (14, 60), 46)
             else:

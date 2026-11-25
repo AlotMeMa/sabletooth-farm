@@ -227,6 +227,8 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last in ("bard", "bard_girl", "fiddler", "bagpiper"):    # 3.15.2 / 3.23: артисты сцены — скины барда
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last == "dealer_gnome":        # 3.28: дилер блэкджека — рыжий гном Ворчун по пояс, низ = край стола
+            return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last.startswith("gnome_worker"):   # 3.26: гном из «пришествия» с тяпкой (зима); 3.27: варианты _1.._4

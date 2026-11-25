@@ -17,6 +17,8 @@ from .tavern_ui import draw_token
 from .tavern_art import wrap
 from .move_ui import draw_lock
 from . import wheel as wh
+from . import blackjack as bjl
+from .blackjack_ui import draw_suit
 
 GR_VIEW = pygame.Rect(230, 64, 540, 566)        # окно карты на экране
 GR_H = 1180                                     # высота всей карты
@@ -25,8 +27,8 @@ GAME_NODES = [   # id, имя, (x, y) на карте, описание
          text="Раз в день — бесплатно. Пусто, жетоны или джекпот недели."),
     dict(id="roulette", name="Рулетка", pos=(160, 440),
          text="Европейская рулетка с крупье. Ставки от 5 жетонов."),
-    dict(id="blackjack", name="Блэкджек", pos=(380, 720), soon=True,
-         text="Набери 21 и обыграй дилера."),
+    dict(id="blackjack", name="Блэкджек", pos=(380, 720), winter=True,
+         text="Набери 21 и обыграй рыжего гнома Ворчуна. Открывается зимой."),
     dict(id="secret", name="???", pos=(220, 1000), soon=True,
          text="Третья игра — пока секрет даже для бармена."),
 ]
@@ -118,8 +120,7 @@ def draw_game_icon(s, gid, x, y, k=1.0, t=0.0):
             rounded(s, (250, 245, 235), card, max(3, P(5 * k)), 2, skin=None)
             draw_text(s, txt, max(12, P(20 * k)), (card.centerx, card.centery - P(4 * k)),
                       (190, 40, 40) if i else OUT, outline=None)
-            draw_text(s, "♥" if i else "♠", max(9, P(12 * k)), (card.centerx, card.bottom - P(10 * k)),
-                      (190, 40, 40) if i else OUT, outline=None)
+            draw_suit(s, "hearts" if i else "spades", card.centerx, card.bottom - P(12 * k), 0.8 * k)
     else:
         draw_text(s, "?", max(20, int(50 * k)), (P(x), P(y) - 2), (235, 220, 200))
 
@@ -192,6 +193,8 @@ class GameRoomUI:
             self.open_modal("fortune")
         elif gid == "roulette":
             self.open_casino()
+        elif gid == "blackjack":
+            self.open_blackjack()
         elif node.get("soon"):
             self.toast(f"{node['name']} откроется скоро. {node['text']}" if gid != "secret" else node["text"], 3)
             self.sfx.play("hover")
@@ -307,7 +310,8 @@ class GameRoomUI:
                     pygame.draw.circle(s, (235, 190, 90), (P(mx), P(my)), 5)
 
     def gr_draw_node(self, s, node, x, y, t, can):
-        gid, soon = node["id"], node.get("soon")
+        gid = node["id"]
+        soon = node.get("soon") or (node.get("winter") and not bjl.unlocked(self.farm.farm_index))
         hover = math.hypot(self.mouse[0] - x, self.mouse[1] - y) < GR_NODE_R + 6 and GR_VIEW.collidepoint(self.mouse)
         draw_shadow(s, x, y + GR_NODE_R + 6, GR_NODE_R * 1.7, 18, 70)
         glow = gid == "wheel" and can
@@ -336,6 +340,8 @@ class GameRoomUI:
         tag, col = None, None
         if gid == "wheel":
             tag, col = ("КРУТИ!", (90, 170, 80)) if can else ("ЗАВТРА", (140, 130, 125))
+        elif node.get("winter") and soon:
+            tag, col = "ЗИМОЙ", (90, 150, 210)
         elif soon:
             tag, col = ("СКОРО", (235, 150, 60)) if gid != "secret" else (None, None)
         if tag:
@@ -370,7 +376,9 @@ class GameRoomUI:
             draw_text(s, "Колесо — снова через", 13, (box.centerx, y), soft, outline=None)
             draw_text(s, fmt_time(wh.seconds_to_next()), 15, (box.centerx, y + 20), brown, outline=None)
         go = pygame.Rect(box.x + 14, box.bottom - 50, box.w - 28, 40)
-        if node.get("soon"):
+        if node.get("winter") and not bjl.unlocked(self.farm.farm_index):
+            self.button(go, "Зимой", lambda: None, BTN_GREY, False, 17)
+        elif node.get("soon"):
             self.button(go, "Скоро", lambda: None, BTN_GREY, False, 17)
         else:
             self.button(go, "Играть!", lambda: self.gr_open_game(self.gr_sel), BTN_GREEN, True, 18)

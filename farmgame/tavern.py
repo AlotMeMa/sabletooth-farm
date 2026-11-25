@@ -184,6 +184,7 @@ class Tavern:
         self.prize_day = {}      # id бафа -> день покупки (бафы — раз в день)
         self.wheel_day = ""      # 3.27: день, когда крутили колесо фортуны в Игровой (раз в день)
         self.wheel_last = None   # 3.27: что выпало в последний раз: {kind, amount, prize, text}
+        self.bj_intro = False    # 3.28: Ворчун уже рассказал правила блэкджека
 
     # ---------- казино (3.14) ----------
     def check_casino(self):
@@ -391,7 +392,7 @@ class Tavern:
                     daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
                     casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
                     prize_off=self.prize_off, prize_day=self.prize_day, wheel_day=self.wheel_day,
-                    wheel_last=self.wheel_last)
+                    wheel_last=self.wheel_last, bj_intro=self.bj_intro)
 
     def from_dict(self, d):
         """Читает таверну из сохранения. Испорченные записи пропускаются — задания тогда просто выдадутся заново."""
@@ -415,6 +416,7 @@ class Tavern:
             self.prizes = {k: True for k, v in d["prizes"].items() if isinstance(k, str) and k in ids and v}
         if isinstance(d.get("prize_off"), list):
             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
+        self.bj_intro = bool(d.get("bj_intro", self.bj_intro))
         if isinstance(d.get("wheel_day"), str):
             self.wheel_day = d["wheel_day"][:10]
         if isinstance(d.get("wheel_last"), dict) and isinstance(d["wheel_last"].get("text"), str):

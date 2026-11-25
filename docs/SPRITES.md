@@ -390,3 +390,4 @@ y 0–160) и пол снизу (y 546–640), туда и стоит класт
 Фон `backgrounds/blackjack.png` (1000×640, полукруглый стол без карт) и лист `icons/cards_sheet.png` 3×3:
 `props/card_back`, `props/card_face` (пустое лицо: цифры и масти рисует игра), `props/card_shoe`,
 `icons/suit_hearts|diamonds|clubs|spades`, `props/card_back_gold`, `props/card_back_winter`.
+| `characters/dealer_gnome.png` | 150×150 | низ по центру = край стола | дилер блэкджека: рыжий гном Ворчун по пояс (3.28) |

@@ -108,12 +108,8 @@ class TavernUI:
             self.toast(("Задание НЕДЕЛИ выполнено" if big else "Задание выполнено") + f": «{q['title']}»! Награда — в таверне", 4)
 
     def quest_money(self, minutes):
-        """Деньги за задание = столько минут дохода грядок (без дождя и буста), но не меньше небольшой суммы."""
-        f = self.farm
-        inc = sum(f.income_per_sec(i, False) for i in range(N_CROPS))
-        if f.boost_left > 0:
-            inc /= 2
-        return max(inc * 60 * minutes, 20 * f.price_mult * minutes)
+        """Деньги за задание — см. tavern.quest_money (минуты дохода с потолком от цены следующей грядки)."""
+        return tv.quest_money(self.farm, minutes)
 
     def grant_reward(self, minutes, prestige, boost):
         """Выдаёт ферме награду задания (жетоны начисляет сама таверна). Возвращает, сколько денег дали."""

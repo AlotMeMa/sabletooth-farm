@@ -15,8 +15,34 @@ DAILY_COUNT = 4
 TAVERN_FROM_FARM = 1          # индекс фермы, с которой открывается таверна (1 — средневековье)
 
 # Награда за ежедневное задание: минуты дохода фермы (считаются в момент получения) + жетоны.
-DAILY_REWARD = {1: (15, 5), 2: (25, 10), 3: (40, 15)}        # сложность -> (минут дохода, жетонов)
-WEEKLY_REWARD = dict(minutes=180, tokens=60, prestige=15, boost_minutes=30)
+# 3.32 (жалоба пользователя 25.11: «за одну таску купил 2 новые грядки и вкачал остальные»): было 15/25/40 мин
+# и 180 мин за неделю — стало 3/5/8 и 30, плюс потолок REWARD_BED_CAP (см. quest_money).
+DAILY_REWARD = {1: (3, 5), 2: (5, 10), 3: (8, 15)}        # сложность -> (минут дохода, жетонов)
+WEEKLY_REWARD = dict(minutes=30, tokens=60, prestige=15, boost_minutes=30)
+# Потолок денег за задание — доля цены первой ещё не купленной грядки: дневное задание помогает до неё
+# дотянуть (★ — четверть цены, ★★★ — больше половины), но не покупает её; недельное — не больше одной грядки.
+# Когда открыты все грядки — потолка нет. Ключ — минуты награды (по ним же узнаются старые незабранные награды).
+REWARD_BED_CAP = {3: 0.25, 5: 0.4, 8: 0.6, 30: 1.0}
+
+
+def bed_cap_share(minutes):
+    if minutes in REWARD_BED_CAP:
+        return REWARD_BED_CAP[minutes]
+    return 1.0 if minutes > 40 else 0.6     # старые незабранные награды: дневные 15/25/40 мин, недельная 180
+
+
+def quest_money(farm, minutes):
+    """Деньги за задание: столько минут дохода грядок (без дождя и буста x2), но не меньше небольшой суммы
+    и не больше доли (REWARD_BED_CAP) цены следующей закрытой грядки."""
+    n = len(farm.levels)
+    inc = sum(farm.income_per_sec(i, False) for i in range(n))
+    if farm.boost_left > 0:
+        inc /= 2
+    money = max(inc * 60 * minutes, 20 * farm.price_mult * minutes)
+    locked = [i for i in range(n) if farm.levels[i] == 0]
+    if locked:
+        money = min(money, bed_cap_share(minutes) * farm.cost(locked[0], 1))
+    return money
 
 # Шаблоны заданий: событие, текст, цели по сложности, при каком условии фермы доступно.
 # need: None — везде; "crow"/"bandits"/"peasants" — флаг фермы; "animals"/"mill" — что стоит вместо сарая.

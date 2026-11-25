@@ -113,7 +113,7 @@ class BoardUI:
         draw_text(s, f"{fmt(q['progress'])} / {fmt(q['target'])}", 12, bar.center)
         minutes, tokens, prestige, boost = self.tavern.reward_of(q)
         draw_text(s, "Награда:", 14, (r.centerx, y0 + 124), BROWN, outline=None)
-        rows = [(lambda x, y: draw_coin(s, x, y, 8), "$" + fmt(self.quest_money(minutes)) + f" ({minutes // 60} ч дохода)"),
+        rows = [(lambda x, y: draw_coin(s, x, y, 8), "$" + fmt(self.quest_money(minutes))),
                 (lambda x, y: draw_token(s, x, y, 0.55), f"{tokens} жетонов"),
                 (lambda x, y: draw_cur_icon(s, x, y, 0.5), f"{prestige} {CUR['gen']}"),
                 (lambda x, y: draw_text(s, "x2", 12, (x, y), GOLD), f"доход x2 на {boost} мин")]

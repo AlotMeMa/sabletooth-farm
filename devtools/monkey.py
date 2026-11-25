@@ -1,6 +1,6 @@
 """Дымовой прогон игры на заглушке pygame: случайные клики по всем кнопкам, все окна и экраны, перемотка времени."""
 import json, os, random, sys, traceback
-# python devtools/monkey.py <seed> <шагов>   (EXTRA_VIEWS=casino — ещё и казино)
+# python devtools/monkey.py <seed> <шагов>   (EXTRA_VIEWS=casino — ещё и казино; START_FARM=3 — с этой главы)
 HERE = os.path.dirname(os.path.abspath(__file__))
 GAME, FAKE = os.path.dirname(HERE), os.path.join(HERE, "fake_pygame")
 SEED, STEPS = int(sys.argv[1]), int(sys.argv[2])
@@ -42,6 +42,11 @@ app = appmod.App()
 app.quit_game = lambda: None
 real_reset = app.reset_everything
 app.reset_everything = lambda: None
+if os.environ.get("START_FARM"):            # START_FARM=3 — гонять сразу на нужной главе (даже закрытой)
+    app.farm.farm_index = int(os.environ["START_FARM"])
+    app.farm.reset_run()
+    app.set_theme()
+    app.bg = app.build_background()
 
 
 def frame(dt=0.016):

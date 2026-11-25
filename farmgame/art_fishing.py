@@ -208,3 +208,58 @@ def draw_fish_cargo(s, x, y):
         pygame.draw.line(s, (100, 75, 50), (P(x + cx - 12), P(y - 64)), (P(x + cx + 12), P(y - 64)), 2)
     for cx in (-22, 8, 36):
         poly(s, (170, 190, 205), [(x + cx, y - 72), (x + cx - 6, y - 84), (x + cx + 6, y - 84)], 2)
+
+
+# 3.37: хищники садка 2 — (спина, брюхо, плавники, узор, длина тела)
+PRED_LOOKS = {
+    "pike": ((96, 130, 80), (220, 225, 180), (150, 120, 70), "spots", 1.5),
+    "asp": ((120, 140, 155), (230, 235, 240), (190, 110, 100), None, 1.3),
+    "zander": ((140, 150, 130), (230, 228, 210), (110, 110, 100), "stripes", 1.4),
+    "burbot": ((110, 100, 70), (200, 190, 150), (90, 80, 55), "spots", 1.5),
+    "catfish": ((80, 85, 90), (190, 185, 175), (70, 70, 75), "whiskers", 1.6),
+    "eel": ((90, 110, 80), (210, 205, 160), (80, 95, 70), None, 2.2),
+    "taimen": ((150, 100, 90), (235, 205, 190), (190, 80, 70), "spots", 1.5),
+    "sturgeon": ((110, 120, 135), (225, 225, 220), (95, 105, 120), "plates", 1.8),
+    "beluga": ((150, 160, 170), (240, 240, 238), (130, 140, 150), "plates", 1.9),
+    "swordfish": ((60, 90, 150), (215, 225, 240), (50, 70, 120), "sword", 1.7),
+}
+
+
+def draw_predator(s, x, y, k, pid, t=0.0, flip=False):
+    """Хищник в садке: плывёт, чуть виляя хвостом. (x, y) — центр. Картинка fish/<id> (смотрит влево) или кодом."""
+    wig = math.sin(t * 5) * 4 * k
+    if blit_tf(s, f"fish/{pid}", x, y, 0.5 * k, flip=flip, angle=math.sin(t * 2) * 3, pivot="center"):
+        return
+    back, belly, fin, mark, ln = PRED_LOOKS.get(pid, PRED_LOOKS["pike"])
+    d = 1 if flip else -1                     # куда смотрит голова: -1 влево
+    L, Hh = 30 * ln * k, 14 * k
+    tx = x - d * L * 0.55
+    poly(s, fin, [(tx, y), (tx - d * 14 * k, y - 11 * k + wig), (tx - d * 14 * k, y + 11 * k + wig)], 2)
+    poly(s, fin, [(x - d * 4 * k, y - Hh * 0.45), (x - d * 16 * k, y - Hh * 0.9), (x - d * 20 * k, y - Hh * 0.4)], 2)
+    ellipse(s, back, x, y, L * 1.1, Hh * 1.6)
+    ellipse(s, belly, x + d * 2 * k, y + Hh * 0.3, L * 0.9, Hh * 0.6, 0)
+    if mark == "spots":
+        for dx, dy in ((-0.2, -0.3), (0.05, -0.1), (0.25, -0.35), (-0.05, -0.45)):
+            pygame.draw.circle(s, tuple(max(0, c - 45) for c in back), (P(x + dx * L), P(y + dy * Hh)), max(1, P(2 * k)))
+    elif mark == "stripes":
+        for dx in (-0.2, 0.0, 0.2):
+            pygame.draw.line(s, tuple(max(0, c - 50) for c in back), (P(x + dx * L), P(y - Hh * 0.7)),
+                             (P(x + dx * L), P(y + Hh * 0.1)), max(1, P(2 * k)))
+    elif mark == "plates":
+        for dx in (-0.25, -0.05, 0.15, 0.35):
+            poly(s, (225, 220, 200), [(x + dx * L - 3 * k, y - Hh * 0.6), (x + dx * L, y - Hh * 0.85),
+                                      (x + dx * L + 3 * k, y - Hh * 0.6)], 1)
+    hx = x + d * L * 0.48
+    if mark == "sword":
+        pygame.draw.line(s, OUT, (P(hx), P(y - 2 * k)), (P(hx + d * 30 * k), P(y - 4 * k)), max(3, P(4 * k)))
+        pygame.draw.line(s, (200, 210, 225), (P(hx), P(y - 2 * k)), (P(hx + d * 30 * k), P(y - 4 * k)), max(1, P(2 * k)))
+    if mark == "whiskers":
+        for dy in (-1, 3):
+            pygame.draw.line(s, OUT, (P(hx), P(y + dy * k)), (P(hx + d * 14 * k), P(y + (dy * 3 + 6) * k)), 1)
+    ex = x + d * L * 0.32
+    pygame.draw.circle(s, WHITE, (P(ex), P(y - 4 * k)), max(2, P(3.5 * k)))
+    pygame.draw.circle(s, OUT, (P(ex + d * 1 * k), P(y - 4 * k)), max(1, P(1.8 * k)))
+    pygame.draw.line(s, OUT, (P(ex - 3 * k), P(y - 9 * k)), (P(ex + d * 4 * k), P(y - 7 * k)), max(1, P(1.5 * k)))  # бровь
+    for n in range(3):                                            # зубки
+        zx = hx - d * (3 + n * 4) * k
+        poly(s, WHITE, [(zx - 1.5 * k, y + 2 * k), (zx + 1.5 * k, y + 2 * k), (zx, y + 5 * k)], 0)

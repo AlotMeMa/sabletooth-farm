@@ -55,6 +55,14 @@ class Farm:
         self.flour = 0.0
         self.bread = 0.0                    # готовый хлеб, ждёт сбора
         self.oven_load = 0.0                # мука в печи (текущая партия)
+        # 3.37: рыборазводня (Рыбацкая деревня). Номера с 1: 0 — «нет»
+        self.fy_species = 0                 # какая рыба в садке 1 (1..9 — участок пруда), 0 — пусто
+        self.fy_pop = 0.0                   # сколько рыб в садке 1
+        self.fy_lvl = 1                     # уровень садка 1 (вместимость FISH_POND_CAP)
+        self.fy_slots = 1                   # открыто мест в садке хищников
+        self.fy_type = [0] * FISH_SLOTS     # хищник на месте: 1..10 (PREDATORS), 0 — пусто
+        self.fy_eaten = [0.0] * FISH_SLOTS  # сколько рыбок съел
+        self.fy_value = [0.0] * FISH_SLOTS  # сколько он стоит (накоплено от съеденного)
         self.oven_prog = 0.0
         self.oven_wait = 0.0                # сколько печь ждёт муку на полную партию
         self.m_carry_t = 0.0
@@ -533,6 +541,7 @@ class Farm:
                 self.song = 0
         self._run_animals(dt, automation)
         self._run_mill(dt, automation)
+        self._run_fishery(dt)
 
         sp = self.growth_speed()
         rush = self.helper_rush()
@@ -611,7 +620,7 @@ class Farm:
     def run_total(self):
         """Заработок забега вместе с несобранным урожаем — его тоже забирает грузовик."""
         return (self.run_earned + self.total_stash() + sum(self.a_feed) + sum(self.a_store)
-                + self.hopper + self.flour + self.bread + self.oven_load)
+                + self.hopper + self.flour + self.bread + self.oven_load + sum(self.fy_value))
 
     def truck_mult(self):
         return 1 + 0.1 * self.up("truck")
@@ -667,6 +676,120 @@ class Farm:
         self.reset_run()
         return True
 
+    # ---------- 3.37: рыборазводня ----------
+    def has_fishery(self):
+        return self.farm_def().get("barn") == "fishery"
+
+    def fish_value(self, i):
+        """Ценность одной рыбки вида i (участок пруда) — FISH_FEED_SECONDS секунд дохода участка (без фестиваля)."""
+        if self.levels[i] <= 0:
+            return 0.0
+        return self.income_per_sec(i, with_rain=False) * FISH_FEED_SECONDS
+
+    def fish_cap(self):
+        return FISH_POND_CAP[min(self.fy_lvl, len(FISH_POND_CAP)) - 1]
+
+    def fish_stock_cost(self, i):
+        return self.fish_value(i) * FISH_STOCK * FISH_STOCK_PRICE
+
+    def can_stock(self, i):
+        return self.has_fishery() and self.levels[i] > 0 and self.money >= self.fish_stock_cost(i) and (
+            self.fy_species != i + 1 or self.fy_pop < self.fish_cap())
+
+    def stock_fish(self, i):
+        """Запустить стайку рыбы вида i. Другой вид — садок перезапускается (старые рыбки уплывают на волю)."""
+        if not self.can_stock(i):
+            return False
+        self.money -= self.fish_stock_cost(i)
+        if self.fy_species != i + 1:
+            self.fy_species, self.fy_pop = i + 1, 0.0
+        self.fy_pop = min(float(self.fish_cap()), self.fy_pop + FISH_STOCK)
+        return True
+
+    def fish_pond_cost(self):
+        if self.fy_lvl >= len(FISH_POND_CAP):
+            return None
+        return FISH_POND_COST * FISH_POND_STEP ** (self.fy_lvl - 1) * self.price_mult
+
+    def upgrade_fish_pond(self):
+        cost = self.fish_pond_cost()
+        if cost is None or self.money < cost:
+            return False
+        self.money -= cost
+        self.fy_lvl += 1
+        return True
+
+    def fish_slot_cost(self):
+        if self.fy_slots >= FISH_SLOTS:
+            return None
+        return FISH_SLOT_COST[self.fy_slots] * self.price_mult
+
+    def buy_fish_slot(self):
+        cost = self.fish_slot_cost()
+        if cost is None or self.money < cost:
+            return False
+        self.money -= cost
+        self.fy_slots += 1
+        return True
+
+    def predator_cost(self, t):
+        return PREDATORS[t]["cost"] * self.price_mult
+
+    def buy_predator(self, slot, t):
+        if not self.has_fishery() or slot >= self.fy_slots or self.fy_type[slot] or self.money < self.predator_cost(t):
+            return False
+        self.money -= self.predator_cost(t)
+        self.fy_type[slot], self.fy_eaten[slot], self.fy_value[slot] = t + 1, 0.0, 0.0
+        return True
+
+    def predator(self, slot):
+        t = self.fy_type[slot]
+        return PREDATORS[t - 1] if t else None
+
+    def predator_full(self, slot):
+        p = self.predator(slot)
+        return p is not None and self.fy_eaten[slot] >= p["fish"] - 1e-6
+
+    def predator_kg(self, slot):
+        p = self.predator(slot)
+        if p is None:
+            return 0.0
+        return p["kg"] * (0.08 + 0.92 * min(1.0, self.fy_eaten[slot] / p["fish"]))   # малёк весит 8% полного
+
+    def catch_predator(self, slot):
+        """Вылов: хищник продаётся за накопленную цену (в 3.38 — после мини-игры). Возвращает (деньги, вид)."""
+        p = self.predator(slot)
+        if p is None or self.fy_eaten[slot] <= 0:
+            return None
+        amt = self.fy_value[slot]
+        self.earn(amt)
+        self.fy_type[slot], self.fy_eaten[slot], self.fy_value[slot] = 0, 0.0, 0.0
+        return amt, p
+
+    def fish_floor(self):
+        """Маточное стадо: хищники не трогают половину садка — там нерест быстрее всего (логистика пикует на K/2)."""
+        return max(FISH_KEEP, self.fish_cap() * FISH_HERD)
+
+    def _run_fishery(self, dt):
+        if not self.fy_species or not self.has_fishery():
+            return
+        i = self.fy_species - 1
+        cap = self.fish_cap()
+        if self.fy_pop > 0:                                         # икра -> мальки: логистический рост
+            self.fy_pop = min(float(cap), self.fy_pop + FISH_BREED * self.fy_pop * (1 - self.fy_pop / cap) * dt)
+        v = self.fish_value(i)
+        floor = self.fish_floor()
+        for s in range(self.fy_slots):
+            p = self.predator(s)
+            if p is None or self.predator_full(s):
+                continue
+            eat = min(FISH_EAT * dt, max(0.0, self.fy_pop - floor), p["fish"] - self.fy_eaten[s])
+            if eat <= 0:
+                continue
+            self.fy_pop -= eat
+            self.fy_eaten[s] += eat
+            self.fy_value[s] += eat * v * p["ratio"]
+
     # ---------- офлайн ----------
     def offline_cap(self):
         return OFFLINE_CAP + 7200 * self.up("offline")
@@ -692,7 +815,8 @@ class Farm:
               "boost_left", "song", "song_left", "lucky_left", "clover_left",
               "money", "run_earned", "levels", "fert", "farmers", "progress", "ready", "stash",
               "a_levels", "a_feed", "a_prog", "a_store", "a_keeper",
-              "peasants", "m_levels", "m_workers", "hopper", "flour", "bread", "oven_load", "oven_prog"]
+              "peasants", "m_levels", "m_workers", "hopper", "flour", "bread", "oven_load", "oven_prog",
+              "fy_species", "fy_pop", "fy_lvl", "fy_slots", "fy_type", "fy_eaten", "fy_value"]
 
     def to_dict(self):
         return {k: getattr(self, k) for k in self.FIELDS}
@@ -750,6 +874,17 @@ class Farm:
         self.m_levels = [min(MILL_MAX_LVL, x) for x in self.m_levels]
         self.m_workers = [min(w, lvl) for w, lvl in zip(self.m_workers, self.m_levels)]
         self.a_keeper = [k and lvl > 0 for k, lvl in zip(self.a_keeper, self.a_levels)]
+        # 3.37: рыборазводня — номера в своих границах
+        self.fy_species = min(self.fy_species, N_CROPS)
+        self.fy_lvl = max(1, min(self.fy_lvl, len(FISH_POND_CAP)))
+        self.fy_slots = max(1, min(self.fy_slots, FISH_SLOTS))
+        self.fy_pop = min(self.fy_pop, float(self.fish_cap()))
+        self.fy_type = [t if t <= len(PREDATORS) else 0 for t in self.fy_type]
+        for s in range(FISH_SLOTS):
+            p = self.predator(s)
+            self.fy_eaten[s] = min(self.fy_eaten[s], p["fish"]) if p else 0.0
+            if not p:
+                self.fy_value[s] = 0.0
         if self.farm_def()["peasants"]:                     # крестьян занято не больше, чем нанято
             self.peasants = max(self.peasants, PEASANT_START)   # сверху не режем: «Крепостные» дают крестьян сверх найма
             for b in (1, 0):

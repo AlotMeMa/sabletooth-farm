@@ -14,3 +14,17 @@ A.view = "field"; A.open_modal("tree"); A.skip_anims(); frames(30); snap("fi_tre
 A.modal = None; f.rain_cd = 0; A.click_rain(); A.toasts.clear(); frames(90); snap("fi_fest")
 A.modal = None; A.open_modal("shop"); A.shop_tab = "farm"; A.skip_anims(); frames(30); snap("fi_shop")
 A.modal = None
+# 3.37: рыборазводня
+f.levels = [60, 40, 30, 25, 25, 25, 12, 10, 5]
+A.view = "barn"; A.toasts.clear(); frames(10); snap("fy_empty")
+f.money = 1e15
+A.fy_pick = 4; A.fy_stock(4); A.fy_buy_slot(); A.fy_buy_slot()
+A.fy_pred_pick[0] = 0; A.fy_buy_pred(0)
+A.fy_pred_pick[1] = 4; A.fy_buy_pred(1)
+for _ in range(60):
+    f.update(1.0)
+A.toasts.clear(); frames(20); snap("fy_running")
+for _ in range(400):
+    f.update(1.0)
+A.toasts.clear(); frames(20); snap("fy_full")
+A.fy_catch(0); frames(20); snap("fy_caught")

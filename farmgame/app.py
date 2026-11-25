@@ -22,6 +22,7 @@ from .hud_ui import HudUI
 from .widgets_ui import WidgetsUI
 from .screen_ui import ScreenUI
 from .achievements_ui import AchievementsUI
+from .fishery_ui import FisheryUI
 
 
 def hd_from_args():
@@ -58,7 +59,7 @@ def saved_hd_mode():
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
 class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, BlackjackUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
-          ScreenUI, AchievementsUI):
+          ScreenUI, AchievementsUI, FisheryUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
         # Подсказка SDL должна стоять ДО создания окна. Уже заданную снаружи не трогаем.
@@ -146,6 +147,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.init_tavern()
         self.init_move_map()           # 3.23: карта глав в окне «Переезд»
         self.init_mill()
+        self.fishery_init()            # 3.37: рыборазводня (Рыбацкая деревня)
         self.init_tutorial()
         self.init_casino()
         self.init_gameroom()          # 3.27: Игровая — карта игр и колесо фортуны

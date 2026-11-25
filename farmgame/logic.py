@@ -79,7 +79,14 @@ class Farm:
     def tree_cost(self, node_id):
         node = self.nodes()[node_id]
         lvl = self.up(node_id)
-        return node["costs"][lvl] if lvl < len(node["costs"]) else None
+        if lvl >= len(node["costs"]):
+            return None
+        return int(round(node["costs"][lvl] * self.tree_inflation(node_id)))
+
+    def tree_inflation(self, node_id=None):
+        """3.31: во сколько раз подорожало улучшение — по уровням, купленным в ДРУГИХ улучшениях дерева."""
+        others = sum(v for k, v in self.tree.items() if k != node_id and k in self.nodes())
+        return (1 + TREE_INFLATION) ** others
 
     def tree_available(self, node_id):
         prev = self.nodes()[node_id]["prev"]

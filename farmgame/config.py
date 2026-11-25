@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.30"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.31"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -45,6 +45,9 @@ LEAF_UNIT = 1_000_000_000
 LEAF_FACTOR = 10
 LEAF_BONUS = 0.02      # +2% дохода за каждый лист
 TRUCK_MIN_LEAVES = 5   # грузовик приезжает, когда можно получить хотя бы столько
+# 3.31: дерево дорожает. Каждый купленный уровень поднимает цену всех ДРУГИХ улучшений этого дерева
+# на TREE_INFLATION (сложный процент): всё дерево не купить — надо думать, что брать первым.
+TREE_INFLATION = 0.10
 
 RAIN_TIME, RAIN_COOLDOWN, RAIN_SPEED = 60.0, 240.0, 2.0
 SUN_COOLDOWN, SUN_SECONDS, SUN_MIN = 180.0, 60.0, 25.0

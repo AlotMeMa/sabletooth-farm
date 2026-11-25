@@ -179,7 +179,11 @@ class WindowsUI:
         if self.tree_sel not in TREE_NODES:     # выбранное улучшение осталось от дерева прошлой фермы (после переезда)
             self.tree_sel = None
         if self.tree_sel is None:
-            draw_text(s, "Нажми на улучшение, чтобы узнать, что оно даёт", 16, info.center, soft, outline=None)
+            draw_text(s, "Нажми на улучшение, чтобы узнать, что оно даёт", 16, (info.centerx, info.centery - 12), soft,
+                      outline=None)
+            draw_text_fit(s, f"Каждая покупка поднимает цену всех других улучшений на {round(TREE_INFLATION * 100)}% — "
+                             "выбирай, что брать первым", 14, (info.centerx, info.centery + 16), info.w - 30, brown,
+                          outline=None)
             return
         node = TREE_NODES[self.tree_sel]
         nid = node["id"]
@@ -200,6 +204,10 @@ class WindowsUI:
             draw_text(s, f"«{need}»", 14, (info.right - 16, info.y + 58), (190, 80, 70), anchor="midright", outline=None)
             return
         ok = f.leaves >= cost
+        infl = f.tree_inflation(nid)
+        if infl > 1.005:   # 3.31: видно, насколько подорожало из-за других покупок
+            draw_text_fit(s, f"дороже в x{infl:.2f} из-за других улучшений", 12, (b.centerx, info.y + 12), b.w + 12,
+                          (190, 80, 70), outline=None)
         rounded(s, BTN_GREEN if ok else BTN_GREY, b, 10, 3)
         draw_text(s, f"Купить: {cost}", 18, (b.centerx - 12, b.centery))
         draw_cur_icon(s, b.right - 26, b.centery, 0.55)
@@ -214,7 +222,7 @@ class WindowsUI:
         if self.farm.buy_tree(nid):
             self.quest("tree")
             self.sfx.play("levelup")
-            self.toast(f"Улучшено: {TREE_NODES[nid]['name']}!", 2)
+            self.toast(f"Улучшено: {TREE_NODES[nid]['name']}! Остальное подорожало на {round(TREE_INFLATION * 100)}%", 2.5)
             if nid in ("sq_often",):
                 self.squirrel_timer = min(self.squirrel_timer, self.squirrel_delay())
             if nid in ("scarecrow",):

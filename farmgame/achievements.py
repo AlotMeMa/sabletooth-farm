@@ -81,7 +81,7 @@ def value(a, farm, tavern):
     if st == "truck":            # продажи до 3.34 тоже считаются
         return max(tavern.stats.get(st, 0), farm.prestiges)
     if st == "final_run":        # доля порога переезда за текущий забег на последней открытой главе (3-й и дальше)
-        if farm.farm_index < 2 or farm.has_next_farm():
+        if farm.farm_def()["id"] != "winter":     # 3.36: именно зима (после неё уже есть Рыбацкая деревня)
             return tavern.stats.get(st, 0)
         if farm.run_total() >= farm.move_threshold():
             tavern.stats[st] = 1

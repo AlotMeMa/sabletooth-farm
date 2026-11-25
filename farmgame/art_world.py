@@ -371,7 +371,7 @@ def draw_gnome_shaman_walk(s, x, y, k=1.0, t=0.0, flip=False, n=0):
 def draw_helper_head(s, x, y, k=1.0):
     """Значок помощника-артели текущей фермы: крестьянин или гном."""
     hp = HELPERS.get(FARMS[min(FARM_INDEX[0], len(FARMS) - 1)].get("helpers", "peasants"), HELPERS["peasants"])
-    (draw_gnome_head if hp["icon"] == "gnome" else draw_peasant_head)(s, x, y, k)
+    {"gnome": draw_gnome_head, "fisherman": draw_fisherman_head}.get(hp["icon"], draw_peasant_head)(s, x, y, k)
 
 
 def draw_bandit(s, x, y, d, t=0.0, sack=0.0, running=False, pose=None):
@@ -425,6 +425,8 @@ def draw_barn(s):
 
 
 def draw_squirrel(s, x, y, d, hop=0.0, golden=False, t=0.0, sx=1.0, sy=1.0, angle=0.0, alpha=None, pivot="midbottom"):
+    if THEME.get("critter") == "crab":              # 3.36: в Рыбацкой деревне вместо белки — краб
+        return draw_crab(s, x, y, d, hop, golden, t, sx, sy, angle, alpha, pivot)
     """Белка. (x, y) — точка на земле, d = 1 смотрит вправо, -1 влево.
     sx, sy, angle — сплющить/вытянуть и наклонить (3.3: прыжки дугами, кувырок при поимке)."""
     if blit_tf(s, "creatures/squirrel_golden" if golden else "creatures/squirrel", x, y - hop, 1, flip=d < 0,
@@ -462,6 +464,8 @@ def draw_squirrel(s, x, y, d, hop=0.0, golden=False, t=0.0, sx=1.0, sy=1.0, angl
 
 
 def draw_crow(s, x, y, d, t=0.0, flying=False, peck=0.0, k=1.4, wings_up=True, sx=1.0, sy=1.0, angle=0.0):
+    if THEME.get("pest") == "gull":                 # 3.36: в Рыбацкой деревне вместо вороны — чайка
+        return draw_gull(s, x, y, d, t, flying, peck, k, wings_up, sx, sy, angle)
     """Ворона. (x, y) — точка под лапами, d = 1 смотрит вправо, k — масштаб.
     В полёте (3.3) крылья машут: wings_up — картинка crow_fly (крылья вверх), иначе crow (сложены)."""
     name = "creatures/crow_fly" if flying and wings_up else "creatures/crow"
@@ -730,6 +734,8 @@ PLANT_FUNCS = {
     "peas": plant_peas, "rye": plant_rye, "barley": plant_barley, "spelt": plant_spelt,
     "flax": plant_flax, "hops": plant_hops, "grapes": plant_grapes,
 }
+from .art_fishing import FISH_PLANTS, draw_crab, draw_gull, draw_fisherman_head   # noqa: E402  3.36
+PLANT_FUNCS.update(FISH_PLANTS)
 
 
 def apply_farm(idx):

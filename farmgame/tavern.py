@@ -294,10 +294,18 @@ class Tavern:
         from .config import HELPERS
         forms = HELPERS.get(fm.get("helpers"), {}).get("plural")
 
+        theme = fm.get("theme") or {}
+        swap = {}
+        if theme.get("critter") == "crab":         # 3.36: в Рыбацкой деревне белку заменяет краб, ворону — чайка
+            swap[("белку", "белки", "белок")] = ("краба", "краба", "крабов")
+        if theme.get("pest") == "gull":
+            swap[("ворону", "вороны", "ворон")] = ("чайку", "чайки", "чаек")
+
         def word(m):                       # 3.25: «крестьян» на зимнем поле — «гномов»
             g = m.groups()
             if forms and g == HELPERS["peasants"]["plural"]:
                 g = forms
+            g = swap.get(g, g)
             return f"{n} {plural(n, *g)}"
         text = re.sub(r"\{n\|([^|}]*)\|([^|}]*)\|([^|}]*)\}", word, tpl["text"])
         return text.format(n=n, weather=_weather_verb(fm), buyer=_buyer_dat(fm))
@@ -529,8 +537,10 @@ def _clean_quest(q, weekly=False):
 def _weather_verb(fm):
     w = fm.get("weather", "Дождь")
     return {"Дождь": "Вызови дождь", "Праздник урожая": "Устрой праздник урожая",
-            "Гномье пришествие": "Призови гномов"}.get(w, "Вызови " + w.lower())
+            "Гномье пришествие": "Призови гномов",
+            "Рыбацкий фестиваль": "Устрой рыбацкий фестиваль"}.get(w, "Вызови " + w.lower())
 
 
 def _buyer_dat(fm):
-    return {"скупщик": "скупщику", "сборщик податей": "сборщику податей"}.get(fm.get("buyer", ""), fm.get("buyer", ""))
+    return {"скупщик": "скупщику", "сборщик податей": "сборщику податей", "каюр": "каюру",
+            "рыботорговец": "рыботорговцу"}.get(fm.get("buyer", ""), fm.get("buyer", ""))

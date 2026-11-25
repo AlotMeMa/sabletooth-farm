@@ -352,10 +352,15 @@ class FieldUI:
         cx, cy = crop_center(k)
         right = k % 2 == 0
         x, y = cx + (64 if right else -64), cy + 14
-        if k not in self.rush_popped:                 # выскочил — облачко снега
+        fisher = self.farm_info().get("helpers") == "fishermen"     # 3.36: на фестивале — рыбаки с удочками
+        if k not in self.rush_popped:                 # выскочил — облачко снега (у рыбака — брызги)
             self.rush_popped.add(k)
-            self.fx.dust(x, y - 4, n=6, color=(245, 250, 255), size=(5, 9), spread=12, up=20, drift=20, alpha=220,
-                         life=(0.35, 0.6))
+            self.fx.dust(x, y - 4, n=6, color=(200, 225, 240) if fisher else (245, 250, 255), size=(5, 9), spread=12,
+                         up=20, drift=20, alpha=220, life=(0.35, 0.6))
+        if fisher:
+            from .art_fishing import draw_fisher
+            draw_fisher(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
+            return
         draw_gnome_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
 
     def draw_shamans(self):
@@ -370,6 +375,10 @@ class FieldUI:
             go = 1.0 - anim.ease_out_cubic(min(1.0, max(0.0, left / self.RUSH_OUT)))      # 0 → 1 в последние секунды
             off = (1.0 - come + go) * (W + 40 - sx)
             x, t = sx + off, self.t_real + n * 1.3
+            if self.farm_info().get("helpers") == "fishermen":   # 3.36: на фестивале пляшут рыбаки с уловом
+                from .art_fishing import draw_fisher
+                draw_fisher(self.screen, x, sy, 1.6, t, flip=n == 1 if off <= 1.0 else go > 0, cheer=off <= 1.0, n=n)
+                continue
             if off > 1.0:                                   # идёт: семенит, смотрит куда идёт
                 hop = abs(math.sin(t * 9)) * 3
                 draw_gnome_shaman_walk(self.screen, x, sy - hop, 1.6, t, flip=go > 0, n=n)
@@ -383,7 +392,8 @@ class FieldUI:
     def draw_festival_button(self, kind="festival"):
         """Кнопка погоды: «Праздник урожая» рядом с замком (средневековье) или «Гномье пришествие» (зима, 3.26)."""
         s, f = self.screen, self.farm
-        gnomes = kind == "shaman"
+        gnomes = kind in ("shaman", "fishfest")       # 3.36: фестиваль — на месте кнопки пришествия
+        fishfest = kind == "fishfest"
         rect = pygame.Rect(self.SHAMAN_RECT if gnomes else self.FESTIVAL_RECT)
         active = f.rain_left > 0
         ready = not active and f.rain_cd <= 0
@@ -409,21 +419,30 @@ class FieldUI:
             poly(s, (110, 70, 150), [(hx - 8, hy + 4), (hx + 8, hy + 4), (hx + 2, hy - 14)], 2)
             pygame.draw.circle(s, WHITE, (hx + 2, hy - 15), 3)
 
-        name = "shaman" if gnomes else "festival"
-        glow = (215, 190, 255) if gnomes else (255, 235, 150)
+        def fishbell(r):   # 3.36: рыба на верёвке с флажками (если нет картинки ui/btn_fishfest)
+            from .art_fishing import draw_fish
+            for n, c in enumerate(((230, 80, 70), (250, 200, 70), (90, 160, 220))):
+                poly(s, c, [(r.x + 10 + n * 14, r.y + 12), (r.x + 22 + n * 14, r.y + 12), (r.x + 16 + n * 14, r.y + 22)], 1)
+            draw_fish(s, r.centerx, r.centery + 20, 1.3, "salmon", 0.5)
+
+        name = "fishfest" if fishfest else ("shaman" if gnomes else "festival")
+        glow = (170, 215, 245) if fishfest else ((215, 190, 255) if gnomes else (255, 235, 150))
         if ready and not has_sprite(f"ui/btn_{name}"):
             pulse = 1 + 0.06 * math.sin(self.t * 5)
             pygame.draw.circle(s, glow, rect.center, P(40 * pulse))
-        self.icon_button(rect, name, tambourine if gnomes else sheaf, self.click_rain, active=active or ready)
+        self.icon_button(rect, name, fishbell if fishfest else (tambourine if gnomes else sheaf), self.click_rain,
+                         active=active or ready)
         below = rect.bottom + 14
         if active:
-            draw_text(s, f"{'Пришествие' if gnomes else 'Праздник'}! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15,
+            word = "Фестиваль" if fishfest else ("Пришествие" if gnomes else "Праздник")
+            draw_text(s, f"{word}! x{f.growth_speed():g}  " + fmt_time(f.rain_left), 15,
                       (rect.centerx, below), glow)
         elif f.rain_cd > 0:
             draw_text(s, fmt_time(f.rain_cd), 16, (rect.centerx, below))
         else:
             c = (255, 255, 255) if int(self.t * 2) % 2 else glow
-            draw_text(s, "Призвать гномов!" if gnomes else "Праздник урожая!", 15, (rect.centerx, below), c)
+            draw_text(s, "Рыбацкий фестиваль!" if fishfest else ("Призвать гномов!" if gnomes else "Праздник урожая!"),
+                      15, (rect.centerx, below), c)
 
     def draw_vehicle(self, x, y, color, cargo=False, bob=0.0, tier=0, angle=0.0, sy=1.0):
         draw_vehicle_at(self.screen, self.farm_info()["vehicle"], tier, x, y, color, cargo, bob, angle, sy)
@@ -432,7 +451,7 @@ class FieldUI:
         """Покачивание машины -> (подскок, наклон°, sy). Едет — трясётся на кочках; остановилась — клюёт носом
         и покачивается на рессорах; трогается — приседает на зад; стоит — еле заметно «дышит» мотором."""
         t, e = self.t, self.t - self.truck_t
-        cart = self.farm_info()["vehicle"] in ("cart", "sled")     # упряжка качается, как телега
+        cart = self.farm_info()["vehicle"] in ("cart", "sled", "fishcart")     # упряжка и повозка качаются, как телега
         if self.truck_state == "parked":
             spring = math.exp(-5 * e) * math.cos(10 * e) if e < 1.2 else 0.0
             idle = 0.004 * math.sin(t * (2.2 if cart else 3.1))

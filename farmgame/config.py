@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.35"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.36"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -418,7 +418,54 @@ def _winter_tree():
 
 
 TREE_WINTER = _winter_tree()
-TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL, "winter": TREE_WINTER}
+FISH_FEST = "Рыбацкий фестиваль"    # 3.36: «погода» Рыбацкой деревни — как Гномье пришествие, только рыбаки
+
+
+def _fishing_tree():
+    """3.36: Рыбацкое дерево (решения пользователя 25.11): рыбаки — артель, вместо вороны чайки, вместо белки краб,
+    вместо дождя — Рыбацкий фестиваль. Цены и сила — как у других деревьев."""
+    return [
+        ("Улов", [
+            dict(id="capital", name="Рыбацкая казна", costs=[3, 10, 30, 90, 270],
+                 eff=lambda l: f"забег начинается с ${fmt(start_money(l))}"),
+            dict(id="serfs", name="Рыбацкая артель", costs=[4, 12, 36, 108, 324],
+                 eff=lambda l: f"бесплатных рыбаков в начале: {PEASANT_START + l}"),
+            dict(id="lucky", name="Клёвый день", costs=[8, 24, 72, 216, 648],
+                 eff=lambda l: f"{2 * l}% шанс вытащить гигантский улов x10"),
+            dict(id="fertile", name="Большая вода", costs=[20, 80, 320, 1280, 5120],
+                 eff=lambda l: f"весь доход x{2 ** l}"),
+        ]),
+        (FISH_FEST, [
+            dict(id="rain_len", name="Долгий фестиваль", costs=[3, 9, 27],
+                 eff=lambda l: f"фестиваль идёт {_rain_time(l):.0f} с"),
+            dict(id="rain_cd", name="Рыбацкий колокол", costs=[5, 15, 45],
+                 eff=lambda l: f"новый фестиваль через {fmt_time(_rain_cd(l))}"),
+            dict(id="rain_power", name="Свежий ветер", costs=[30, 120],
+                 eff=lambda l: f"на фестивале всё клюёт x{_rain_speed(l):g}"),
+            dict(id="sun", name="Морское солнце", costs=[6, 18, 54],
+                 eff=lambda l: f"солнце даёт {SUN_SECONDS + 30 * l:g} с дохода"),
+        ]),
+        ("Берег", [
+            dict(id="sq_often", name="Наживка для крабов", costs=[4, 12, 36],
+                 eff=lambda l: f"краб раз в {SQUIRREL_MIN * 0.9 ** l / 60:.1f}-{SQUIRREL_MAX * 0.9 ** l / 60:.1f} мин"),
+            dict(id="sq_sit", name="Ленивые крабы", costs=[8, 24],
+                 eff=lambda l: f"краб сидит {SQUIRREL_SIT + l:g} с (золотой {GOLDEN_SIT + l:g} с)"),
+            dict(id="golden", name="Золотые раковины", costs=[10, 30, 90, 270],
+                 eff=lambda l: f"золотой краб в {round((GOLDEN_CHANCE + 0.04 * l) * 100)}% случаев"),
+            dict(id="scarecrow", name="Чучело на мачте", costs=[6, 18, 54],
+                 eff=lambda l: f"чайка раз в {CROW_MIN * 1.5 ** l / 60:.1f}-{CROW_MAX * 1.5 ** l / 60:.1f} мин"),
+        ]),
+        ("Повозка", [
+            dict(id="offline", name="Коптильня", costs=[3, 6, 12, 24, 48],
+                 eff=lambda l: f"улов копится офлайн до {(OFFLINE_CAP + 7200 * l) // 3600} ч"),
+            dict(id="truck", name="Щедрый рыботорговец", costs=[15, 45, 135, 405, 1215],
+                 eff=lambda l: f"крючков от повозки +{10 * l}%"),
+        ]),
+    ]
+
+
+TREE_FISHING = _fishing_tree()
+TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL, "winter": TREE_WINTER, "fishing": TREE_FISHING}
 TREE_NODE_MAP = {key: _index_tree(t) for key, t in TREES.items()}
 TREE = list(TREE_SUMMER)                      # дерево текущей фермы (переключает apply_farm)
 TREE_NODES = dict(TREE_NODE_MAP["summer"])
@@ -446,12 +493,21 @@ THEME_WINTER = dict(ground=(228, 238, 250), ground2=(244, 249, 255), path=(205, 
                     path2=(216, 229, 242), tree=(70, 130, 125), tree_light=(245, 250, 255), bush=(95, 145, 145),
                     bush_light=(245, 250, 255), tuft=(150, 180, 195), stone=(190, 200, 215),
                     soil=(196, 150, 128), soil_dark=(170, 125, 105), soil_side=(140, 98, 82), snow=True)
+# 3.36: Рыбацкая деревня — мокро, серо-сине: трава в мороси, мостки, вода. pond — поле из прудов с сетками,
+# critter — кто бегает вместо белки, pest — кто садится вместо вороны
+THEME_FISHING = dict(ground=(122, 148, 140), ground2=(134, 160, 152), path=(150, 128, 102), path_edge=(122, 102, 82),
+                     path2=(160, 138, 110), tree=(66, 98, 94), tree_light=(92, 124, 120), bush=(78, 108, 104),
+                     bush_light=(104, 134, 130), tuft=(92, 120, 112), stone=(150, 158, 166),
+                     soil=(86, 128, 156), soil_dark=(64, 100, 130), soil_side=(110, 86, 64), snow=False,
+                     pond=True, critter="crab", pest="gull")
 CURRENCIES = {
     "leaf": dict(icon="leaf", title="Листья", gen="листьев", one="лист", tree="ДЕРЕВО ЛИСТЬЕВ"),
     "seal": dict(icon="seal", title="Печати", gen="печатей", one="печать", tree="ПРИВИЛЕГИИ КОРОЛЯ"),
     # 3.24: зима — голубые листочки и Зимнее дерево (решение пользователя 24.11)
     "frost": dict(icon="frostleaf", title="Голубые листочки", gen="голубых листочков", one="голубой листочек",
                   tree="ЗИМНЕЕ ДЕРЕВО", short="Листочки"),   # short — подпись кнопки внизу (полное не влезает)
+    # 3.36: Рыбацкая деревня — крючки и Рыбацкое дерево (решение пользователя 25.11)
+    "hook": dict(icon="hook", title="Крючки", gen="крючков", one="крючок", tree="РЫБАЦКОЕ ДЕРЕВО"),
 }
 _SUMMER_BUYER = dict(buyer="скупщик", buyer_cap="Скупщик", arrive="Би-би! Приехал скупщик урожая!",
                      tiers=["Пикап скупщика", "Грузовик скупщика", "Золотая фура"], vehicle="truck")
@@ -461,8 +517,10 @@ HELPERS = {
                      plural=("крестьянина", "крестьянина", "крестьян")),
     "gnomes": dict(title="Гномы", gen="гномов", one="гном", acc="гнома", icon="gnome",
                    plural=("гнома", "гнома", "гномов")),
+    "fishermen": dict(title="Рыбаки", gen="рыбаков", one="рыбак", acc="рыбака", icon="fisherman",    # 3.36
+                      plural=("рыбака", "рыбака", "рыбаков")),
 }
-WEATHER_BUTTON = {"Праздник урожая": "festival", GNOME_RUSH: "shaman"}   # погода кнопкой (не тучкой): имя кнопки
+WEATHER_BUTTON = {"Праздник урожая": "festival", GNOME_RUSH: "shaman", FISH_FEST: "fishfest"}   # погода кнопкой (не тучкой): имя кнопки
 # 3.26: «Гномье пришествие» — из леса выходят ещё гномы и работают на ВСЕХ грядках (и без своего гнома),
 # а на лужайке справа гномы-шаманы пляшут с бубнами. Кнопка — ui/btn_shaman, гномы — characters/gnome_*.
 SHAMAN_SPOTS = [(862, 372), (936, 418)]    # где пляшут шаманы (лужайка справа от поля, логические координаты)
@@ -494,9 +552,22 @@ FARMS = [
          # rush_helpers: пока оно идёт, все грядки работают сами, будто на каждой стоит гном
          theme=THEME_WINTER, weather=GNOME_RUSH, rush_helpers=True, crow=False, frost=True, bandits=False, peasants=True,
          helpers="gnomes", barn="animals", animals="winter", tree="winter", cur="frost", ready=True,
-         trophy=dict(name="Снежинка", text="(для следующей главы)"),
+         trophy=dict(name="Снежинка", text="в мини-игре вылова рыба мечется на 20% медленнее"),   # 3.36
          buyer="каюр", buyer_cap="Каюр", arrive="Гав-гав! Примчалась собачья упряжка!",
          tiers=["Упряжка из трёх лаек", "Упряжка из шести лаек", "Королевская упряжка"], vehicle="sled"),
+    # 4-я глава (решения пользователя 25.11 вечером): Рыбацкая деревня. Поле — пруд из 9 участков за сетками
+    # (закрытые — болото), рыбы вместо овощей, рыбаки — артель, солнце остаётся, вместо дождя — Рыбацкий
+    # фестиваль (как гномье пришествие), вместо вороны — чайки, вместо белки — краб; вместо сарая — рыборазводня
+    # (3.37: садок с икрой и садок с хищниками, 3.38: вылов мини-игрой); за уловом приезжает повозка с рыбой;
+    # валюта — крючки, своё Рыбацкое дерево. Здесь открываются скачки улиток (3.39). Пока закрыта.
+    dict(id="fishing", name="Рыбацкая деревня",
+         names=["Плотва", "Карась", "Окунь", "Лещ", "Карп", "Форель", "Лосось", "Кои", "Золотая рыбка"],
+         plants=["roach", "crucian", "perch", "bream", "carp", "trout", "salmon", "koi", "goldfish"],
+         theme=THEME_FISHING, weather=FISH_FEST, rush_helpers=True, crow=True, frost=False, bandits=False,
+         peasants=True, helpers="fishermen", barn="fishery", tree="fishing", cur="hook", ready=False,
+         trophy=dict(name="Золотой крючок", text="(для следующей главы)"),
+         buyer="рыботорговец", buyer_cap="Рыботорговец", arrive="Свежая рыба! Приехала повозка рыботорговца!",
+         tiers=["Тележка с бочкой", "Повозка с рыбой", "Королевский обоз"], vehicle="fishcart"),
 ]
 THEME = dict(THEME_SUMMER)
 CUR = dict(CURRENCIES["leaf"])

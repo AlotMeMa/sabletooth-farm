@@ -25,6 +25,8 @@ class WinterData(unittest.TestCase):
         with open(os.path.join(helpers.ROOT, "farmgame", "art_world.py"), encoding="utf-8") as f:
             art = f.read()
         known = set(re.findall(r'"(\w+)": plant_\w+', art))
+        with open(os.path.join(helpers.ROOT, "farmgame", "art_fishing.py"), encoding="utf-8") as f:
+            known |= set(re.findall(r'^    "(\w+)": \(\(', f.read(), re.M))      # 3.36: рыбы Рыбацкой деревни
         for fm in cfg.FARMS:
             for key in fm["plants"]:
                 self.assertIn(key, known, f"{fm['id']}: нет рисунка кодом для {key}")

@@ -82,6 +82,10 @@ PRIZE3_SHEET_ORDER = ["acorn", "seal_trophy", "crown", "snowflake", "golden_squi
                       "wreath", "lanterns", "rocking_chair"]
 PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubble_trail", "cards_gold", "cards_winter",
                       "_unused"]
+# 3.36: Рыбацкая деревня — мелочь одним листом 3×3 (assets/icons/fishing_sheet.png) и повозка 1×3 (полные имена)
+FISHING_SHEET_ORDER = ["creatures/crab", "creatures/crab_gold", "creatures/gull", "creatures/gull_fly", "icons/fisherman",
+                       "icons/hook", "ui/btn_fishfest", "characters/fisher_worker", "characters/fisher_dancer"]
+FISHCART_SHEET_ORDER = ["vehicles/fishcart_0", "vehicles/fishcart_1", "vehicles/fishcart_2"]
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
                       "characters/owl"]
@@ -104,6 +108,8 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/prizes_3": ("icons/prize_", PRIZE3_SHEET_ORDER, 3, 3),   # 3.33: трофеи и украшения
     "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
+    "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
+    "vehicles/fishcart_sheet": ("", FISHCART_SHEET_ORDER, 1, 3),    # 3.36: повозка рыботорговца, 3 уровня
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
@@ -247,7 +253,8 @@ def _fit_spec_base(name):
     if folder == "animals":
         return _spec(*_box(160, 130, 8, 4, 8, 4), "bottom")
     if folder == "creatures":
-        for key, size in (("squirrel", (90, 80)), ("crow", (90, 90)), ("bandit", (80, 90))):
+        for key, size in (("squirrel", (90, 80)), ("crow", (90, 90)), ("bandit", (80, 90)),
+                          ("crab", (90, 80)), ("gull", (90, 90))):       # 3.36: краб и чайка Рыбацкой деревни
             if last.startswith(key):
                 return _spec(*_box(size[0], size[1], 2, 2, 2, 2), "bottom")
         return None
@@ -265,6 +272,8 @@ def _fit_spec_base(name):
             return _spec(*_box(56, 68, 2, 2, 2, 0), "bottom")     # 3.27: крупнее (на поле — ×1.25)
         if last.startswith("gnome_shaman"):   # 3.26: гном-шаман с бубном над головой; 3.27: варианты _1, _2
             return _spec(*_box(90, 112, 2, 2, 2, 0), "bottom")    # 3.27: крупнее (на лужайке — ×1.6)
+        if last.startswith("fisher_"):     # 3.36: рыбак с удочкой (фестиваль) и рыбак-плясун с уловом
+            return _spec(*_box(90, 120, 2, 2, 2, 0), "bottom")
         if last == "dog":                  # 3.33: пёс Буян спит у камина (лежит боком)
             return _spec(*_box(220, 120, 2, 2, 2, 0), "bottom")
         if last == "owl":                  # 3.33: сова Ухта сидит на бочке в зале
@@ -278,7 +287,7 @@ def _fit_spec_base(name):
         if last.startswith("sled"):        # 3.26.2: упряжки 2 и 3 уровня длиннее (4 и 8 собак) — им шире место
             w, h = SLED_BOX.get(last.replace("_cargo", ""), (270, 124))
             return _spec(*_box(w, h, 4, 2, 4, 0), "bottom")
-        if last.startswith("cart"):
+        if last.startswith("cart") or last.startswith("fishcart"):     # 3.36: повозка рыботорговца
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
         return None
     if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):
@@ -333,7 +342,7 @@ def _fit_spec_base(name):
     if folder == "ui" and last == "cursor_hover":
         return _spec((40, 40), (0, 0, CURSOR_HOVER_SIZE, CURSOR_HOVER_SIZE), "topleft")
     if folder == "icons":
-        if last in ("peasant", "gnome"):       # 3.25: гном — значок помощника зимы
+        if last in ("peasant", "gnome", "fisherman"):       # 3.25: гном — значок помощника зимы
             s = 26
         elif last.startswith("prize_"):   # 3.14: призы казино
             s = 40

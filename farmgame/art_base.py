@@ -279,10 +279,25 @@ def draw_frostleaf_icon(surf, x, y, s=1.0):
     leaf(surf, x - 7 * s, y + 7 * s, 45, 19 * s, 11 * s, (70, 150, 220), vein=(40, 95, 160))
 
 
+def draw_hook_icon(surf, x, y, s=1.0):
+    """3.36: крючок — валюта Рыбацкой деревни."""
+    if blit_sprite(surf, "icons/hook", x, y, s, "center"):
+        return
+    pygame.draw.circle(surf, OUT, (P(x), P(y)), P(16 * s) + 2)
+    pygame.draw.circle(surf, (150, 190, 215), (P(x), P(y)), P(16 * s))
+    r = pygame.Rect(P(x - 8 * s), P(y - 2 * s), max(4, P(14 * s)), max(4, P(14 * s)))
+    pygame.draw.arc(surf, OUT, r, math.pi, 2 * math.pi + 0.2, max(3, P(4 * s)))
+    pygame.draw.arc(surf, (230, 232, 238), r, math.pi, 2 * math.pi + 0.2, max(1, P(2 * s)))
+    pygame.draw.line(surf, OUT, (P(x + 6 * s), P(y + 5 * s)), (P(x + 6 * s), P(y - 11 * s)), max(3, P(4 * s)))
+    pygame.draw.line(surf, (230, 232, 238), (P(x + 6 * s), P(y + 5 * s)), (P(x + 6 * s), P(y - 11 * s)), max(1, P(2 * s)))
+    pygame.draw.circle(surf, OUT, (P(x + 6 * s), P(y - 12 * s)), max(2, P(3 * s)), max(1, P(1.5 * s)))
+    poly(surf, (230, 232, 238), [(x - 8 * s, y + 5 * s), (x - 11 * s, y), (x - 5 * s, y + 2 * s)], 1)
+
+
 def draw_cur_icon(surf, x, y, s=1.0):
-    """Иконка валюты престижа текущей фермы (лист, печать или голубой листочек)."""
+    """Иконка валюты престижа текущей фермы (лист, печать, голубой листочек или крючок)."""
     icon = CUR.get("icon")
-    (draw_seal_icon if icon == "seal" else draw_frostleaf_icon if icon == "frostleaf" else draw_leaf_icon)(surf, x, y, s)
+    {"seal": draw_seal_icon, "frostleaf": draw_frostleaf_icon, "hook": draw_hook_icon}.get(icon, draw_leaf_icon)(surf, x, y, s)
 
 
 def draw_bar(surf, rect, frac, color=(255, 200, 40)):

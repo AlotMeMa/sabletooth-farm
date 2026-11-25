@@ -50,6 +50,10 @@ def tile_corners_at(cx, cy, shrink=0.92):
 def draw_soil_tile(s, cx, cy, locked):
     if blit_any(s, farm_names("tiles", "soil_locked" if locked else "soil"), cx, cy + 5, 1, "center"):
         return
+    if THEME.get("pond"):                           # 3.36: Рыбацкая деревня — пруд за сеткой / болото
+        from .art_fishing import draw_pond_tile
+        draw_pond_tile(s, cx, cy, locked, tile_corners_at(cx, cy))
+        return
     top, right, bottom, left = tile_corners_at(cx, cy)
     d = 10
     side = (150, 120, 95) if locked else THEME["soil_side"]
@@ -305,7 +309,7 @@ def draw_cloud_body(s, x, y, raining):
     face(s, x - 4, y + 4, 2.0)
 
 
-VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30}   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
+VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30, "fishcart": -30}   # 3.36: повозка рыботорговца   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
 VEHICLE_FAR = W + 400.0    # 3.26.2: откуда приезжает машина (за правым краем: длинная упряжка не «выскакивает»)
 VEHICLE_WIDTH = {"sled_1": 430, "sled_2": 430}   # 3.26.2: длинные упряжки (по умолчанию 270): сани на том же месте, собаки — левее
 
@@ -323,7 +327,10 @@ def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0
     names = ([f"vehicles/{vehicle}_{tier}_cargo"] if cargo else []) + [f"vehicles/{vehicle}_{tier}", f"vehicles/{vehicle}"]
     if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle] - vehicle_shift(vehicle, tier), y + 4 - bob, 1, sy=sy, angle=angle):
         return
-    (draw_cart if vehicle in ("cart", "sled") else draw_truck)(s, x, y, color, cargo, bob)   # упряжка: пока телегой
+    (draw_cart if vehicle in ("cart", "sled", "fishcart") else draw_truck)(s, x, y, color, cargo and vehicle != "fishcart", bob)
+    if vehicle == "fishcart" and cargo:              # 3.36: бочки и рыбьи хвосты над бортом
+        from .art_fishing import draw_fish_cargo
+        draw_fish_cargo(s, x, y - bob)
 
 
 def draw_cursor_template(s, hover=False):

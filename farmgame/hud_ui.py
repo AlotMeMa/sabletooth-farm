@@ -106,7 +106,10 @@ class HudUI:
 
         def barn_icon(r):
             x = r.x - 232
-            if self.farm_info()["barn"] == "mill":
+            if self.farm_info()["barn"] == "fishery":      # 3.36: рыборазводня — рыбка над садком
+                from .art_fishing import draw_fish
+                draw_fish(s, r.centerx, r.centery + 14, 1.15, "carp", 0.4 + 0.3 * math.sin(self.t * 3))
+            elif self.farm_info()["barn"] == "mill":
                 poly(s, (210, 195, 170), [(x + 253, 610), (x + 273, 610), (x + 269, 586), (x + 257, 586)], 2)
                 draw_mill_blades(s, x + 263, 584, self.t * 0.8, 20)
             else:
@@ -115,7 +118,11 @@ class HudUI:
 
         def move_icon(r):
             c = r.center
-            if FARMS[f.farm_index + 1]["peasants"]:   # башенка — следующая глава средневековая
+            nxt = FARMS[min(f.farm_index + 1, len(FARMS) - 1)]["id"]
+            if nxt == "fishing":                       # 3.36: рыбка — следующая глава Рыбацкая деревня
+                from .art_fishing import draw_fish
+                draw_fish(s, c[0], c[1] + 12, 1.3, "salmon", 0.5)
+            elif nxt == "medieval":                    # башенка — следующая глава средневековая
                 poly(s, (200, 195, 188), [(c[0] - 12, c[1] + 18), (c[0] + 12, c[1] + 18), (c[0] + 12, c[1] - 10), (c[0] - 12, c[1] - 10)], 2)
                 for dx in (-12, -2, 8):
                     poly(s, (200, 195, 188), [(c[0] + dx, c[1] - 10), (c[0] + dx + 5, c[1] - 10), (c[0] + dx + 5, c[1] - 16), (c[0] + dx, c[1] - 16)], 2)
@@ -140,11 +147,13 @@ class HudUI:
         self.icon_button(pygame.Rect(160, 560, 62, 56), "tree", lambda r: draw_cur_icon(s, r.centerx, r.centery, 1.2),
                          lambda: self.open_modal("tree"), CUR.get("short", CUR["title"]), badge=f.any_tree_affordable(),
                          tip=f"Дерево улучшений: постоянные бонусы за {CUR['title'].lower()}")
-        mill = self.farm_info()["barn"] == "mill"
-        self.icon_button(pygame.Rect(232, 560, 62, 56), "mill" if mill else "barn", barn_icon, self.toggle_barn,
-                         "Мельница" if mill else "Сарай", badge=self.barn_attention(),
-                         tip=("Мельница и пекарня: зерно — мука — хлеб" if mill
-                              else "Сарай: звери едят урожай и дают продукты дороже") + "   (B)")
+        barn_kind = self.farm_info()["barn"]
+        mill = barn_kind == "mill"
+        label, tip = {"mill": ("Мельница", "Мельница и пекарня: зерно — мука — хлеб"),
+                      "fishery": ("Садки", "Рыборазводня: икра, мальки и хищные рыбы")}.get(
+            barn_kind, ("Сарай", "Сарай: звери едят урожай и дают продукты дороже"))
+        self.icon_button(pygame.Rect(232, 560, 62, 56), {"mill": "mill", "fishery": "fishery"}.get(barn_kind, "barn"),
+                         barn_icon, self.toggle_barn, label, badge=self.barn_attention(), tip=tip + "   (B)")
         # 3.23: кнопка есть всегда — открывает карту глав (на последней готовой ферме — посмотреть, что дальше)
         self.icon_button(pygame.Rect(304, 560, 62, 56), "move", move_icon, lambda: self.open_modal("move"), "Переезд",
                          badge=f.can_move(), active=f.can_move(),

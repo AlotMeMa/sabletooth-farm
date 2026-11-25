@@ -16,6 +16,8 @@ class BarnUI:
 
     def barn_attention(self):
         f = self.farm
+        if self.farm_info()["barn"] == "fishery":       # 3.36: рыборазводня — в 3.37
+            return False
         if self.farm_info()["barn"] == "mill":
             return f.bread > 0 or any(f.m_levels[b] == 0 and f.mill_can_build(b) and f.money >= f.mill_building_cost(b)
                                       for b in (0, 1))
@@ -225,9 +227,22 @@ class BarnUI:
         pygame.draw.line(bg, OUT, (W // 2, 20), (W // 2, 100), 3)
         return bg
 
+    def draw_fishery_placeholder(self):
+        from .art_fishing import draw_fish
+        s = self.screen
+        s.fill((70, 96, 112))
+        for i in range(9):
+            draw_fish(s, 160 + i * 85, 330 + 30 * math.sin(self.t * 1.5 + i), 2.0, CROP_KEYS[i], 0.5)
+        draw_text(s, "Рыборазводня строится", 30, (W // 2, 200))
+        draw_text(s, "Садок с икрой и садок с хищными рыбами — в следующей версии", 17, (W // 2, 240), (220, 235, 245))
+        self.draw_tavern_back("На пруд", self.toggle_barn)
+
     def draw_barn_view(self):
         if self.farm_info()["barn"] == "mill":
             self.draw_mill_view()
+            return
+        if self.farm_info()["barn"] == "fishery":       # 3.36: заготовка — садки появятся в 3.37
+            self.draw_fishery_placeholder()
             return
         s = self.screen
         s.blit(self.barn_bg, (0, 0))

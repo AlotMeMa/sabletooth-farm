@@ -83,8 +83,40 @@ class WinterData(unittest.TestCase):
         self.assertIn("гном", t._quest_text(tpl, 3, self.winter()))
         self.assertIn("крестьян", t._quest_text(tpl, 3, cfg.FARMS[1]))
 
-    def test_winter_still_closed(self):
-        self.assertFalse(self.winter()["ready"])
+    def test_winter_is_open(self):
+        """3.35: зима открыта для игроков — со средневековья можно переехать."""
+        from farmgame.logic import Farm
+        self.assertTrue(self.winter()["ready"])
+        f = Farm()
+        f.farm_index = 1
+        f.reset_run()
+        self.assertTrue(f.has_next_farm())
+        f.run_earned = f.move_threshold()
+        self.assertTrue(f.move_farm())
+        self.assertEqual(f.farm_def()["id"], "winter")
+
+    def test_medieval_trophy_gives_helpers(self):
+        from farmgame.logic import Farm
+        f = Farm()
+        f.farm_index = 1
+        f.reset_run()
+        before = f.peasants
+        f.farm_index = 2
+        f.reset_run()
+        self.assertEqual(f.peasants, before + cfg.TROPHY_HELPERS)
+        self.assertEqual(f.levels[0], cfg.TROPHY_START_LEVEL)       # и летний трофей по-прежнему работает
+
+    def test_finale_achievement(self):
+        from farmgame.logic import Farm
+        from farmgame import achievements as ach
+        f, t = Farm(), __import__("farmgame.tavern", fromlist=["x"]).Tavern()
+        f.farm_index = 2
+        f.reset_run()
+        self.assertNotIn("final_1", [a["id"] for a in ach.check(f, t)])
+        f.run_earned = f.move_threshold()
+        self.assertIn("final_1", [a["id"] for a in ach.check(f, t)])
+        f.reset_run()                      # после продажи упряжке достижение не пропадает
+        self.assertIn("final_1", t.ach_done)
 
 
 if __name__ == "__main__":

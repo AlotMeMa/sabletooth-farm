@@ -48,7 +48,7 @@ class Farm:
         self.frozen = [0] * N_CROPS         # грядка во льду: сколько ударов осталось (не сохраняется)
         self.farmers[0] = self.up("farmers") >= 1
         # средневековье: крестьяне (farmers[i] = на грядке стоит крестьянин), мельница и пекарня
-        self.peasants = PEASANT_START + self.up("serfs")
+        self.peasants = PEASANT_START + self.up("serfs") + (TROPHY_HELPERS if self.farm_index >= 2 else 0)   # 3.35: штандарт
         self.m_levels = [0, 0]              # мельница, пекарня (уровень = мест для работников)
         self.m_workers = [0, 0]
         self.hopper = 0.0                   # зерно в закромах мельницы (в $)

@@ -98,6 +98,8 @@ def news(farm, tavern, rnd=random, today=None):
     got = ach.claimable(tavern)
     if got:
         out.insert(0, f"Слыхал, у тебя новое достижение! Забери жетоны в «Достижениях» — их {len(got)}.")
+    if "final_1" in tavern.ach_done and farm.farm_index >= 2:     # 3.35: прошёл последнюю открытую главу
+        out.insert(0, "Говорят, ты одолел саму зиму! Дальше на карте — туман... но я слышал, там уже кто-то строится.")
     if farm.song_left > 0:
         out.append("Бард сейчас играет твою песню — слышишь, как гости притоптывают?")
     if not out:

@@ -708,7 +708,7 @@ class WindowsUI:
                     out.append((label, cb))
         # старые имена кнопок (сценарии 3.25–3.28)
         groups = dict(out)
-        out.append(("Зимнее поле (заготовка)", groups.get("Ферма: Зимнее поле", lambda: None)))
+        out.append(("Зимнее поле", groups.get("Ферма: Зимнее поле", lambda: None)))
         out.append(("Назад на летнюю", groups.get("Ферма: Летняя ферма", lambda: None)))
         return out
 

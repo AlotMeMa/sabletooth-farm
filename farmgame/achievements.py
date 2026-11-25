@@ -64,6 +64,9 @@ ACHIEVEMENTS = [
     A("roulette_2", "games", "Тридцать пять к одному", "Угадай число в рулетке", "roulette_number", 1, 30),
     A("bj_1", "games", "Ворчун ворчит", "Выиграй у Ворчуна 25 раз", "bj_win", 25, 25),
     A("bj_2", "games", "Очко!", "Набери 21 с раздачи в блэкджеке", "bj_natural", 1, 20),
+    # 3.35: финал известной части игры — пройти последнюю открытую главу (заработать порог переезда за забег)
+    A("final_1", "farm", "Покоритель зимы", "Заработай за один забег на Зимнем поле столько, сколько нужно для переезда",
+      "final_run", 1, 100),
 ]
 BY_ID = {a["id"]: a for a in ACHIEVEMENTS}
 
@@ -77,6 +80,12 @@ def value(a, farm, tavern):
         return farm.farm_index
     if st == "truck":            # продажи до 3.34 тоже считаются
         return max(tavern.stats.get(st, 0), farm.prestiges)
+    if st == "final_run":        # доля порога переезда за текущий забег на последней открытой главе (3-й и дальше)
+        if farm.farm_index < 2 or farm.has_next_farm():
+            return tavern.stats.get(st, 0)
+        if farm.run_total() >= farm.move_threshold():
+            tavern.stats[st] = 1
+        return tavern.stats.get(st, 0)
     if st == "daily_done":
         return max(tavern.stats.get(st, 0), tavern.daily_done_total)
     if st == "prizes":

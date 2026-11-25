@@ -19,7 +19,7 @@ import random
 import pygame
 
 from .config import W, H, N_CROPS, CUR, fmt, PEASANT_MAX, MILL_MAX_LVL, ASSET_DIR, SONGS, DEV, CASINO_UNLOCK_TOKENS, PRIZES
-from .art import (OUT, WHITE, GOLD, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
+from .art import (OUT, WHITE, GOLD, RAINBOW, PANEL, PILL, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, ellipse, blob, rounded,
                   draw_text, draw_text_fit, render_text, draw_bar, draw_coin, draw_cur_icon, has_sprite, blit_sprite,
                   blit_tf, blit_light, extended_down)
 from .particles import soft_dot

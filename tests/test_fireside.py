@@ -101,7 +101,7 @@ class FiresideView(unittest.TestCase):
         app = source("app.py")
         self.assertIn('"fireside": self.draw_fireside_view', app)
         self.assertIn("FiresideUI", app)
-        self.assertRegex(app, r'view in \("board", "casino", "fireside"\):\s*\n\s*self.view = "tavern"')   # Esc — встать
+        self.assertRegex(app, r'view in \("board", "fireside", "gameroom"\):\s*\n\s*self.view = "tavern"')   # Esc — встать
 
     def test_layout_has_fireplace_zone(self):
         art = source("tavern_art.py")

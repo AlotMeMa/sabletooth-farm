@@ -533,6 +533,7 @@ class WindowsUI:
             ("Заработать до грузовика", to_truck), ("Заработать до переезда", to_move),
             ("Переехать сейчас", move_now), ("Назад на летнюю", back_summer),
             ("Зимнее поле (заготовка)", to_winter),
+            ("Колесо фортуны: снова", lambda: (setattr(self.tavern, "wheel_day", ""), self.toast("Колесо можно крутить снова", 2))),
             ("Все грядки +50 ур.", all_crops), ("Сарай: всё ур.5 + скотники", barn),
             ("Дерево на максимум", tree_max), (f"Скорость времени: x{self.time_scale}", speed),
             ("Белка", lambda: squirrel(False)), ("Золотая белка", lambda: squirrel(True)),

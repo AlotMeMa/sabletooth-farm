@@ -12,6 +12,7 @@ from .tavern_hud_ui import TavernHudUI
 from .mill_ui import MillUI
 from .tutorial_ui import TutorialUI
 from .casino_ui import CasinoUI
+from .gameroom_ui import GameRoomUI
 from .field_ui import FieldUI
 from .creatures_ui import CreaturesUI
 from .barn_ui import BarnUI
@@ -54,7 +55,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
           ScreenUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
@@ -145,6 +146,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.init_mill()
         self.init_tutorial()
         self.init_casino()
+        self.init_gameroom()          # 3.27: Игровая — карта игр и колесо фортуны
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -382,12 +384,17 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                 self.mode = "normal"
             elif self.view in ("barn", "tavern"):
                 self.view = "field"
-            elif self.view in ("board", "casino", "fireside"):
+            elif self.view == "casino" and self.cs_spin is None:
+                self.view = "gameroom"                 # 3.27: из рулетки — в Игровую
+            elif self.view in ("board", "fireside", "gameroom"):
                 self.view = "tavern"
         elif key == pygame.K_F11:
             self.toggle_fullscreen()
         elif key == pygame.K_m:
             self.toggle_music()
+        elif self.view == "gameroom" and self.modal is None and key in (getattr(pygame, "K_UP", -1),
+                                                                        getattr(pygame, "K_DOWN", -1)):
+            self.gr_scroll_by(-280 if key == getattr(pygame, "K_UP", -1) else 280)
         elif self.modal == "move" and key in (getattr(pygame, "K_LEFT", -1), getattr(pygame, "K_RIGHT", -1)):
             self.map_scroll(-MAP_GAP if key == getattr(pygame, "K_LEFT", -1) else MAP_GAP)
         elif key == pygame.K_F1 and DEV:
@@ -414,6 +421,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.mill_tick(dt)
         self.tut_tick(dt)
         self.casino_tick(dt)
+        self.gameroom_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -491,6 +499,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.sfx.play("click")        # услышать новую громкость звуков
         self.volume_drag = None
         self.map_drag_last = None
+        self.gr_drag_last = None
 
     def quit_game(self):
         self.save()
@@ -506,7 +515,8 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.draw_scene()
         if self.view == "field" and self.modal is None:
             draw_trail(self.screen, self.trail, self.t_real,
-                       color=(255, 212, 80) if self.tavern.prize_on("gold_trail") else (255, 250, 225))
+                       color=(255, 212, 80) if self.tavern.prize_on("gold_trail") else (255, 250, 225),
+                       stars=self.tavern.prize_on("star_trail"))          # 3.27: джекпот колеса фортуны
         self.draw_hover()
         self.draw_tip()
         if self.show_fps:
@@ -530,7 +540,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         return {"shop": self.draw_shop, "truck": self.draw_truck_modal,
                 "settings": self.draw_settings, "stats": self.draw_stats, "offline": self.draw_offline,
                 "tree": self.draw_tree, "move": self.draw_move, "dev": self.draw_dev, "songs": self.draw_songs,
-                "prizes": self.draw_prizes}
+                "prizes": self.draw_prizes, "fortune": self.draw_fortune}
 
     def draw_modal_layer(self, name, prog, opening):
         """Окно рисуется в отдельный слой и показывается чуть уменьшенным и прозрачным — так оно
@@ -610,9 +620,10 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
     def draw_scene(self):
         self.zones = []
         s, f = self.screen, self.farm
-        if self.view in ("barn", "tavern", "board", "casino", "fireside"):
+        if self.view in ("barn", "tavern", "board", "casino", "fireside", "gameroom"):
             {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view,
-             "casino": self.draw_casino_view, "fireside": self.draw_fireside_view}[self.view]()
+             "casino": self.draw_casino_view, "fireside": self.draw_fireside_view,
+             "gameroom": self.draw_gameroom_view}[self.view]()
             if self.view != "fireside":      # 3.19: у камина — без плашек, только огонь
                 self.draw_hud()
             self.draw_toasts()
@@ -712,8 +723,11 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                     self.try_collect(self.lpos(e.pos))
                 elif e.type == pygame.MOUSEMOTION and e.buttons[0] and self.modal == "move":
                     self.map_drag(self.lpos(e.pos))          # 3.23: карту глав тянут мышью
+                elif e.type == pygame.MOUSEMOTION and e.buttons[0] and self.view == "gameroom":
+                    self.gr_drag(self.lpos(e.pos))           # 3.27: карту Игровой — тоже
                 elif e.type == getattr(pygame, "MOUSEWHEEL", -1):
                     self.map_wheel(e)
+                    self.gr_wheel(e)
                 elif e.type == pygame.KEYDOWN:
                     self.on_key(e.key)
                 else:

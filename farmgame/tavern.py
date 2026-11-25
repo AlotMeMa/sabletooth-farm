@@ -79,8 +79,8 @@ BARMAN_LINES = [
 ]
 # 3.20: реплики по обстоятельствам — добавляются к общим, когда в таверне это есть
 BARMAN_EXTRA = {
-    "casino_closed": "Говорят, за дверью справа скоро откроют игорный зал...",
-    "casino_open": "Игорный зал — за красной занавеской справа. Только рубаху не проиграй!",
+    "casino_closed": "Говорят, за дверью справа скоро откроют Игровую...",
+    "casino_open": "Игровая — за красной занавеской справа. Колесо фортуны крутят раз в день — не забывай!",
     "cat": "Кот? Это Рыжик. Пришёл погреться разок — да так и остался.",
     "kettle": "В котелке над огнём — похлёбка по бабушкиному рецепту. Рецепт не скажу!",
     "bard_girl": "Мила поёт — и даже Рыжик у очага ухом ведёт.",
@@ -182,6 +182,8 @@ class Tavern:
         self.prizes = {}         # id приза -> True (трофеи, косметика)
         self.prize_off = []      # купленная косметика, которую игрок выключил
         self.prize_day = {}      # id бафа -> день покупки (бафы — раз в день)
+        self.wheel_day = ""      # 3.27: день, когда крутили колесо фортуны в Игровой (раз в день)
+        self.wheel_last = None   # 3.27: что выпало в последний раз: {kind, amount, prize, text}
 
     # ---------- казино (3.14) ----------
     def check_casino(self):
@@ -233,6 +235,8 @@ class Tavern:
         state = self.prize_state(prize, today)
         if state == "owned":
             return False, "Уже есть"
+        if prize.get("jackpot"):                 # 3.27: только из джекпота колеса фортуны
+            return False, "Этот приз выпадает только джекпотом колеса фортуны"
         if self.tokens < prize["cost"]:
             return False, f"Нужно жетонов: {prize['cost']}"
         self.tokens -= prize["cost"]
@@ -386,7 +390,8 @@ class Tavern:
         return dict(unlocked=self.unlocked, tokens=self.tokens, day=self.day, week=self.week,
                     daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
                     casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
-                    prize_off=self.prize_off, prize_day=self.prize_day)
+                    prize_off=self.prize_off, prize_day=self.prize_day, wheel_day=self.wheel_day,
+                    wheel_last=self.wheel_last)
 
     def from_dict(self, d):
         """Читает таверну из сохранения. Испорченные записи пропускаются — задания тогда просто выдадутся заново."""
@@ -410,6 +415,10 @@ class Tavern:
             self.prizes = {k: True for k, v in d["prizes"].items() if isinstance(k, str) and k in ids and v}
         if isinstance(d.get("prize_off"), list):
             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
+        if isinstance(d.get("wheel_day"), str):
+            self.wheel_day = d["wheel_day"][:10]
+        if isinstance(d.get("wheel_last"), dict) and isinstance(d["wheel_last"].get("text"), str):
+            self.wheel_last = {"text": d["wheel_last"]["text"][:80]}
         if isinstance(d.get("prize_day"), dict):
             self.prize_day = {k: v for k, v in d["prize_day"].items()
                               if isinstance(k, str) and k in ids and isinstance(v, str)}

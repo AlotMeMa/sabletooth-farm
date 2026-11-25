@@ -242,9 +242,13 @@ class MoveUI:
         if not skin.plate(s, "pill", plate):
             rounded(s, PILL, plate, 15, 3)
         s.blit(img_t, img_t.get_rect(center=plate.center))
-        tag = {"soon": "скоро", "locked": "закрыто"}.get(st)
-        if tag:
-            draw_text(s, tag, 13, (int(x), plate.bottom + 8), (120, 95, 80), outline=None)
+        tag = {"soon": "СКОРО", "locked": "ЗАКРЫТО"}.get(st)
+        if tag and c["id"] != "secret":   # 3.27: значок над кружком (подпись под табличкой уезжала за край карты)
+            img_g = render_text(tag, 12, WHITE, OUT)
+            badge = pygame.Rect(0, 0, img_g.get_width() + 18, 22)
+            badge.center = (int(x), int(y - NODE_R - 4))
+            rounded(s, (235, 150, 60) if st == "soon" else (140, 130, 125), badge, 11, 2, skin=None)
+            s.blit(img_g, img_g.get_rect(center=badge.center))
         if st == "here":                                         # флажок «ты здесь» прыгает над главой
             hop = abs(math.sin(t * 2.6)) * 7
             py = y - NODE_R - 22 - hop
@@ -297,8 +301,9 @@ class MoveUI:
         else:
             prev = chs[c["n"] - 2]["name"] if c["n"] >= 2 else ""
             title = "Скоро" if st == "soon" else "Закрыто"
-            text = ("Эта глава ещё готовится — она откроется в одном из обновлений." if st == "soon"
-                    else f"Откроется после главы «{prev}».") if c["id"] != "secret" else \
+            text = ("Эта глава ещё готовится — она откроется в одном из обновлений."
+                    + (f" Дорога к ней — через главу «{prev}»." if c["n"] > (f.farm_index + 2) else "")
+                    if st == "soon" else f"Откроется после главы «{prev}».") if c["id"] != "secret" else \
                 "Что там — пока секрет даже для бармена."
             draw_text(s, title, 18, (right.centerx, right.y + 16), brown, outline=None)
             for n, line in enumerate(wrap(text, 14, right.w, 4)):

@@ -63,6 +63,9 @@ TREE_SHEET_ORDER = ["tree_node_open", "tree_node_ready", "tree_node_max", "tree_
 WINTER_SHEET_ORDER = ["icons/frostleaf", "icons/down", "icons/wool",
                       "icons/cheese", "icons/jam", "icons/gnome",
                       "ui/btn_shaman", "characters/gnome_worker", "characters/gnome_shaman"]
+# 3.27: Игровая одним запросом (лист 2×3, assets/icons/gameroom_sheet.png): обод колеса фортуны, стрелка, значки игр
+GAMEROOM_SHEET_ORDER = ["props/fortune_wheel", "props/fortune_pointer", "icons/game_wheel",
+                        "icons/game_roulette", "icons/game_blackjack", "icons/game_secret"]
 FX_SHEET_ORDER = ["feather", "star", "puff", "spark", "raindrop", "bulb_red", "bulb_yellow", "bulb_green", "bulb_blue"]
 SHEETS = {   # имя листа -> (папка/префикс картинок, порядок, строк, столбцов)
     "icons/sheet": ("icons/", ICON_SHEET_ORDER, 3, 3),
@@ -75,6 +78,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "ui/plate_sheet": ("ui/", PLATE_SHEET_ORDER, 3, 2),
     "ui/tree_sheet": ("ui/", TREE_SHEET_ORDER, 2, 3),
     "icons/winter_sheet": ("", WINTER_SHEET_ORDER, 3, 3),   # полные имена: иконки, кнопка и гномы зимы
+    "icons/gameroom_sheet": ("", GAMEROOM_SHEET_ORDER, 2, 3),   # 3.27: Игровая
 }
 BTN_CANVAS = 128   # 3.4.2: кнопки подгоняются вдвое крупнее (было 64) и уменьшаются при выводе — края чище
 MILL_PROPS = {   # props/<имя>: холст w×h и привязка (экран мельницы, 3.7)
@@ -245,6 +249,14 @@ def _fit_spec_base(name):
     if folder == "decor" and last in DECOR_SIZE:      # 3.19: украшения у камина
         w, h, align = DECOR_SIZE[last]
         return _spec(*_box(w, h, 1, 1, 1, 1), align)
+    if folder == "ui" and last == "gameroom_map":      # 3.27: карта Игровой (высокая полоса)
+        return _spec((540, 1180), (0, 0, 540, 1180), "full")
+    if folder == "props" and last == "fortune_wheel":  # 3.27: обод колеса фортуны (середина пустая — сектора кодом)
+        return _spec(*_box(300, 300, 0, 0, 0, 0), "center")
+    if folder == "props" and last == "fortune_pointer":
+        return _spec(*_box(60, 70, 1, 1, 1, 1), "bottom")
+    if folder == "icons" and last.startswith("game_"):  # 3.27: значки игр в кружках карты Игровой
+        return _spec(*_box(100, 100, 2, 2, 2, 2), "center")
     if folder == "ui" and last == "move_map":          # 3.23: карта глав в окне «Переезд» (длинная полоса)
         return _spec((1240, 278), (0, 0, 1240, 278), "full")
     if folder == "ui" and last in ("tree_pip_off", "tree_pip_on"):    # 3.20: кружки уровней на карточке дерева

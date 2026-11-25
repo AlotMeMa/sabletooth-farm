@@ -83,7 +83,7 @@ class TavernUI:
 
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
-        want = "tavern" if self.view in ("tavern", "board", "casino", "fireside") else None
+        want = "tavern" if self.view in ("tavern", "board", "casino", "fireside", "gameroom") else None
         artist = self.tavern.stage_artist() if want else None
         if artist and has_scene_music(artist["stage"]):
             want = artist["stage"]           # 3.15.2 / 3.23: артист на сцене поёт свою песню
@@ -188,9 +188,9 @@ class TavernUI:
     def poke_casino(self):
         t = self.tavern
         if DEV or t.casino_open:        # 3.14: открыто, когда жетонов впервые набралось CASINO_UNLOCK_TOKENS
-            self.open_casino()
+            self.open_gameroom()        # 3.27: за дверью — Игровая (рулетка, колесо фортуны, дальше — блэкджек)
             return
-        self.toast(f"Игорный зал откроется, когда накопишь {CASINO_UNLOCK_TOKENS} жетонов (у тебя {t.tokens})", 3)
+        self.toast(f"Игровая откроется, когда накопишь {CASINO_UNLOCK_TOKENS} жетонов (у тебя {t.tokens})", 3)
         self.say_barman(f"Туда пускают с {CASINO_UNLOCK_TOKENS} жетонами в кармане. Выполняй задания с доски!")
 
     def tavern_tick(self, dt):
@@ -201,7 +201,7 @@ class TavernUI:
             self.toast("Открылась таверна «Хмельной колос»! Кнопка — над «Магазином»", 5)
             self.sfx.play("fanfare")
         if t.unlocked and t.check_casino():
-            self.toast(f"Открылся игорный зал! Дверь «Казино» — справа в таверне", 5)
+            self.toast(f"Открылась Игровая! Дверь — справа в таверне: рулетка и колесо фортуны", 5)
             self.sfx.play("fanfare")
             self.save()
         self.tavern_check -= dt
@@ -298,8 +298,13 @@ class TavernUI:
             draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
         notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
         fancy = self.tavern.prize_on("gold_notes")     # 3.14: приз «Нарядные ноты»
+        rainbow = self.tavern.prize_on("rainbow_notes")   # 3.27: джекпот колеса — ноты переливаются
         for x, y, life, _vx, col in self.tv_notes:
-            if fancy:
+            if rainbow:
+                col = RAINBOW[int(life * 6 + x * 0.02) % len(RAINBOW)]
+                if int(life * 10) % 5 == 0:
+                    blit_light(s, x + 5, y - 6, 24, col, 150, 0.0)
+            elif fancy:
                 col = (255, 214, 90)
                 if int(life * 10) % 7 == 0:
                     blit_light(s, x + 5, y - 6, 26, (255, 236, 150), 160, 0.0)

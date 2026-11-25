@@ -26,6 +26,8 @@ def chapters(farm_index):
             state = "here"
         elif n == farm_index + 1:
             state = "next" if fm.get("ready") else "soon"
+        elif not fm.get("ready") and fm["id"] != "secret":
+            state = "soon"          # 3.27: глава ещё в работе — «скоро», даже если до неё две главы
         else:
             state = "locked"
         out.append(dict(id=fm["id"], name=fm["name"], text=CHAPTER_TEXT.get(fm["id"], fm.get("text", "")), n=n + 1,

@@ -289,6 +289,18 @@ def spec_list():
         add(f"ui/{key}", size, "растягивается", desc, 1, lambda s: None)
     add("ui/move_map", (1240, 278), "вся полоса", "карта глав для окна «Переезд»: лето, средневековье, зима, туман "
         "(места глав — farmgame/move_ui.py, MAP_FIRST/MAP_GAP/MAP_Y)", 1, lambda s: None)
+    # 3.27: Игровая — карта игр сверху вниз, колесо фортуны, значки игр (мелкое — листом icons/gameroom_sheet)
+    add("ui/gameroom_map", (540, 1180), "вся полоса", "карта Игровой: бархатная дорожка сверху вниз (места игр — "
+        "farmgame/gameroom_ui.py, GAME_NODES)", 1, lambda s: s.blit(__import__("farmgame.gameroom_ui",
+                                                                       fromlist=["x"]).build_gameroom_map()[0], (0, 0)))
+    add("props/fortune_wheel", (300, 300), "центр", "обод колеса фортуны: кольцо с гвоздиками, середина пустая", 1,
+        lambda s: None)
+    add("props/fortune_pointer", (60, 70), "низ по центру = остриё", "стрелка колеса фортуны, остриём вниз", 1,
+        lambda s: None)
+    for gid, desc in (("wheel", "колесо фортуны"), ("roulette", "рулетка"), ("blackjack", "блэкджек"),
+                      ("secret", "третья игра — тайна")):
+        add(f"icons/game_{gid}", (100, 100), "центр", f"значок игры в кружке карты Игровой: {desc}", 1,
+            lambda s, gid=gid: __import__("farmgame.gameroom_ui", fromlist=["x"]).draw_game_icon(s, gid, 50, 50, 1.0))
     # 3.20: карточки дерева листьев / печатей (лучше одним листом ui/tree_sheet)
     for key, desc in (("tree_node_open", "карточка улучшения: открыта, копишь на неё"),
                       ("tree_node_ready", "карточка улучшения: можно купить"),

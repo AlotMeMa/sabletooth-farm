@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.26.4"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.27"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -92,6 +92,11 @@ PRIZES = [
          text="весёлый парень со скрипкой вместо барда"),
     dict(id="bagpiper", kind="cosmetic", name="Волынщик Ерёма", cost=500, stage="tavern_bagpipe", timing="music_bagpipe",
          text="старый волынщик с бородой до пояса"),
+    # 3.27: скины джекпота колеса фортуны в Игровой — не продаются, только выпадают (jackpot=True)
+    dict(id="rainbow_notes", kind="cosmetic", name="Радужные ноты", cost=0, jackpot=True,
+         text="ноты барда — всех цветов радуги"),
+    dict(id="star_trail", kind="cosmetic", name="Звёздный шлейф", cost=0, jackpot=True,
+         text="за курсором — разноцветные звёзды"),
 ]
 # лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES
 PRIZE_SHEET_IDS = ["horseshoe", "cup", "statue", "crystal", "lucky_coin", "clover", "gold_notes", "gold_trail", "garland"]

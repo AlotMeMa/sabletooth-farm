@@ -409,7 +409,10 @@ def draw_hover_ring(surf, rect, radius=10, color=(255, 248, 210)):
     surf.blit(soft, (r.x - 4, r.y - 4))
 
 
-def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225)):
+RAINBOW = ((255, 90, 80), (255, 170, 60), (255, 225, 80), (110, 220, 120), (90, 180, 255), (180, 120, 255))
+
+
+def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False):
     """Тонкий исчезающий шлейф за курсором. points = [(x, y, время)].
     Слой — только размером со сам шлейф (а не весь экран): в HD так заметно быстрее."""
     pts = [(x, y, now - t) for x, y, t in points if now - t < life]
@@ -426,6 +429,14 @@ def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225)):
             continue
         width = max(1, int(1 + 4 * k))
         a, b = (x0 - lx, y0 - ly), (x1 - lx, y1 - ly)
+        if stars:            # 3.27: джекпот «Звёздный шлейф» — разноцветные звёздочки вместо линии
+            col = RAINBOW[int(x0 * 0.05 + y0 * 0.03 + now * 6) % len(RAINBOW)]
+            r = 2 + 4 * k
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2
+            pts4 = [(mx + math.cos(i * math.pi / 4) * (r if i % 2 == 0 else r * 0.4),
+                     my + math.sin(i * math.pi / 4) * (r if i % 2 == 0 else r * 0.4)) for i in range(8)]
+            pygame.draw.polygon(layer, col + (int(230 * k),), pts4)
+            continue
         pygame.draw.line(layer, color + (int(40 * k),), a, b, width + 4)   # мягкое свечение
         pygame.draw.line(layer, color + (int(200 * k),), a, b, width)
     surf.blit(layer, (lx, ly))

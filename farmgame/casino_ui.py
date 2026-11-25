@@ -15,7 +15,7 @@ import pygame
 
 from .config import W, H, PRIZES
 from .art import (OUT, WHITE, GOLD, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, rounded, draw_text, render_text,
-                  draw_text_fit, blit_sprite, blit_tf, blit_light, has_sprite, ellipse)
+                  draw_text_fit, blit_sprite, blit_tf, blit_light, has_sprite, ellipse, RAINBOW)
 from .tavern_ui import draw_token, draw_person, draw_bubble
 from . import casino as cs
 from . import anim
@@ -397,7 +397,8 @@ class CasinoUI:
                         (245, 175, 50) if on else BTN_BLUE, True, 17)
         if self.prize_tab not in ("trophy", "cosmetic"):
             self.prize_tab = "trophy"
-        items = sorted((p for p in PRIZES if p["kind"] == self.prize_tab), key=lambda p: p["cost"])
+        items = sorted((p for p in PRIZES if p["kind"] == self.prize_tab),
+                       key=lambda p: (bool(p.get("jackpot")), p["cost"]))    # 3.27: скины джекпота — в конце
         per = 4
         pages = max(1, (len(items) + per - 1) // per)
         self.prize_page = min(getattr(self, "prize_page", 0), pages - 1) if self.prize_tab == getattr(
@@ -419,6 +420,9 @@ class CasinoUI:
                             BTN_GREEN if on else BTN_GREY, True, 16)
             elif state == "owned":
                 skin_max(s, bt, "В таверне")
+            elif p.get("jackpot"):        # 3.27: не продаётся — выпадает джекпотом колеса фортуны в Игровой
+                self.button(bt, "Джекпот колеса", lambda: None, BTN_GREY, False, 14)
+                self.tip(bt, "Выпадает только джекпотом колеса фортуны в Игровой")
             else:
                 can = t.tokens >= p["cost"]
                 self.button(bt, f"{p['cost']}", lambda pid=p["id"]: self.buy_prize(pid), BTN_GREEN, can, 18)
@@ -549,6 +553,15 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
         from .tavern_ui import draw_note
         draw_note(s, x - 8, y + 8, color=(255, 214, 90))
         blit_light(s, x + 8, y - 10, 20, (255, 236, 150), 200, 0.0)
+    elif pid == "rainbow_notes":                       # 3.27: джекпот колеса фортуны
+        from .tavern_ui import draw_note
+        for i, col in enumerate(((255, 90, 80), (110, 220, 120), (90, 180, 255))):
+            draw_note(s, x - 14 * k + i * 12 * k, y + 8 * k - i * 5 * k, color=col)
+    elif pid == "star_trail":
+        for i, col in enumerate(RAINBOW[:5]):
+            cx, cy, r = x - 14 * k + i * 6 * k, y + 8 * k - i * 4 * k, (2 + i) * k
+            poly(s, col, [(cx, cy - r * 1.6), (cx + r * 0.5, cy), (cx, cy + r * 1.6), (cx - r * 0.5, cy)], 1)
+        poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
     elif pid == "gold_trail":
         for i in range(5):
             pygame.draw.circle(s, (255, 212, 80), (int(x - 14 * k + i * 6 * k), int(y + 8 * k - i * 4 * k)),

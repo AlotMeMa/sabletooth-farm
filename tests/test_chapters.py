@@ -12,7 +12,8 @@ class Chapters(unittest.TestCase):
         st = [c["state"] for c in chapters(0)]
         self.assertEqual(st[0], "here")
         self.assertEqual(st[1], "next")                     # средневековье готово — туда можно ехать
-        self.assertTrue(all(s == "locked" for s in st[2:]))
+        for c in chapters(0)[2:]:      # дальше: в работе — «скоро», готовые и тайна — «закрыто»
+            self.assertEqual(c["state"], "soon" if not c["ready"] and c["id"] != "secret" else "locked")
 
     def test_medieval(self):
         chs = chapters(1)

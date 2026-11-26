@@ -418,6 +418,23 @@ class FieldUI:
             hop = abs(math.sin((self.t_real + k) * 9)) * 3
             draw_fisher(self.screen, x, y - hop, 1.2, self.t_real + k * 0.7, flip=not to_right, n=k)
 
+    def draw_own_worker(self, k):
+        """3.39.1: свой помощник артели (крестьянин, гном, рыбак) всегда стоит у своей грядки и работает —
+        с праздником или без. Чужие на празднике — draw_rush_worker."""
+        f, info = self.farm, self.farm_info()
+        if not info.get("peasants") or f.levels[k] == 0 or not f.farmers[k]:
+            return
+        (x, y), right = self.rush_spot(k)
+        t = self.t_real + k * 0.7
+        kind = info.get("helpers")
+        if kind == "fishermen":
+            from .art_fishing import draw_fisher
+            draw_fisher(self.screen, x, y, 1.25, t, flip=right, n=k)
+        elif kind == "gnomes":
+            draw_gnome_worker(self.screen, x, y, 1.25, t, flip=right, n=k)
+        else:
+            draw_peasant_worker(self.screen, x, y, 1.25, t, flip=right, n=k)
+
     def draw_rush_worker(self, k):
         """Гном из леса на грядке без своего гнома: выскакивает из сугроба, машет тяпкой, в конце исчезает."""
         clock = self.rush_clock()

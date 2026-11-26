@@ -318,3 +318,16 @@ class FishingAchievements(unittest.TestCase):
         self.assertEqual(ach.value(a, Farm(), t), 9)
         t.on("caught_swordfish")
         self.assertEqual(ach.value(a, Farm(), t), 10)
+
+
+class DevAndHelpers(unittest.TestCase):
+    """3.39.1: хищник нужного ранга для режима разработчика; третий плясун у дома наверху."""
+
+    def test_spawn_given_rank(self):
+        f = village()
+        for r in range(1, 6):
+            f._pred_gone()
+            self.assertEqual(f.spawn_predator(r)["rank"], r)
+
+    def test_three_dancers(self):
+        self.assertEqual(len(cfg.THEME_FISHING["scene"]["dance"]), 3)

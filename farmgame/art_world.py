@@ -328,6 +328,39 @@ def draw_gnome_worker(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
     poly(s, (160, 165, 175), [(ex, ey), (ex + d * 6 * k, ey + 2 * k), (ex + d * 5 * k, ey + 6 * k)], 2)
 
 
+PEASANT_WORKER_PIC = 50 / 64   # 3.39.1: картинка крестьянина подгоняется в 64×80, рисуется в этой доле
+
+
+def draw_peasant_worker(s, x, y, k=1.0, t=0.0, flip=False, n=0):
+    """3.39.1: свой крестьянин у грядки (средневековье) машет мотыгой. Картинки characters/peasant_worker_1..4
+    (лист characters/peasants_sheet) — покачиваются кодом; нет — рисуем кодом."""
+    swing = math.sin(t * 5.0)
+    if blit_tf(s, gnome_sprite("characters/peasant_worker", n, 4), x, y, k * PEASANT_WORKER_PIC, flip=flip,
+               sy=1 - 0.04 * abs(swing), angle=(4 if flip else -4) * swing):
+        return
+    d = -1 if flip else 1
+    lean = 1.5 * swing * d
+    ellipse(s, (70, 50, 35), x - 5 * k, y - 2 * k, 9 * k, 5 * k, 1)              # лапти
+    ellipse(s, (70, 50, 35), x + 5 * k, y - 2 * k, 9 * k, 5 * k, 1)
+    bx = x + lean * k
+    tunic = [(120, 140, 80), (150, 110, 70), (110, 120, 150), (160, 140, 90)][n % 4]
+    poly(s, tunic, [(x - 9 * k, y - 4 * k), (x + 9 * k, y - 4 * k), (bx + 7 * k, y - 24 * k), (bx - 7 * k, y - 24 * k)], 2)
+    pygame.draw.line(s, (90, 60, 35), (P(x - 8 * k), P(y - 11 * k)), (P(x + 8 * k), P(y - 11 * k)), max(1, P(2 * k)))
+    hx, hy = bx, y - 30 * k
+    blob(s, (245, 205, 170), [(hx, hy, 6.5 * k)], 2)
+    pygame.draw.circle(s, OUT, (P(hx - 2.5 * k), P(hy - 0.5 * k)), max(1, P(1.1 * k)))
+    pygame.draw.circle(s, OUT, (P(hx + 2.5 * k), P(hy - 0.5 * k)), max(1, P(1.1 * k)))
+    ellipse(s, (225, 190, 110), hx, hy - 5 * k, 22 * k, 6 * k)                     # соломенная шляпа
+    poly(s, (225, 190, 110), [(hx - 6 * k, hy - 6 * k), (hx + 6 * k, hy - 6 * k), (hx + 4 * k, hy - 12 * k),
+                              (hx - 4 * k, hy - 12 * k)], 2)
+    sx, sy = bx, y - 20 * k
+    a = math.radians(-50 + 45 * swing)                     # мотыга: замах — удар
+    ex, ey = sx + d * math.cos(a) * 18 * k, sy + math.sin(a) * 18 * k
+    pygame.draw.line(s, OUT, (P(sx), P(sy)), (P(ex), P(ey)), max(2, P(3.4 * k)))
+    pygame.draw.line(s, (170, 120, 70), (P(sx), P(sy)), (P(ex), P(ey)), max(1, P(2 * k)))
+    poly(s, (160, 165, 175), [(ex, ey), (ex + d * 6 * k, ey + 2 * k), (ex + d * 5 * k, ey + 6 * k)], 2)
+
+
 def draw_gnome_shaman(s, x, y, k=1.0, t=0.0, flip=False, alpha=None, n=0):
     """3.26: гном-шаман пляшет с бубном: подпрыгивает, кружится, трясёт бубном над головой.
     Картинка characters/gnome_shaman — прыгает и качается кодом (зеркалится на каждом повороте)."""

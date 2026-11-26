@@ -790,8 +790,9 @@ class Farm:
         self.fy_up = min(FISH_UP_MAX, self.fy_up + FISH_UP_STEP)
         return self.fy_rank
 
-    def spawn_predator(self):
-        rank = self.next_rank()
+    def spawn_predator(self, rank=None):
+        """rank — только для режима разработчика (по-честному ранг выбирает next_rank)."""
+        rank = self.next_rank() if rank is None else max(1, min(5, rank))
         self.fy_rank = rank
         kinds = [n for n, p in enumerate(PREDATORS) if p["rank"] == rank]
         t = random.choice(kinds)

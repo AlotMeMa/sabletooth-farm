@@ -74,6 +74,8 @@ CARDS_SHEET_ORDER = ["props/card_back", "props/card_face", "props/card_shoe",
 # 3.27: разные гномы зимы одним запросом (лист 2×3, assets/characters/gnomes_sheet.png): 4 работника и 2 шамана
 GNOMES_SHEET_ORDER = ["gnome_worker_1", "gnome_worker_2", "gnome_worker_3",
                       "gnome_worker_4", "gnome_shaman_1", "gnome_shaman_2"]
+# 3.39.1: свои крестьяне у грядок средневековья (лист 2×2, assets/characters/peasants_sheet.png)
+PEASANTS_SHEET_ORDER = ["peasant_worker_1", "peasant_worker_2", "peasant_worker_3", "peasant_worker_4"]
 # 3.29: второй лист призов (3×3, assets/icons/prizes_2.png) — украшения 3.19–3.27, у которых не было картинок;
 # девятая клетка — запас (пропуск)
 PRIZE2_SHEET_ORDER = ["flowers", "rug", "kettle", "cat", "fiddler", "bagpiper", "rainbow_notes", "star_trail", "_unused"]
@@ -123,6 +125,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/gameroom_sheet": ("", GAMEROOM_SHEET_ORDER, 2, 3),   # 3.27: Игровая
     "icons/cards_sheet": ("", CARDS_SHEET_ORDER, 3, 3),         # 3.27: заготовка под блэкджек
     "characters/gnomes_sheet": ("characters/", GNOMES_SHEET_ORDER, 2, 3),   # 3.27: разные гномы одним запросом
+    "characters/peasants_sheet": ("characters/", PEASANTS_SHEET_ORDER, 2, 2),   # 3.39.1: крестьяне у грядок
 }
 SHEETS.update({f"icons/ach_sheet_{n}": ("icons/ach_", order, 3, 3)      # 3.34.2: медали достижений, 5 листов
                for n, order in enumerate(ACH_SHEET_ORDERS, 1)})
@@ -275,6 +278,8 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last.startswith("gnome_worker"):   # 3.26: гном из «пришествия» с тяпкой (зима); 3.27: варианты _1.._4
             return _spec(*_box(56, 68, 2, 2, 2, 0), "bottom")     # 3.27: крупнее (на поле — ×1.25)
+        if last.startswith("peasant_worker"):  # 3.39.1: свой крестьянин у грядки (средневековье), варианты _1.._4
+            return _spec(*_box(64, 80, 2, 2, 2, 0), "bottom")
         if last.startswith("gnome_shaman"):   # 3.26: гном-шаман с бубном над головой; 3.27: варианты _1, _2
             return _spec(*_box(90, 112, 2, 2, 2, 0), "bottom")    # 3.27: крупнее (на лужайке — ×1.6)
         if last.startswith("fisher_"):     # 3.36: рыбак с удочкой (фестиваль) и рыбак-плясун с уловом

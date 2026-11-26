@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.39"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.39.1"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -549,7 +549,7 @@ THEME_FISHING = dict(ground=(122, 148, 140), ground2=(134, 160, 152), path=(150,
                                   (68, 440, 22)],                                                   # хижина слева
                          smoke=[(886, 76)],                       # труба дома наверху
                          doors=[(846, 502), (811, 206), (158, 488)],   # откуда выходят рыбаки на фестиваль
-                         dance=[(770, 470), (230, 470)]))         # где пляшут рыбаки с уловом
+                         dance=[(770, 470), (230, 470), (772, 256)]))   # где пляшут рыбаки с уловом (3-й — у дома наверху)
 CURRENCIES = {
     "leaf": dict(icon="leaf", title="Листья", gen="листьев", one="лист", tree="ДЕРЕВО ЛИСТЬЕВ"),
     "seal": dict(icon="seal", title="Печати", gen="печатей", one="печать", tree="ПРИВИЛЕГИИ КОРОЛЯ"),

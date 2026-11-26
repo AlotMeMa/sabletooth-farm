@@ -144,6 +144,8 @@ class FisheryUI:
                 f.fy_hooked = False
                 self.fy_game = None
                 return
+            if getattr(self, "fy_autowin", False):     # 3.39.1: режим разработчика — вылов всегда удаётся
+                g.progress = 1.0
             res = g.step(dt, self.catch_holding())
             if res is not None:
                 self.fy_game_end = 1.4

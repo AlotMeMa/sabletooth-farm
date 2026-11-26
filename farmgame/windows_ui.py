@@ -450,6 +450,91 @@ class WindowsUI:
     DEV_VIEW_TAB = {"field": "field", "barn": "barn", "tavern": "tavern", "board": "tavern", "fireside": "tavern",
                     "gameroom": "games", "casino": "games", "blackjack": "games"}
 
+    def dev_fishery_tab(self, money, go):
+        """3.39.1: режим разработчика для аквариума Рыбацкой деревни."""
+        f = self.farm
+
+        def best():
+            opened = [i for i in range(N_CROPS) if f.levels[i] > 0] or [0]
+            if not any(f.levels):
+                f.levels[0] = 1
+            return max(opened, key=lambda i: f.fish_price(i))
+
+        def fill(adult):
+            def act():
+                i = best()
+                while f.tank_used() < f.fy_cap:
+                    f.fy_fish.append([i + 1, f.fish_price(i) or 1.0, 1.0 if adult else 0.0, f._new_seed()])
+                f.fy_grace = 0.0
+            return act
+
+        def grow_all():
+            for fish in f.fy_fish:
+                fish[2] = 1.0
+
+        def roe():
+            i = best()
+            if f.tank_used() < f.fy_cap:
+                f.fy_eggs.append([i + 1, random.uniform(0.2, 0.8), random.uniform(0.3, 0.8), 3.0])
+
+        def pred(rank):
+            def act():
+                f._pred_gone()
+                f.spawn_predator(rank)
+                go("barn")
+            return act
+
+        def soon():
+            if f.fy_pred:
+                f._pred_gone()
+            f.fy_timer = 5.0
+            if not f.fy_fish:
+                fill(False)()
+
+        def ate_all():
+            if not f.fy_pred:
+                f.spawn_predator(1)
+            for fish in f.fy_fish:
+                f.fy_pred_val += f.fish_worth(fish) * f.predator()["ratio"]
+            f.fy_pred_eaten += len(f.fy_fish)
+            f.fy_fish = []
+            go("barn")
+
+        def fat():
+            if not f.fy_pred:
+                f.spawn_predator(3)
+            f.fy_pred_eaten = max(f.fy_pred_eaten, 15)
+            f.fy_pred_val += f.total_income() * 60
+
+        def autowin():
+            self.fy_autowin = not getattr(self, "fy_autowin", False)
+            self.toast("Вылов: всегда удаётся" if self.fy_autowin else "Вылов: по-честному", 2)
+
+        def unspook():
+            f.fy_spook = 0.0
+
+        def runs():
+            f.fy_runs += 1
+            self.toast(f"Забегов в деревне: {f.fy_runs} — первый хищник сильнее", 2)
+
+        def tank_max():
+            f.fy_cap = FISH_TANK_MAX
+
+        def reset():
+            f.fy_fish, f.fy_eggs = [], []
+            f._pred_gone()
+            f.fy_cap, f.fy_rank, f.fy_up = FISH_TANK_START, 0, FISH_UP_START
+
+        win = "вкл" if getattr(self, "fy_autowin", False) else "выкл"
+        return [("Заполнить мальками", fill(False)), ("Заполнить взрослыми", fill(True)),
+                ("Все рыбы — взрослые", grow_all), ("Икра (малёк через 3 с)", roe),
+                ("Хищник через 5 с", soon), ("Аквариум: 25 мест", tank_max)] + \
+               [(f"Хищник ранга {r}: {PRED_RANK_NAMES[r].lower()}", pred(r)) for r in range(1, 6)] + \
+               [("Хищник съел всех (тлеет)", ate_all), ("Хищник съел 15 (толстый)", fat),
+                (f"Вылов всегда удаётся: {win}", autowin), ("Снять «насторожился»", unspook),
+                (f"Забегов в деревне +1 (сейчас {f.fy_runs})", runs), ("Аквариум с нуля", reset),
+                ("Деньги x1000", money), ("В садки", lambda: go("barn"))]
+
     def dev_here(self):
         return self.DEV_VIEW_TAB.get(self.view, "field")
 
@@ -581,9 +666,12 @@ class WindowsUI:
         barn_tab = [("Все звери ур.5 + скотники", barn), ("Накормить всех доверху", feed),
                     ("Продукты готовы (+минута дохода)", products), ("Сарай с нуля", barn_reset),
                     ("Деньги x1000", money)]
+        if info.get("barn") == "fishery":           # 3.39.1: аквариум — воспроизводить ситуации быстро
+            barn_tab = self.dev_fishery_tab(money, go)
         if info.get("barn") == "mill":
             barn_tab += [("Мельница и пекарня ур.3", mill), ("Засыпать зерно доверху", hopper)]
-        barn_tab += [("В сарай", lambda: go("barn"))]
+        if info.get("barn") != "fishery":
+            barn_tab += [("В сарай", lambda: go("barn"))]
 
         # ---------- таверна ----------
         def tokens(n):

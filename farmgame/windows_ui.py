@@ -454,7 +454,7 @@ class WindowsUI:
     DEV_TABS = (("field", "Поле"), ("barn", "Сарай"), ("tavern", "Таверна"), ("games", "Игровая"), ("all", "Общее"))
     DEV_VIEW_TAB = {"field": "field", "barn": "barn", "tavern": "tavern", "board": "tavern", "fireside": "tavern",
                     "gameroom": "games", "casino": "games", "blackjack": "games",
-                    "snails": "games"}
+                    "snails": "games", "dice": "games"}
 
     def dev_fishery_tab(self, money, go):
         """3.39.1: режим разработчика для аквариума Рыбацкой деревни."""
@@ -791,6 +791,19 @@ class WindowsUI:
                       ("Улитки: правила снова", lambda: setattr(t, "sn_intro", False)),
                       ("Улитки: следующий — победа", sn_force(True)),
                       ("Улитки: следующий — проигрыш", sn_force(False))]
+
+        # 3.43: кости (глава 5 ещё не готова — открываются отсюда)
+        def dice_force(pair):
+            def act():
+                from . import dice as dcl
+                dcl.FORCE_NEXT = pair
+                self.toast(f"Следующий бросок: {pair[0]} и {pair[1]}", 2)
+            return act
+        games_tab += [("Кости: открыть (глава 5)", lambda: (setattr(t, "unlocked", True), self.open_dice(force=True))),
+                      ("Кости: правила снова", lambda: setattr(t, "dc_intro", False)),
+                      ("Кости: следующий — 3 и 4 (семь)", dice_force((3, 4))),
+                      ("Кости: следующий — 6 и 6", dice_force((6, 6))),
+                      ("Кости: следующий — 1 и 2", dice_force((1, 2)))]
 
         # ---------- общее ----------
         def speed():

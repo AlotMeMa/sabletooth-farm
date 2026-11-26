@@ -217,6 +217,7 @@ class Tavern:
         self.wheel_last = None   # 3.27: что выпало в последний раз: {kind, amount, prize, text}
         self.bj_intro = False    # 3.28: Ворчун уже рассказал правила блэкджека
         self.sn_intro = False    # 3.40: Старый Якорь уже рассказал правила скачек улиток
+        self.dc_intro = False    # 3.43: Искра уже рассказала правила костей
         self.stats = {}          # 3.34: счётчики событий за всю игру (для достижений): событие -> сколько раз
         self.ach_done = []       # 3.34: выполненные достижения (id)
         self.ach_claimed = []    # 3.34: за какие уже забрали жетоны
@@ -448,7 +449,7 @@ class Tavern:
                     daily=self.daily, weekly=self.weekly, daily_done_total=self.daily_done_total, owed=self.owed,
                     casino_open=self.casino_open, casino_intro=self.casino_intro, prizes=self.prizes,
                     prize_off=self.prize_off, prize_day=self.prize_day, wheel_day=self.wheel_day,
-                    wheel_last=self.wheel_last, bj_intro=self.bj_intro, sn_intro=self.sn_intro, stats=self.stats, ach_done=self.ach_done,
+                    wheel_last=self.wheel_last, bj_intro=self.bj_intro, sn_intro=self.sn_intro, dc_intro=self.dc_intro, stats=self.stats, ach_done=self.ach_done,
                     ach_claimed=self.ach_claimed, talk_story=self.talk_story)
 
     def from_dict(self, d):
@@ -475,6 +476,7 @@ class Tavern:
             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]
         self.bj_intro = bool(d.get("bj_intro", self.bj_intro))
         self.sn_intro = bool(d.get("sn_intro", self.sn_intro))
+        self.dc_intro = bool(d.get("dc_intro", self.dc_intro))
         if isinstance(d.get("stats"), dict):       # 3.34
             self.stats = {k: _int(v, 0) for k, v in d["stats"].items() if isinstance(k, str) and _int(v, 0) > 0}
         for key in ("ach_done", "ach_claimed"):

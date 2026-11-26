@@ -84,7 +84,7 @@ class TavernUI:
 
     def sync_scene_audio(self):
         """Музыка и гул таверны включаются/выключаются сами по тому, где мы сейчас."""
-        want = "tavern" if self.view in ("tavern", "board", "casino", "fireside", "gameroom", "blackjack", "snails") else None
+        want = "tavern" if self.view in ("tavern", "board", "casino", "fireside", "gameroom", "blackjack", "snails", "dice") else None
         artist = self.tavern.stage_artist() if want else None
         if artist and has_scene_music(artist["stage"]):
             want = artist["stage"]           # 3.15.2 / 3.23: артист на сцене поёт свою песню

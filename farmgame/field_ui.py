@@ -605,18 +605,38 @@ class FieldUI:
         self.draw_vehicle(self.truck_x, TRUCK_GROUND + self.vehicle_dy(), color, cargo=self.truck_state == "leaving",
                           bob=bob, tier=tier, angle=ang, sy=sy)
         if self.truck_state == "parked" and self.modal is None:
-            p = f.potential_leaves()
-            pulse = 1 + 0.05 * math.sin(self.t * 5)
-            bw, bh = P(190 * pulse), P(54 * pulse)
-            lift = (0, 10, 50)[tier] if self.farm_info()["vehicle"] == "boat" else 0   # 3.38.1: над парусом
-            bx, by = P(self.truck_x - 10 - bw / 2), P(TRUCK_GROUND - 150 - lift - bh / 2)
-            rounded(s, WHITE, (bx, by, bw, bh), 14, 3)
-            poly(s, WHITE, [(self.truck_x - 25, by + bh - 2), (self.truck_x - 5, by + bh - 2), (self.truck_x - 20, by + bh + 14)], 0)
-            draw_text(s, name, 13, (bx + bw / 2, by + 14), (90, 70, 60), outline=None)
-            draw_cur_icon(s, bx + 30, by + 36, 0.6)
-            draw_text(s, f"+{p} {CUR['gen']}", 16, (bx + bw / 2 + 10, by + 36), (90, 200, 80))
-            self.zone_btn((bx, by, bw, bh), lambda: self.open_modal("truck"), 14)
-            self.zone((P(self.truck_x - 105), TRUCK_GROUND - 95, 190, 95), lambda: self.open_modal("truck"))
+            self.draw_truck_label(name, tier)
+
+    def draw_truck_label(self, name, tier):
+        """3.40.2: облачко «сколько дадут» над повозкой / упряжкой / лодкой. Ширина — по тексту, значок валюты и
+        число стоят рядом и не наезжают друг на друга; облачко покачивается целиком, без масштаба (цифры не дрожат)."""
+        s = self.screen
+        p = self.farm.potential_leaves()
+        brown, green = (90, 70, 60), (90, 200, 80)
+        num, word = f"+{fmt(p)}", CUR["gen"]
+        w_name = render_text(name, 13, brown, None).get_width()
+        w_num = render_text(num, 17, green, OUT).get_width()
+        w_word = render_text(word, 13, brown, None).get_width()
+        icon_w, gap = 22, 5
+        line = icon_w + gap + w_num + gap + w_word
+        if line + 28 > 300:                                  # длинное название валюты — оставляем значок и число
+            word, line = "", icon_w + gap + w_num
+        bw, bh = max(150, w_name + 28, line + 28), 56
+        lift = (0, 10, 50)[tier] if self.farm_info()["vehicle"] == "boat" else 0   # 3.38.1: над парусом
+        bob = round(2 * math.sin(self.t * 3))
+        cx = P(self.truck_x - 10)
+        bx, by = P(cx - bw / 2), P(TRUCK_GROUND - 150 - lift - bh / 2) + bob
+        rounded(s, WHITE, (bx, by, bw, bh), 14, 3)
+        tail_x = P(self.truck_x - 15)
+        poly(s, WHITE, [(tail_x - 10, by + bh - 2), (tail_x + 10, by + bh - 2), (tail_x - 5, by + bh + 14)], 0)
+        draw_text(s, name, 13, (cx, by + 15), brown, outline=None)
+        x0 = cx - line / 2
+        draw_cur_icon(s, x0 + icon_w / 2, by + 37, 0.6)
+        draw_text(s, num, 17, (x0 + icon_w + gap, by + 37), green, anchor="midleft")
+        if word:
+            draw_text(s, word, 13, (x0 + icon_w + gap + w_num + gap, by + 38), brown, anchor="midleft", outline=None)
+        self.zone_btn((bx, by, bw, bh), lambda: self.open_modal("truck"), 14)
+        self.zone((P(self.truck_x - 105), TRUCK_GROUND - 95, 190, 95), lambda: self.open_modal("truck"))
 
     def shop_has_affordable(self):
         f = self.farm

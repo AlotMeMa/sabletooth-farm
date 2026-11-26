@@ -350,7 +350,7 @@ def _fit_spec_base(name):
         w, h, align = DECOR_SIZE[last]
         return _spec(*_box(w, h, 1, 1, 1, 1), align)
     if folder == "ui" and last == "gameroom_map":      # 3.27: карта Игровой (высокая полоса)
-        return _spec((540, 1180), (0, 0, 540, 1180), "full")
+        return _spec((540, 1460), (0, 0, 540, 1460), "full")      # 3.45.1: 5 игр — карта длиннее
     if folder == "icons" and last.startswith("suit_"):
         return _spec(*_box(48, 48, 1, 1, 1, 1), "center")
     if folder == "icons" and last.startswith("ach_") and not last.startswith("ach_sheet"):   # 3.34.2: медали

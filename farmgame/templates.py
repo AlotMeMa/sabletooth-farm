@@ -313,7 +313,7 @@ def spec_list():
     add("ui/move_map", (1240, 278), "вся полоса", "карта глав для окна «Переезд»: лето, средневековье, зима, туман "
         "(места глав — farmgame/move_ui.py, MAP_FIRST/MAP_GAP/MAP_Y)", 1, lambda s: None)
     # 3.27: Игровая — карта игр сверху вниз, колесо фортуны, значки игр (мелкое — листом icons/gameroom_sheet)
-    add("ui/gameroom_map", (540, 1180), "вся полоса", "карта Игровой: бархатная дорожка сверху вниз (места игр — "
+    add("ui/gameroom_map", (540, 1460), "вся полоса", "карта Игровой: бархатная дорожка сверху вниз (места игр — "
         "farmgame/gameroom_ui.py, GAME_NODES)", 1, lambda s: s.blit(__import__("farmgame.gameroom_ui",
                                                                        fromlist=["x"]).build_gameroom_map()[0], (0, 0)))
     add("props/fortune_wheel", (300, 300), "центр", "обод колеса фортуны: кольцо с гвоздиками, середина пустая", 1,

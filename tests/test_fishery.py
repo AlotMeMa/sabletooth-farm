@@ -390,3 +390,33 @@ class VillageFinale(unittest.TestCase):
         self.assertEqual(ach.value(a, f, t), 1)
         t.ach_done = ["final_1", "final_2"]
         self.assertIn("драконы", barman_talk.news(f, t))
+
+
+class SellOnlyAdults3453(unittest.TestCase):
+    """3.45.3: купил-продал не даёт ничего — малька не продать, а покупка честно вычитается из заработка."""
+
+    def _farm(self):
+        from farmgame.logic import Farm
+        f = Farm()
+        f.farm_index = 3
+        f.reset_run()
+        f.levels = [30] * 9
+        return f
+
+    def test_young_fish_not_sold(self):
+        f = self._farm()
+        f.money = 1e15
+        self.assertTrue(f.buy_fish(8))
+        self.assertIsNone(f.sell_fish(len(f.fy_fish) - 1))
+        f.fy_fish[-1][2] = 1.0
+        self.assertIsNotNone(f.sell_fish(len(f.fy_fish) - 1))
+
+    def test_buy_sell_does_not_inflate_run(self):
+        f = self._farm()
+        f.money, f.run_earned = 1e15, 1e3        # денег больше заработка (стартовый капитал, F1)
+        before = f.run_total()
+        f.buy_fish(8)
+        self.assertAlmostEqual(f.run_total(), before, delta=before * 1e-9)
+        f.fy_fish[-1][2] = 1.0                    # даже выросшая — заработок только на её росте
+        f.sell_fish(len(f.fy_fish) - 1)
+        self.assertAlmostEqual(f.run_total() - before, f.fish_price(8) * 4, delta=f.fish_price(8) * 1e-6)

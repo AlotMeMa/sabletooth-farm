@@ -20,6 +20,10 @@ from .field_ui import FieldUI
 from .creatures_ui import CreaturesUI
 from .barn_ui import BarnUI
 from .windows_ui import WindowsUI
+
+# 3.45.3: окна, которые щелчок мимо НЕ закрывает (пока все закрываются; садки, таверна, Игровая — это не окна,
+# а отдельные экраны, у них своя кнопка «назад»)
+KEEP_OPEN = frozenset()
 from .hud_ui import HudUI
 from .widgets_ui import WidgetsUI
 from .screen_ui import ScreenUI
@@ -431,8 +435,25 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                     self.press_key, self.press_t = tuple(rect), self.t_real
                 cb()
                 return
+        if self.click_away(pos):
+            return
         if self.modal is None and self.mode == "normal" and self.view == "field":
             self.try_collect(pos)
+
+    def click_away(self, pos):
+        """3.45.3 (пользователь): щелчок по затемнённому фону мимо окна закрывает окно — как крестик."""
+        if not self.modal or self.modal in KEEP_OPEN:
+            return False
+        hit = getattr(self, "panel_hit", None)
+        if hit is None or hit.collidepoint(pos):
+            return False
+        if self.modal == "fortune" and getattr(self, "fw_spin", None) is not None:
+            return False                               # колесо крутится — дождаться результата
+        if self.t_real - self.modal_t0 < MODAL_OPEN_TIME:
+            return False                               # окно ещё выезжает — не закрывать случайным двойным щелчком
+        self.sfx.play("click")
+        self.close_modal()
+        return True
 
     def on_key(self, key):
         if getattr(self, "fy_game", None) is not None and getattr(self, "fy_phase", "") == "intro":   # 3.39.5

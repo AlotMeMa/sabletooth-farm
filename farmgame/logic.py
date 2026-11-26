@@ -744,15 +744,18 @@ class Farm:
         self.money -= price
         # 3.42: деньги, ушедшие на рыбку, — не заработок: иначе рыбка считалась бы в забег дважды (и как
         # заработанные деньги, и как стоимость рыбы в аквариуме), и покупка рыбы сама по себе давала крючки
-        self.run_earned = max(0.0, self.run_earned - price)
-        self.total_earned = max(0.0, self.total_earned - price)
+        # 3.45.3: без «max(0, ...)» — иначе при деньгах больше заработка (стартовый капитал) покупка вычитала
+        # меньше цены, а продажа добавляла всю цену: купил-продал — и забег «заработал» из воздуха (крючки)
+        self.run_earned -= price
+        self.total_earned -= price
         self.fy_fish.append([i + 1, price, 0.0, self._new_seed()])
         self.fy_grace = 0.0
         return True
 
     def sell_fish(self, n):
-        """Продать рыбку номер n (по текущей цене). Возвращает деньги или None."""
-        if not 0 <= n < len(self.fy_fish):
+        """Продать рыбку номер n (по текущей цене). Возвращает деньги или None.
+        3.45.3 (пользователь): только взрослую — малька не перепродать, нужно ждать, пока вырастет."""
+        if not 0 <= n < len(self.fy_fish) or self.fy_fish[n][2] < 1.0:
             return None
         amt = self.fish_worth(self.fy_fish.pop(n))
         self.earn(amt)

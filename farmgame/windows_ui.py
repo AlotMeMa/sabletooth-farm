@@ -434,7 +434,7 @@ class WindowsUI:
         lines = [
             f"Ферма: {self.farm_info()['name']} ({f.farm_index + 1}/{len(FARMS)}), бонус ферм x{FARM_BONUS ** f.farm_index}",
             f"Всего заработано: ${fmt(f.total_earned)}",
-            f"За этот забег: ${fmt(f.run_earned)}  (+${fmt(f.total_stash())} на грядках)",
+            f"За этот забег: ${fmt(max(0.0, f.run_earned))}  (+${fmt(f.total_stash())} на грядках)",
             f"Ферм продано: {f.prestiges}",
             f"{CUR['title']}: {f.leaves}  (доход {fmt_mult(f.home_leaves)})",
             f"{CUR['title']} за продажу сейчас: {f.potential_leaves()}",

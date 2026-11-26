@@ -94,6 +94,7 @@ class WidgetsUI:
         draw_text(s, title, 24, (head.centerx, head.centery - 2))
         x = pygame.Rect(r.right - 30, r.y - 14, 44, 44)
         self.icon_button(x, "close", lambda rr: draw_text(s, "X", 20, rr.center), self.close_modal)
+        self.panel_hit = r.union(head).union(x)        # 3.45.3: щелчок мимо этого — закрыть окно
         return r
 
     def close_modal(self):

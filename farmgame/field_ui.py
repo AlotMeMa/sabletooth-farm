@@ -23,6 +23,8 @@ class FieldUI:
 
     def coin_pos(self, k):
         cx, cy = crop_center(k)
+        if THEME.get("pond"):                 # 3.39.3: в пруду монетка сбоку, у правого края — рыбу не закрывает
+            return cx + 30, cy - 26 + math.sin(self.t * 4 + k) * 3
         return cx, cy - 6 + math.sin(self.t * 4 + k) * 3
 
     def hit_tile(self, pos):
@@ -255,7 +257,8 @@ class FieldUI:
                                life=(0.25, 0.4), size=(2, 3), gravity=40)
             pop = anim.ease_out_back((self.t_real - self.coin_born[k]) / 0.3, 2.2)
             big = f.farmers[k] and f.stash[k] > f.cycle_income(k) * 1.5
-            draw_coin(s, x, y + (1 - min(1.0, pop)) * 10, (18 if big else 15) * max(0.05, pop))
+            r = (18 if big else 15) * (0.85 if THEME.get("pond") else 1.0)
+            draw_coin(s, x, y + (1 - min(1.0, pop)) * 10, r * max(0.05, pop))
         else:
             self.coin_born[k] = None
 

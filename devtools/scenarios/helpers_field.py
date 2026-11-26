@@ -1,4 +1,5 @@
-# 3.39.1: свои помощники артели всегда у грядок (средневековье, зима, деревня), 3-й плясун, F1 «Сарай» в деревне
+# 3.39.2: без праздника своих помощников у грядок нет; на празднике — у ВСЕХ открытых грядок (средневековье, зима,
+# деревня). Плюс F1 «Сарай» в деревне.
 for idx, tag in ((1, "med"), (2, "win"), (3, "fish")):
     f = A.farm
     f.farm_index = idx
@@ -9,5 +10,6 @@ for idx, tag in ((1, "med"), (2, "win"), (3, "fish")):
     f.peasants = 12
     f.money = 1e12
     A.view = "field"; A.modal = None; A.toasts.clear(); frames(30); A.toasts.clear(); frames(1); snap(f"own_{tag}")
-f.rain_cd = 0; A.click_rain(); frames(240); A.toasts.clear(); frames(1); snap("own_fish_fest")
+    f.rain_cd = 0; A.click_rain(); frames(240); snap(f"fest_{tag}")
+    f.rain_left = 0
 A.view = "barn"; A.dev_tab = "barn"; A.open_modal("dev"); A.skip_anims(); frames(5); snap("dev_tank")

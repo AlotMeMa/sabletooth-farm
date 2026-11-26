@@ -664,7 +664,6 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         for k in DRAW_ORDER:
             self.draw_plants(k)
             self.draw_ice(k)
-            self.draw_own_worker(k)           # 3.39.1: свой помощник всегда у грядки
             self.draw_rush_worker(k)          # 3.26: гном из «пришествия» на грядке
         self.draw_rush_walkers()              # 3.38.1: рыбаки идут из домов к прудам и обратно
         self.draw_front_fence()

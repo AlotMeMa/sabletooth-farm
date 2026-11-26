@@ -125,7 +125,9 @@ class FieldUI:
         if f.start_rain():
             self.quest("weather")
             if self.farm_info().get("rush_helpers"):
-                self.toast(f"{self.farm_info()['weather']}! Гномы работают на всех грядках, шаманы пляшут")
+                kind = self.farm_info().get("helpers")          # 3.39.2: у каждой главы свои помощники
+                extra = {"gnomes": ", шаманы пляшут", "fishermen": ", а с уловом пляшут"}.get(kind, "")
+                self.toast(f"{self.farm_info()['weather']}! {self.helpers()['title']} работают на всех грядках{extra}")
             else:
                 self.toast(f"{self.farm_info()['weather']}! Всё растёт быстрее")
             self.sfx.play({"Праздник урожая": "fanfare", GNOME_RUSH: "tambourine"}.get(self.farm_info()["weather"], "rain"))
@@ -408,7 +410,7 @@ class FieldUI:
         el, left = clock
         f = self.farm
         for k in DRAW_ORDER:
-            if f.levels[k] == 0 or f.farmers[k]:
+            if f.levels[k] == 0:
                 continue
             spot, right = self.rush_spot(k)
             w = self.rush_walk(k, el, left, self.rush_door(k, sc), spot)
@@ -418,28 +420,11 @@ class FieldUI:
             hop = abs(math.sin((self.t_real + k) * 9)) * 3
             draw_fisher(self.screen, x, y - hop, 1.2, self.t_real + k * 0.7, flip=not to_right, n=k)
 
-    def draw_own_worker(self, k):
-        """3.39.1: свой помощник артели (крестьянин, гном, рыбак) всегда стоит у своей грядки и работает —
-        с праздником или без. Чужие на празднике — draw_rush_worker."""
-        f, info = self.farm, self.farm_info()
-        if not info.get("peasants") or f.levels[k] == 0 or not f.farmers[k]:
-            return
-        (x, y), right = self.rush_spot(k)
-        t = self.t_real + k * 0.7
-        kind = info.get("helpers")
-        if kind == "fishermen":
-            from .art_fishing import draw_fisher
-            draw_fisher(self.screen, x, y, 1.25, t, flip=right, n=k)
-        elif kind == "gnomes":
-            draw_gnome_worker(self.screen, x, y, 1.25, t, flip=right, n=k)
-        else:
-            draw_peasant_worker(self.screen, x, y, 1.25, t, flip=right, n=k)
-
     def draw_rush_worker(self, k):
         """Гном из леса на грядке без своего гнома: выскакивает из сугроба, машет тяпкой, в конце исчезает."""
         clock = self.rush_clock()
         f = self.farm
-        if clock is None or f.levels[k] == 0 or f.farmers[k]:
+        if clock is None or f.levels[k] == 0:           # 3.39.2: на празднике — у ВСЕХ открытых грядок, и со своим тоже
             self.rush_popped.discard(k)
             return
         el, left = clock
@@ -459,13 +444,18 @@ class FieldUI:
             from .art_fishing import draw_fisher
             draw_fisher(self.screen, x, y, 1.25, self.t_real + k * 0.7, flip=right, n=k)
             return
-        if k not in self.rush_popped:                 # выскочил — облачко снега (у рыбака — брызги)
+        kind = self.farm_info().get("helpers")
+        if k not in self.rush_popped:                 # выскочил — облачко снега (у рыбака — брызги, у крестьянина — пыль)
             self.rush_popped.add(k)
-            self.fx.dust(x, y - 4, n=6, color=(200, 225, 240) if fisher else (245, 250, 255), size=(5, 9), spread=12,
+            dust = (200, 225, 240) if fisher else ROAD_DUST if kind == "peasants" else (245, 250, 255)
+            self.fx.dust(x, y - 4, n=6, color=dust, size=(5, 9), spread=12,
                          up=20, drift=20, alpha=220, life=(0.35, 0.6))
         if fisher:
             from .art_fishing import draw_fisher
             draw_fisher(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
+            return
+        if kind == "peasants":                        # 3.39.2: Праздник урожая — крестьяне у всех грядок
+            draw_peasant_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
             return
         draw_gnome_worker(self.screen, x, y, 1.25 * (0.6 + 0.4 * grow), self.t_real + k * 0.7, flip=right, n=k)
 
@@ -474,6 +464,8 @@ class FieldUI:
         clock = self.rush_clock()
         if clock is None:
             self.rush_popped.clear()
+            return
+        if self.farm_info().get("helpers") == "peasants":   # 3.39.2: в средневековье плясунов нет (там конфетти)
             return
         el, left = clock
         sc = self.scene() if self.farm_info().get("helpers") == "fishermen" else None

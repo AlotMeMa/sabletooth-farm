@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.39.1"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.39.2"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -584,6 +584,7 @@ FARMS = [
          names=["Репа", "Горох", "Рожь", "Капуста", "Ячмень", "Лён", "Хмель", "Полба", "Виноград"],
          plants=["turnip", "peas", "rye", "cabbage", "barley", "flax", "hops", "spelt", "grapes"],
          theme=THEME_MEDIEVAL, weather="Праздник урожая", crow=False, frost=False, bandits=True, peasants=True,
+         rush_helpers=True,   # 3.39.2: на Празднике урожая крестьяне работают на ВСЕХ грядках (решение пользователя 26.11)
          helpers="peasants",
          barn="mill", tree="medieval", cur="seal", ready=True,
          trophy=dict(name="Королевский штандарт", text="в начале каждого забега +2 помощника"),   # 3.35

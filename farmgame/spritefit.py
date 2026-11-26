@@ -27,7 +27,7 @@ except Exception:        # noqa: BLE001
 
 from .config import BASE_DIR, W, H, PRIZE_SHEET_IDS
 
-CACHE_VERSION = "fit10"   # 3.40.4: ключ — содержимое файла (md5); в листах убираются крохи рамок
+CACHE_VERSION = "fit11"   # 3.40.4: ключ — содержимое файла (md5); в листах убираются крохи рамок
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
@@ -35,7 +35,8 @@ SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне:
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
 EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
 SLED_BOX = {"sled_1": (430, 124), "sled_2": (430, 142)}   # 3.26.2: остальные упряжки — как телега, 270×124
-GRID_FULL, GRID_THIN = 0.85, 0.012   # 3.40.4: линия сетки листа — «не фон» в 85% высоты, толщиной до 1.2% картинки
+GRID_FULL, GRID_THIN = 0.85, 0.012
+GRID_DARK, GRID_DARK_SHARE = 110, 0.6   # 3.45.1: и почти вся тёмная (чёрная рамка), а не цветные тела рыб   # 3.40.4: линия сетки листа — «не фон» в 85% высоты, толщиной до 1.2% картинки
 SHEET_SPECK = 24  # 3.40.4: в листе крошка — кусок не больше стольких пикселей (хвост рамки между клетками)
 MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
 SPECK_SHARE, SPECK_MIN = 0.00006, 6   # 3.26.1: крошка — отдельный кусочек меньше этой доли площади (не меньше 6 px)
@@ -532,17 +533,26 @@ class Pix:
         """3.40.4: тёмные линии сетки между клетками листа (нейросеть рисует клетки чёрной рамкой). Линия — тонкая
         полоса столбцов (строк), где «не фон» почти во всю высоту (ширину). Только для листов и полосок:
         в одиночной картинке так выглядит, например, мачта."""
-        w, h = self.w, self.h
+        w, h, b = self.w, self.h, self.buf
+        # 3.45.1: линия сетки — почти во всю длину И тёмная. Раньше брали «не фон в 85%», и ряд через тела двух
+        # рыб (щука и жерех лежат во всю клетку) принимался за линию: рыбы выходили разрезанными пополам.
         if _np is None:
             nb = [[not is_bg[y * w + x] for x in range(w)] for y in range(h)]
+            dk = [[max(b[(y * w + x) * 4], b[(y * w + x) * 4 + 1], b[(y * w + x) * 4 + 2]) < GRID_DARK and nb[y][x]
+                   for x in range(w)] for y in range(h)]
             col = [sum(nb[y][x] for y in range(h)) for x in range(w)]
             row = [sum(nb[y]) for y in range(h)]
+            dcol = [sum(dk[y][x] for y in range(h)) for x in range(w)]
+            drow = [sum(dk[y]) for y in range(h)]
         else:
             m = _nview(is_bg, w) == 0
+            px = _nview(b).reshape(h, w, 4)
+            dk = m & (px[:, :, :3].max(axis=2) < GRID_DARK)
             col, row = m.sum(axis=0).tolist(), m.sum(axis=1).tolist()
+            dcol, drow = dk.sum(axis=0).tolist(), dk.sum(axis=1).tolist()
         n = 0
-        for counts, size, other, vertical in ((col, w, h, True), (row, h, w, False)):
-            full = [c >= other * GRID_FULL for c in counts]
+        for counts, darks, size, other, vertical in ((col, dcol, w, h, True), (row, drow, h, w, False)):
+            full = [c >= other * GRID_FULL and d >= c * GRID_DARK_SHARE for c, d in zip(counts, darks)]
             i = 0
             while i < size:
                 if not full[i]:

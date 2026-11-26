@@ -43,7 +43,7 @@ class TavernUI:
     def quest_blocked(self):
         """Задания, которые сейчас не выполнить: их не выдаём."""
         f, out = self.farm, set()
-        if PEASANT_MAX - f.peasants < 2:
+        if f.peasant_max() - f.peasants < 2:
             out.add("peasant")
         if sum(MILL_MAX_LVL - lvl for lvl in f.m_levels) < 3:
             out.add("build")

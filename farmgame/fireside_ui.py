@@ -134,12 +134,10 @@ class FiresideUI:
         self.floater(x + 20, y - 50, random.choice(CAT_LINES), (255, 236, 200))
 
     def draw_fireside_extras(self, s, tt):
-        from .decor_art import draw_wreath, draw_rocking_chair, draw_dog, draw_fireflies
+        from .decor_art import draw_wreath, draw_dog, draw_fireflies
         t, L = self.tavern, self.fs_lay
         if t.prize_on("wreath"):
             draw_wreath(s, *L.get("wreath", (940, 180)), 1.3, tt)
-        if t.prize_on("rocking_chair"):
-            draw_rocking_chair(s, *L.get("chair", (250, 612)), 1.2, tt)
         if t.prize_on("dog"):
             x, y = L.get("dog", (835, 610))
             wag = max(0.0, getattr(self, "fs_wag", 0.0))

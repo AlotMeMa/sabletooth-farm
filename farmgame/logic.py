@@ -291,6 +291,12 @@ class Farm:
     def busy_peasants(self):
         return sum(1 for x in self.farmers if x) + sum(self.m_workers)
 
+    def peasant_max(self):
+        """3.45: больше помощников, чем мест для них, не нужно: грядки, а в средневековье ещё мельница и пекарня
+        (с 16 рыбаками в деревне 7 стояли без дела)."""
+        spots = N_CROPS + (2 * MILL_MAX_LVL if self.farm_def().get("barn") == "mill" else 0)
+        return min(PEASANT_MAX, spots)
+
     def free_peasants(self):
         return self.peasants - self.busy_peasants()
 
@@ -300,7 +306,7 @@ class Farm:
 
     def hire_peasant(self):
         price = self.peasant_cost()
-        if self.peasants >= PEASANT_MAX or self.money < price:
+        if self.peasants >= self.peasant_max() or self.money < price:
             return False
         self.money -= price
         self.peasants += 1
@@ -1053,6 +1059,8 @@ class Farm:
         self.fy_eggs = self._clean_rows(d.get("fy_eggs"), self._egg_row)[:max(0, self.fy_cap - len(self.fy_fish))]
         if self.farm_def()["peasants"]:                     # крестьян занято не больше, чем нанято
             self.peasants = max(self.peasants, PEASANT_START)   # сверху не режем: «Крепостные» дают крестьян сверх найма
+            if self.peasants > self.peasant_max():          # 3.45: лишних (их некуда поставить) отпускаем
+                self.peasants = max(self.peasant_max(), self.busy_peasants())
             for b in (1, 0):
                 while self.free_peasants() < 0 and self.m_workers[b] > 0:
                     self.m_workers[b] -= 1

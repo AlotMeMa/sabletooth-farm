@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.44"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.45"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -72,6 +72,7 @@ SONGS = [
 # 3.14: казино для игроков. Открывается навсегда, когда жетонов впервые набирается CASINO_UNLOCK_TOKENS
 CASINO_UNLOCK_TOKENS = 100
 # Призовая стойка таверны — только косметика (решение автора 24.11: «магазин таверны — исключительно косметика»):
+REMOVED_PRIZES = {"rocking_chair": 250}   # 3.45: убраны из стойки (решение пользователя 27.11) — жетоны возвращаются
 # kind — trophy (навсегда, встаёт в таверне), cosmetic (навсегда, вкл/выкл). Бафы «Счастливая монета» и «Клевер»
 # (3.14–3.17) убраны.
 # 3.33 (просьба пользователя 25.11): у косметики раздел cat — вкладка стойки: decor (украшения), chars (персонажи),
@@ -100,8 +101,6 @@ PRIZES = [
     dict(id="garland", kind="cosmetic", cat="decor", name="Гирлянда в таверне", cost=200, text="огоньки под балконом таверны"),
     dict(id="wreath", kind="cosmetic", cat="decor", name="Венок из колосьев", cost=140, text="висит на стене у камина"),
     dict(id="lanterns", kind="cosmetic", cat="decor", name="Фонарики", cost=180, text="три фонаря под балконом зала"),
-    dict(id="rocking_chair", kind="cosmetic", cat="decor", name="Кресло-качалка", cost=250,
-         text="само покачивается у огня"),
     # --- персонажи (chars)
     dict(id="cat", kind="cosmetic", cat="chars", name="Кот Рыжик", cost=150, text="спит у огня; его можно погладить"),
     dict(id="dog", kind="cosmetic", cat="chars", name="Пёс Буян", cost=220, text="дремлет у камина и виляет хвостом"),

@@ -100,6 +100,9 @@ BOAT_BOX = {"boat_0": (210, 120), "boat_1": (250, 170), "boat_2": (280, 200)}   
 PREDATOR_SHEET_ORDER = ["pike", "asp", "zander", "burbot", "catfish", "eel", "taimen", "sturgeon", "beluga", "swordfish"]
 # 3.40.4: лист пользователя нарисован 5 рядов × 2 и без сома (на его месте второй осётр — «_spare», не берём).
 # Сом пока рисуется кодом; своя картинка — assets/fish/catfish.png (отдельный файл важнее листа).
+# 3.45: рыбки аквариума одним листом 3×3 (assets/fish/swim_sheet.png), смотрят влево, порядок — как участки пруда
+SWIM_SHEET_ORDER = ["swim_roach", "swim_crucian", "swim_perch", "swim_bream", "swim_carp", "swim_trout", "swim_salmon",
+                    "swim_koi", "swim_goldfish"]
 PREDATOR_SHEET_CELLS = ["pike", "asp", "zander", "burbot", "eel", "taimen", "sturgeon", "_spare", "beluga", "swordfish"]
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
@@ -126,7 +129,8 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
     "vehicles/boat_sheet": ("", BOAT_SHEET_ORDER, 1, 3),            # 3.38.1: лодка рыботорговца, 3 уровня
-    "fish/predators_sheet": ("fish/", PREDATOR_SHEET_CELLS, 5, 2),  # 3.37: хищники садка (3.40.4: 5×2, как нарисовано)
+    "fish/predators_sheet": ("fish/", PREDATOR_SHEET_CELLS, 5, 2),
+    "fish/swim_sheet": ("fish/", SWIM_SHEET_ORDER, 3, 3),          # 3.45: рыбки аквариума  # 3.37: хищники садка (3.40.4: 5×2, как нарисовано)
     "characters/snails_sheet": ("characters/snail_", ["1", "2", "3", "4", "5"], 1, 5),   # 3.40: улитки скачек
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
@@ -230,7 +234,7 @@ def _fit_spec_base(name):
         m = re.match(r"^(.*)_([123])$", last)
         c, b = _box(110, 120, 3, 2, 3, 4)
         return _spec(c, b, "bottom", STAGE_HEIGHT[int(m.group(2))] if m else 1.0)
-    if folder == "fish" and last != "predators_sheet":   # 3.37: хищник садка, смотрит влево; рисуется с 0.45 * k
+    if folder == "fish" and last not in ("predators_sheet", "swim_sheet"):   # 3.37: хищник садка, смотрит влево; рисуется с 0.45 * k
         return _spec(*_box(200, 100, 6, 6, 6, 6), "center")
     if folder == "tiles":     # 3.39.6: «fill» — все плитки ровно 166×94, как бы ни были нарисованы (решение 26.11)
         return _spec(*_box(184, 104, 9, 5, 9, 5), "fill")
@@ -305,7 +309,7 @@ def _fit_spec_base(name):
             return _spec(*_box(90, 120, 2, 2, 2, 0), "bottom")
         if last == "dog":                  # 3.33: пёс Буян спит у камина (лежит боком)
             return _spec(*_box(220, 120, 2, 2, 2, 0), "bottom")
-        if last == "owl":                  # 3.33: сова Ухта сидит на бочке в зале
+        if last == "owl":                  # 3.33: сова Ухта (3.45: сидит на перилах балкона у левого окна)
             return _spec(*_box(100, 140, 2, 2, 2, 0), "bottom")
         if last in ("miller", "baker"):    # работники мельницы и пекарни (3.7), в полный рост
             return _spec(*_box(100, 150, 3, 3, 3, 0), "bottom")
@@ -1099,7 +1103,7 @@ def is_strip(img, path=None):
         if key in _strip_cache:
             return _strip_cache[key]
         if key:                                # 3.40.4: ответ хранится и на диске — не считаем при каждом запуске
-            disk = os.path.join(CACHE_DIR, f"strip_{CACHE_VERSION}_{key}.txt")
+            disk = os.path.join(CACHE_DIR, f"strip2_{CACHE_VERSION}_{key}.txt")
             try:
                 with open(disk, encoding="utf-8") as fh:
                     _strip_cache[key] = fh.read().strip() == "1"
@@ -1112,9 +1116,13 @@ def is_strip(img, path=None):
         img = pygame.image.load(path)
     w, h = img.get_size()
     result = False
-    if w >= 1.3 * h:                       # высокая/квадратная картинка — точно одно растение
+    if w >= 0.9 * h:                       # высокая картинка — точно одно растение
         px = _prepare(img, 360)            # грубо, но быстро: нужен только силуэт
         bb = px.bbox()
+        # 3.45: квадратная картинка тоже бывает полоской (Gemini рисует 3 стадии в ряд посреди квадрата — кои,
+        # золотая рыбка): смотрим на сам рисунок — он заметно шире, чем выше
+        if bb and w < 1.3 * h and (bb[2] - bb[0]) < 1.6 * (bb[3] - bb[1]):
+            bb = None
         if bb:
             occ = px.occupancy("x", bb)
             min_gap = max(2, int(len(occ) * 0.015))

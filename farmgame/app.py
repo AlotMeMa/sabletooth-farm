@@ -345,7 +345,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.modal = "offline"
         if self.farm.truck_ready():
             self.truck_state = "parked"
-            self.truck_x = TRUCK_PARK_X
+            self.truck_x = self.park_x()
 
     def animate(self):
         """Всё, что движется по настоящему времени: частицы, деньги на плашке, «пружинки» кнопок."""
@@ -514,10 +514,10 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.toast(self.farm_info()["arrive"], 4)
             self.sfx.play("truck" if self.farm_info()["vehicle"] == "truck" else "fanfare")   # упряжка — фанфары
         elif self.truck_state == "arriving":            # 3.3: подъезжает и плавно тормозит
-            self.truck_v = max(60.0, min(280.0, (self.truck_x - TRUCK_PARK_X) * 2.4))
+            self.truck_v = max(60.0, min(280.0, (self.truck_x - self.park_x()) * 2.4))
             self.truck_x -= self.truck_v * dt
-            if self.truck_x <= TRUCK_PARK_X:
-                self.truck_x, self.truck_v = TRUCK_PARK_X, 0.0
+            if self.truck_x <= self.park_x():
+                self.truck_x, self.truck_v = self.park_x(), 0.0
                 self.truck_state, self.truck_t = "parked", self.t
         elif self.truck_state == "leaving":             # трогается и разгоняется
             if self.truck_v == 0.0:

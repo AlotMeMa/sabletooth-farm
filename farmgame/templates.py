@@ -409,6 +409,8 @@ def known_names():
               "characters/fisher_dancer"} | {f"characters/fisher_{k}_{n}" for k in ("worker", "dancer") for n in (1, 2)}
     names |= {"characters/sailor"} | {f"characters/snail_{n}" for n in range(1, 6)}       # 3.40: скачки улиток
     names |= {"characters/dragoness"}                                                     # 3.43: кости
+    from .spritefit import SWIM_SHEET_ORDER
+    names |= {"fish/" + n for n in SWIM_SHEET_ORDER} | {"fish/swim_sheet"}               # 3.45: рыбки аквариума
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

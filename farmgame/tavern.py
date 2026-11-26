@@ -471,6 +471,10 @@ class Tavern:
         self.casino_open = bool(d.get("casino_open", self.casino_open))
         self.casino_intro = bool(d.get("casino_intro", self.casino_intro))
         if isinstance(d.get("prizes"), dict):
+            from .config import REMOVED_PRIZES
+            for k, cost in REMOVED_PRIZES.items():        # 3.45: убранный приз — жетоны назад
+                if d["prizes"].get(k):
+                    self.tokens += cost
             self.prizes = {k: True for k, v in d["prizes"].items() if isinstance(k, str) and k in ids and v}
         if isinstance(d.get("prize_off"), list):
             self.prize_off = [k for k in d["prize_off"] if isinstance(k, str) and k in ids]

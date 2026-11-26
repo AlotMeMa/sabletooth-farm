@@ -564,12 +564,21 @@ class FieldUI:
             draw_text(s, "Рыбацкий фестиваль!" if fishfest else ("Призвать гномов!" if gnomes else "Праздник урожая!"),
                       15, (rect.centerx, below), c)
 
+    BOAT_PARK_X, BOAT_DY = 885, 46     # 3.45: лодка стоит правее и ниже — корпусом в воде, а не на берегу
+
+    def park_x(self):
+        """Где останавливается покупатель: лодка — у воды справа внизу, остальные — на дороге."""
+        return self.BOAT_PARK_X if self.farm_info()["vehicle"] == "boat" else TRUCK_PARK_X
+
     def vehicle_dy(self):
-        """3.39: лодка уходит не прямо влево (там берег и причал), а вниз-влево вдоль берега и за нижний край."""
-        if self.farm_info()["vehicle"] != "boat" or self.truck_state != "leaving":
+        """3.39: лодка уходит не прямо влево (там берег и причал), а вниз-влево вдоль берега и за нижний край.
+        3.45: и стоит ниже дороги — на полосе воды у нижнего края."""
+        if self.farm_info()["vehicle"] != "boat":
             return 0.0
-        d = max(0.0, TRUCK_PARK_X - self.truck_x)
-        return 0.35 * d + 0.002 * d * d
+        if self.truck_state != "leaving":
+            return self.BOAT_DY
+        d = max(0.0, self.park_x() - self.truck_x)
+        return self.BOAT_DY + 0.35 * d + 0.002 * d * d
 
     def draw_vehicle(self, x, y, color, cargo=False, bob=0.0, tier=0, angle=0.0, sy=1.0):
         draw_vehicle_at(self.screen, self.farm_info()["vehicle"], tier, x, y, color, cargo, bob, angle, sy)
@@ -627,7 +636,7 @@ class FieldUI:
         lift = (0, 10, 50)[tier] if self.farm_info()["vehicle"] == "boat" else 0   # 3.38.1: над парусом
         bob = round(2 * math.sin(self.t * 3))
         cx = P(self.truck_x - 10)
-        bx, by = P(cx - bw / 2), P(TRUCK_GROUND - 150 - lift - bh / 2) + bob
+        bx, by = P(cx - bw / 2), P(TRUCK_GROUND - 150 - lift - bh / 2 + self.vehicle_dy()) + bob
         rounded(s, WHITE, (bx, by, bw, bh), 14, 3)
         tail_x = P(self.truck_x - 15)
         poly(s, WHITE, [(tail_x - 10, by + bh - 2), (tail_x + 10, by + bh - 2), (tail_x - 5, by + bh + 14)], 0)
@@ -638,12 +647,12 @@ class FieldUI:
         if word:
             draw_text(s, word, 13, (x0 + icon_w + gap + w_num + gap, by + 38), brown, anchor="midleft", outline=None)
         self.zone_btn((bx, by, bw, bh), lambda: self.open_modal("truck"), 14)
-        self.zone((P(self.truck_x - 105), TRUCK_GROUND - 95, 190, 95), lambda: self.open_modal("truck"))
+        self.zone((P(self.truck_x - 105), P(TRUCK_GROUND - 95 + self.vehicle_dy()), 190, 95), lambda: self.open_modal("truck"))
 
     def shop_has_affordable(self):
         f = self.farm
         peasants = self.farm_info()["peasants"]
-        if peasants and f.peasants < PEASANT_MAX and f.money >= f.peasant_cost():
+        if peasants and f.peasants < f.peasant_max() and f.money >= f.peasant_cost():
             return True
         for i in range(N_CROPS):
             if f.levels[i] == 0:

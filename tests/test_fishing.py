@@ -90,3 +90,39 @@ class FishingScene(unittest.TestCase):
         self.assertEqual(fm["vehicle"], "boat")
         self.assertEqual(len(fm["tiers"]), 3)
         self.assertIn("лодка", fm["arrive"])
+
+
+class Helpers345(unittest.TestCase):
+    """3.45: помощников не больше, чем мест для них; убранный приз возвращает жетоны."""
+    def test_peasant_max_by_farm(self):
+        f = Farm()
+        for idx, want in ((1, 16), (2, cfg.N_CROPS), (3, cfg.N_CROPS)):
+            f.farm_index = idx
+            f.reset_run()
+            self.assertEqual(f.peasant_max(), want)
+        f.money = 1e30
+        while f.hire_peasant():
+            pass
+        self.assertEqual(f.peasants, cfg.N_CROPS)
+
+    def test_extra_fishermen_from_old_save_let_go(self):
+        f = Farm()
+        f.farm_index = 3
+        f.reset_run()
+        d = f.to_dict()
+        d["peasants"] = 16
+        g = Farm()
+        g.from_dict(d)
+        self.assertEqual(g.peasants, cfg.N_CROPS)
+
+    def test_rocking_chair_refund(self):
+        from farmgame.tavern import Tavern
+        t = Tavern()
+        d = t.to_dict()
+        d["tokens"] = 10
+        d["prizes"] = {"rocking_chair": True, "cat": True}
+        t2 = Tavern()
+        t2.from_dict(d)
+        self.assertEqual(t2.tokens, 10 + cfg.REMOVED_PRIZES["rocking_chair"])
+        self.assertNotIn("rocking_chair", t2.prizes)
+        self.assertTrue(t2.prizes.get("cat"))

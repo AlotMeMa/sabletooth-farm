@@ -238,10 +238,10 @@ class WindowsUI:
         draw_helper_head(s, icon.centerx, icon.centery + 2, 2.2)
         hp = self.helpers()
         draw_text(s, f"Нанять {hp['acc']}", 19, (row.x + 86, row.y + 26), brown, anchor="midleft", outline=None)
-        draw_text(s, f"Всего {f.peasants} из {PEASANT_MAX}, свободно {f.free_peasants()}", 14, (row.x + 86, row.y + 54),
+        draw_text(s, f"Всего {f.peasants} из {f.peasant_max()}, свободно {f.free_peasants()}", 14, (row.x + 86, row.y + 54),
                   soft, anchor="midleft", outline=None)
         b = pygame.Rect(row.right - 160, row.y + 22, 146, 46)
-        if f.peasants >= PEASANT_MAX:
+        if f.peasants >= f.peasant_max():
             skin.draw_max(s, b, 14, "Все наняты")
         else:
             ok = f.money >= f.peasant_cost()
@@ -589,7 +589,7 @@ class WindowsUI:
                 f.levels[i] = max(f.levels[i], 1)
         def helpers_all():
             if info["peasants"]:
-                f.peasants = max(f.peasants, PEASANT_MAX)
+                f.peasants = max(f.peasants, f.peasant_max())
             for i in range(N_CROPS):
                 if f.levels[i]:
                     f.farmers[i] = True

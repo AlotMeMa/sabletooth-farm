@@ -13,7 +13,7 @@ koi.png        Кои
 goldfish.png   Золотая рыбка
 
 Участки пруда: tiles/fishing/soil.png (вода за сеткой) и tiles/fishing/soil_locked.png (болото).
-Фон: backgrounds/fishing.png. Повозка: vehicles/fishcart_0..2 (или лист vehicles/fishcart_sheet 1×3).
+Фон: backgrounds/fishing.png. Лодка рыботорговца (3.38.1, вместо повозки): vehicles/boat_0..2 (или лист vehicles/boat_sheet 1×3), нос влево.
 Мелочь одним листом 3×3: icons/fishing_sheet (краб, золотой краб, чайка, чайка в полёте, рыбак-значок,
 крючок, кнопка фестиваля, рыбак с удочкой, рыбак-плясун).
 

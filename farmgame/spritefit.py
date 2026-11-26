@@ -85,7 +85,7 @@ PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubbl
 # 3.36: Рыбацкая деревня — мелочь одним листом 3×3 (assets/icons/fishing_sheet.png) и повозка 1×3 (полные имена)
 FISHING_SHEET_ORDER = ["creatures/crab", "creatures/crab_gold", "creatures/gull", "creatures/gull_fly", "icons/fisherman",
                        "icons/hook", "ui/btn_fishfest", "characters/fisher_worker", "characters/fisher_dancer"]
-FISHCART_SHEET_ORDER = ["vehicles/fishcart_0", "vehicles/fishcart_1", "vehicles/fishcart_2"]
+BOAT_SHEET_ORDER = ["vehicles/boat_0", "vehicles/boat_1", "vehicles/boat_2"]   # 3.38.1: лодка вместо повозки
 PREDATOR_SHEET_ORDER = ["pike", "asp", "zander", "burbot", "catfish", "eel", "taimen", "sturgeon", "beluga", "swordfish"]
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
@@ -110,7 +110,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
-    "vehicles/fishcart_sheet": ("", FISHCART_SHEET_ORDER, 1, 3),    # 3.36: повозка рыботорговца, 3 уровня
+    "vehicles/boat_sheet": ("", BOAT_SHEET_ORDER, 1, 3),            # 3.38.1: лодка рыботорговца, 3 уровня
     "fish/predators_sheet": ("fish/", PREDATOR_SHEET_ORDER, 2, 5),  # 3.37: хищники садка, порядок = PREDATORS
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
@@ -293,6 +293,8 @@ def _fit_spec_base(name):
             return _spec(*_box(w, h, 4, 2, 4, 0), "bottom")
         if last.startswith("cart") or last.startswith("fishcart"):     # 3.36: повозка рыботорговца
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
+        if last.startswith("boat"):        # 3.38.1: лодка рыботорговца: с мачтой выше, низ корпуса — под водой
+            return _spec(*_box(280, 200, 4, 2, 4, 0), "bottom")
         return None
     if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):
         # 3.4: окна и кнопки — фон убрать, поля обрезать, пропорции картинки сохранить (игра режет её на 9/3 части)

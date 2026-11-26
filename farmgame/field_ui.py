@@ -177,7 +177,10 @@ class FieldUI:
             scale *= 1 + 0.1 * math.sin(math.pi * (self.t_real - born) / 0.35)
         tr = self.t_real
         amp = 3.4 if f.rain_left > 0 else 2.2                  # ветер: в дождь посильнее
-        for i, (ox, oy) in enumerate(PLANT_SPOTS):
+        spots = PLANT_SPOTS
+        if THEME.get("pond"):                       # 3.38.1: на участке пруда одна рыба — крупнее и без мельтешения
+            spots, scale = [(0, 2)], scale * 1.3
+        for i, (ox, oy) in enumerate(spots):
             ph = k * 1.3 + i * 2.1
             sway = amp * (0.7 * math.sin(tr * 1.5 + ph) + 0.3 * math.sin(tr * 2.7 + ph * 1.9))
             draw_crop(self.screen, k, cx + ox, cy + oy, scale, grow, sway)
@@ -550,6 +553,9 @@ class FieldUI:
         """Покачивание машины -> (подскок, наклон°, sy). Едет — трясётся на кочках; остановилась — клюёт носом
         и покачивается на рессорах; трогается — приседает на зад; стоит — еле заметно «дышит» мотором."""
         t, e = self.t, self.t - self.truck_t
+        if self.farm_info()["vehicle"] == "boat":        # 3.38.1: лодка всегда покачивается на волнах
+            k = min(1.0, self.truck_v / 150) if self.truck_state != "parked" else 0.0
+            return 2.0 * math.sin(t * 1.7) + 1.5 * k * math.sin(t * 5), 1.6 * math.sin(t * 1.2) + 1.2 * k, 1.0
         cart = self.farm_info()["vehicle"] in ("cart", "sled", "fishcart")     # упряжка и повозка качаются, как телега
         if self.truck_state == "parked":
             spring = math.exp(-5 * e) * math.cos(10 * e) if e < 1.2 else 0.0
@@ -570,14 +576,16 @@ class FieldUI:
         name, color, _ = TRUCK_TIERS[tier]
         bob, ang, sy = self.truck_pose()
         shift = vehicle_shift(self.farm_info()["vehicle"], tier)
-        draw_shadow(s, self.truck_x - 10 - shift, TRUCK_GROUND + 3, 220 + 2 * shift, 18, 60)
+        if self.farm_info()["vehicle"] != "boat":         # 3.38.1: у лодки — вода, а не тень
+            draw_shadow(s, self.truck_x - 10 - shift, TRUCK_GROUND + 3, 220 + 2 * shift, 18, 60)
         self.draw_vehicle(self.truck_x, TRUCK_GROUND, color, cargo=self.truck_state == "leaving", bob=bob, tier=tier,
                           angle=ang, sy=sy)
         if self.truck_state == "parked" and self.modal is None:
             p = f.potential_leaves()
             pulse = 1 + 0.05 * math.sin(self.t * 5)
             bw, bh = P(190 * pulse), P(54 * pulse)
-            bx, by = P(self.truck_x - 10 - bw / 2), P(TRUCK_GROUND - 150 - bh / 2)
+            lift = (0, 10, 50)[tier] if self.farm_info()["vehicle"] == "boat" else 0   # 3.38.1: над парусом
+            bx, by = P(self.truck_x - 10 - bw / 2), P(TRUCK_GROUND - 150 - lift - bh / 2)
             rounded(s, WHITE, (bx, by, bw, bh), 14, 3)
             poly(s, WHITE, [(self.truck_x - 25, by + bh - 2), (self.truck_x - 5, by + bh - 2), (self.truck_x - 20, by + bh + 14)], 0)
             draw_text(s, name, 13, (bx + bw / 2, by + 14), (90, 70, 60), outline=None)

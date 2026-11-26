@@ -466,8 +466,12 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             if self.truck_dust >= 0.09:
                 self.truck_dust = 0.0
                 rear = 60 if self.farm_info()["vehicle"] == "truck" else 75
-                self.fx.dust(self.truck_x + rear, TRUCK_GROUND + 2, n=2, color=ROAD_DUST, size=(5, 9), spread=6, up=10,
-                             drift=50, alpha=150, life=(0.4, 0.7))
+                if self.farm_info()["vehicle"] == "boat":      # 3.38.1: за лодкой — пена, а не пыль
+                    self.fx.dust(self.truck_x + 110, TRUCK_GROUND - 6, n=2, color=(215, 235, 245), size=(5, 9), spread=8,
+                                 up=6, drift=30, alpha=170, life=(0.4, 0.7))
+                else:
+                    self.fx.dust(self.truck_x + rear, TRUCK_GROUND + 2, n=2, color=ROAD_DUST, size=(5, 9), spread=6, up=10,
+                                 drift=50, alpha=150, life=(0.4, 0.7))
 
         if self.modal is None and self.view == "field":
             self.update_squirrel(dt)

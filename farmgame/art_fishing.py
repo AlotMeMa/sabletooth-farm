@@ -306,3 +306,70 @@ def draw_roe(s, x, y, k, t, ripe):
         pygame.draw.circle(s, (255, 190, 120), (P(cx), P(cy)), max(1, P(2.6 * k)))
         if ripe > 0.5:
             pygame.draw.circle(s, OUT, (P(cx + 0.6 * k), P(cy)), max(1, P(0.9 * k)))
+
+
+# 3.38.1: лодка рыботорговца (решение пользователя 26.11: лодка вместо повозки) — 3 уровня, нос влево.
+BOAT_LOOKS = [   # длина, высота борта, корпус, кромка, мачта, парус
+    (150, 24, (132, 92, 60), (170, 125, 85), 0, None),
+    (205, 30, (118, 84, 58), (160, 118, 80), 80, (225, 215, 190)),
+    (245, 34, (60, 92, 150), (232, 192, 72), 112, (245, 238, 215)),
+]
+
+
+def draw_boat(s, x, y, tier, cargo=False, bob=0.0, t=0.0):
+    """Лодка рыботорговца: (x, y) — вода у борта (линия земли машины). Картинки vehicles/boat_<уровень> нет — кодом."""
+    L, hh, hull, rim, mast, sail = BOAT_LOOKS[max(0, min(2, tier))]
+    wy = y - 6                                   # линия воды
+    for n, (dx, w) in enumerate(((-L * 0.45, 40), (L * 0.1, 60), (L * 0.55, 36))):   # блики волн у борта
+        ox = 6 * math.sin(t * 1.3 + n * 2)
+        pygame.draw.line(s, (205, 228, 240), (P(x + dx - w / 2 + ox), P(wy + 6 + n % 2 * 3)),
+                         (P(x + dx + w / 2 + ox), P(wy + 6 + n % 2 * 3)), 2)
+    y = wy - bob
+    bow, stern = x - L / 2, x + L / 2
+    body = []                                    # корпус: прямая кромка, круглое днище, нос задран
+    for n in range(13):
+        u = n / 12
+        body.append((stern - (stern - bow + 14) * u, y - hh + (-8) * u ** 2))
+    for n in range(13):
+        u = 1 - n / 12                           # обратно по днищу: от носа к корме
+        bx = stern - 6 - (stern - 6 - bow + 14) * u
+        by = y + 7 - (hh + 15) * u ** 4 - 4 * math.sin(math.pi * u) * 0
+        body.append((bx, by))
+    if mast:                                     # мачта и парус — позади груза
+        mx = x + L * 0.05
+        pygame.draw.line(s, OUT, (P(mx), P(y - hh)), (P(mx), P(y - hh - mast)), max(3, P(6)))
+        pygame.draw.line(s, (120, 85, 55), (P(mx), P(y - hh)), (P(mx), P(y - hh - mast)), max(2, P(4)))
+        if tier == 1:                            # баркас: парус свёрнут на рее
+            pygame.draw.line(s, (110, 80, 52), (P(mx - 46), P(y - hh - mast + 22)), (P(mx + 46), P(y - hh - mast + 22)), 4)
+            ellipse(s, sail, mx, y - hh - mast + 22, 92, 14)
+        else:                                    # королевский: большой парус с полосой и флажок
+            billow = 6 * math.sin(t * 1.5)
+            top, bot = y - hh - mast + 14, y - hh - 18
+            pts = [(mx - 58, top), (mx + 58, top), (mx + 64 + billow, bot), (mx - 52 + billow, bot)]
+            poly(s, sail, pts, 3)
+            poly(s, (70, 105, 170), [(mx - 56, top + (bot - top) * 0.42), (mx + 60, top + (bot - top) * 0.42),
+                                     (mx + 62 + billow * 0.7, top + (bot - top) * 0.58),
+                                     (mx - 54 + billow * 0.7, top + (bot - top) * 0.58)], 0)
+            cy = top + (bot - top) * 0.25
+            poly(s, (232, 192, 72), [(mx - 12, cy + 8), (mx - 12, cy - 4), (mx - 6, cy + 2), (mx, cy - 8),
+                                     (mx + 6, cy + 2), (mx + 12, cy - 4), (mx + 12, cy + 8)], 2)   # корона
+            wv = 4 * math.sin(t * 6)
+            poly(s, (215, 70, 60), [(mx, y - hh - mast), (mx + 30, y - hh - mast + 5 + wv), (mx, y - hh - mast + 12)], 2)
+    if cargo:                                    # улов: ящики и рыбьи хвосты над бортом
+        for cx in range(-int(L * 0.32), int(L * 0.32) + 1, 30):
+            pygame.draw.rect(s, OUT, (P(x + cx - 13), P(y - hh - 16), P(26), P(18)))
+            pygame.draw.rect(s, (175, 130, 85), (P(x + cx - 11), P(y - hh - 14), P(22), P(14)))
+            poly(s, (170, 190, 205), [(x + cx, y - hh - 16), (x + cx - 6, y - hh - 28), (x + cx + 6, y - hh - 28)], 2)
+    elif tier == 0:                              # пустая лодочка: бочка для улова
+        ellipse(s, (150, 110, 70), x + 20, y - hh - 6, 24, 26)
+        pygame.draw.line(s, (100, 75, 50), (P(x + 8), P(y - hh - 6)), (P(x + 32), P(y - hh - 6)), 2)
+    poly(s, hull, body, 3)
+    dark = tuple(max(0, c - 35) for c in hull)
+    for k in (0.4, 0.72):                        # доски
+        pts = [(stern - 4 - (stern - bow) * u, y - hh + (hh + 7) * k - (hh * 0.9) * k * u ** 3 - 6 * u ** 2 * (1 - k))
+               for u in [i / 10 for i in range(10)]]
+        pygame.draw.lines(s, dark, False, [(P(a), P(b)) for a, b in pts], 2)
+    pygame.draw.lines(s, rim, False, [(P(a), P(b + 2)) for a, b in body[:12]], max(2, P(4)))
+    if tier == 0:                                # весло
+        pygame.draw.line(s, OUT, (P(x + L * 0.25), P(y - hh - 10)), (P(x + L * 0.45), P(y + 14)), max(3, P(5)))
+        pygame.draw.line(s, (190, 150, 100), (P(x + L * 0.25), P(y - hh - 10)), (P(x + L * 0.45), P(y + 14)), max(1, P(3)))

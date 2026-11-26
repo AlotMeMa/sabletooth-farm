@@ -314,7 +314,7 @@ def draw_cloud_body(s, x, y, raining):
     face(s, x - 4, y + 4, 2.0)
 
 
-VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30, "fishcart": -30}   # 3.36: повозка рыботорговца   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
+VEHICLE_OFFSET = {"truck": -5, "cart": -30, "sled": -30, "fishcart": -30, "boat": -10}   # 3.38.1: лодка   # 3.36: повозка рыботорговца   # 3.24: sled — собачья упряжка (зима)   # где середина низа картинки относительно точки (x, y) машины
 VEHICLE_FAR = W + 400.0    # 3.26.2: откуда приезжает машина (за правым краем: длинная упряжка не «выскакивает»)
 VEHICLE_WIDTH = {"sled_1": 430, "sled_2": 430}   # 3.26.2: длинные упряжки (по умолчанию 270): сани на том же месте, собаки — левее
 
@@ -331,6 +331,10 @@ def draw_vehicle_at(s, vehicle, tier, x, y, color, cargo=False, bob=0.0, angle=0
     """Машина (телега) смотрит влево. angle — наклон (+ — нос вниз), sy — осела на рессорах (3.3)."""
     names = ([f"vehicles/{vehicle}_{tier}_cargo"] if cargo else []) + [f"vehicles/{vehicle}_{tier}", f"vehicles/{vehicle}"]
     if blit_tf(s, names, x + VEHICLE_OFFSET[vehicle] - vehicle_shift(vehicle, tier), y + 4 - bob, 1, sy=sy, angle=angle):
+        return
+    if vehicle == "boat":                            # 3.38.1: лодка рыботорговца (Рыбацкая деревня)
+        from .art_fishing import draw_boat
+        draw_boat(s, x, y, tier, cargo, bob, pygame.time.get_ticks() / 1000)
         return
     (draw_cart if vehicle in ("cart", "sled", "fishcart") else draw_truck)(s, x, y, color, cargo and vehicle != "fishcart", bob)
     if vehicle == "fishcart" and cargo:              # 3.36: бочки и рыбьи хвосты над бортом

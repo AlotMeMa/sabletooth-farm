@@ -78,3 +78,10 @@ class FishingScene(unittest.TestCase):
             if fm["id"] != "fishing":
                 self.assertEqual(fm["theme"].get("field_dy", 0), 0)
                 self.assertTrue(fm["theme"].get("fence", True))
+
+    def test_buyer_comes_by_boat(self):
+        """3.38.1: решение пользователя 26.11 — за уловом приходит лодка, не повозка."""
+        fm = next(f for f in cfg.FARMS if f["id"] == "fishing")
+        self.assertEqual(fm["vehicle"], "boat")
+        self.assertEqual(len(fm["tiers"]), 3)
+        self.assertIn("лодка", fm["arrive"])

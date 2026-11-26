@@ -652,6 +652,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             working = f.m_workers[0] > 0 and f.hopper > 0
             draw_mill_blades(s, MILL_HUB[0], MILL_HUB[1], self.t * (1.6 if working else 0.35))
         self.zone((120, 30, 250, 195), self.toggle_barn)   # клик по амбару / мельнице
+        self.draw_scene_life()                # 3.38.1: окна мерцают, из трубы дым (если у фермы живой фон)
         self.draw_sun()
         self.draw_cloud()
         for k in DRAW_ORDER:
@@ -660,6 +661,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.draw_plants(k)
             self.draw_ice(k)
             self.draw_rush_worker(k)          # 3.26: гном из «пришествия» на грядке
+        self.draw_rush_walkers()              # 3.38.1: рыбаки идут из домов к прудам и обратно
         self.draw_front_fence()
         self.draw_shamans()                   # 3.26: шаманы пляшут на лужайке справа
         self.draw_truck_layer()

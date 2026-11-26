@@ -58,3 +58,23 @@ class FishingVillage(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class FishingScene(unittest.TestCase):
+    """3.38.1: живой фон деревни — поле ниже, без забора, точки окон/дыма/дверей в пределах экрана."""
+
+    def test_scene_points_on_screen(self):
+        th = cfg.THEME_FISHING
+        self.assertFalse(th["fence"])
+        self.assertGreater(th["field_dy"], 0)
+        sc = th["scene"]
+        for key in ("windows", "smoke", "doors", "dance"):
+            for pt in sc[key]:
+                self.assertTrue(0 <= pt[0] <= cfg.W and 0 <= pt[1] <= cfg.H, (key, pt))
+        self.assertEqual(len(sc["doors"]), 3)               # рыбаки выходят из трёх домов
+
+    def test_other_farms_keep_field_and_fence(self):
+        for fm in cfg.FARMS:
+            if fm["id"] != "fishing":
+                self.assertEqual(fm["theme"].get("field_dy", 0), 0)
+                self.assertTrue(fm["theme"].get("fence", True))

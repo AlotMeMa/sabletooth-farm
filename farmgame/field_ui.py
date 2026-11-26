@@ -27,7 +27,7 @@ class FieldUI:
 
     def hit_tile(self, pos):
         dx = (pos[0] - OX) / (TW / 2)
-        dy = (pos[1] + 18 - OY) / (TH / 2)
+        dy = (pos[1] + 18 - grid_oy()) / (TH / 2)
         fi, fj = (dx + dy) / 2, (dy - dx) / 2
         i, j = math.floor(fi + 0.5), math.floor(fj + 0.5)
         if (i, j) in SLOT:
@@ -337,6 +337,80 @@ class FieldUI:
         total = max(f.rain_left, _rain_time(f.up("rain_len")))
         return total - f.rain_left, f.rain_left
 
+    # ---------- 3.38.1: живой фон (окна, дым) и рыбаки из домов ----------
+    RUSH_WALK = 2.6                   # сколько секунд рыбак идёт от дома до пруда
+
+    def scene(self):
+        """Точки живого фона фермы (THEME["scene"]) — только если лежит та самая картинка фона."""
+        sc = THEME.get("scene")
+        if not sc or sprite(sc["bg"]) is None:
+            return None
+        return sc
+
+    def draw_scene_life(self):
+        sc = self.scene()
+        if sc is None:
+            return
+        s, t = self.screen, self.t_real
+        for n, (x, y, size) in enumerate(sc.get("windows", ())):   # огонь в очаге: свет дрожит у каждого окна по-своему
+            fl = 0.55 + 0.25 * math.sin(t * 3.1 + n * 1.7) + 0.2 * math.sin(t * 7.9 + n * 2.3) * math.sin(t * 1.3 + n)
+            blit_light(s, x, y, size * (2.2 + 0.3 * fl), (255, 190, 90), 70 + 110 * fl)
+            blit_light(s, x, y, size * 0.9, (255, 225, 150), 90 + 120 * fl)
+        if self.view == "field" and not self.modal:
+            last = getattr(self, "smoke_last", t)
+            if t - last > 2.0:                       # вернулись на поле — не выпускаем весь накопленный дым разом
+                last = t - 0.45
+            self.smoke_last = last
+            while t - self.smoke_last > 0.45:
+                self.smoke_last += 0.45
+                for x, y in sc.get("smoke", ()):
+                    self.fx.dust(x, y, n=1, color=(214, 218, 224), size=(6, 10), spread=2, up=24, life=(2.6, 3.6),
+                                 alpha=120, drift=9)
+
+    def rush_walk(self, k, el, left, door, spot):
+        """Где рыбак k на пути дом -> пруд -> дом: (x, y, идёт ли, смотрит вправо) или None (дома)."""
+        delay = 0.2 + 0.22 * DRAW_ORDER.index(k)
+        come = min(1.0, max(0.0, (el - delay) / self.RUSH_WALK))
+        back = min(1.0, max(0.0, (self.RUSH_WALK + 0.2 - left) / self.RUSH_WALK))
+        if come <= 0 or back >= 1:
+            return None
+        if back > 0:
+            u, a, b = anim.ease_in_out(back), spot, door
+        else:
+            u, a, b = anim.ease_out_cubic(come), door, spot
+        x, y = a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u
+        walking = 0 < u < 1
+        return x, y, walking, b[0] > a[0]
+
+    def rush_spot(self, k):
+        cx, cy = crop_center(k)
+        right = k % 2 == 0
+        return (cx + (64 if right else -64), cy + 14), right
+
+    def rush_door(self, k, sc):
+        spot, _r = self.rush_spot(k)
+        return min(sc["doors"], key=lambda d: (d[0] - spot[0]) ** 2 + (d[1] - spot[1]) ** 2 + 400 * (k % 3))
+
+    def draw_rush_walkers(self):
+        """Рыбаки, которые сейчас идут (на месте их рисует draw_rush_worker): поверх прудов, чтобы не прятались."""
+        sc = self.scene()
+        clock = self.rush_clock()
+        if sc is None or clock is None or not sc.get("doors"):
+            return
+        from .art_fishing import draw_fisher
+        el, left = clock
+        f = self.farm
+        for k in DRAW_ORDER:
+            if f.levels[k] == 0 or f.farmers[k]:
+                continue
+            spot, right = self.rush_spot(k)
+            w = self.rush_walk(k, el, left, self.rush_door(k, sc), spot)
+            if w is None or not w[2]:
+                continue
+            x, y, _walk, to_right = w
+            hop = abs(math.sin((self.t_real + k) * 9)) * 3
+            draw_fisher(self.screen, x, y - hop, 1.2, self.t_real + k * 0.7, flip=not to_right, n=k)
+
     def draw_rush_worker(self, k):
         """Гном из леса на грядке без своего гнома: выскакивает из сугроба, машет тяпкой, в конце исчезает."""
         clock = self.rush_clock()
@@ -353,6 +427,14 @@ class FieldUI:
         right = k % 2 == 0
         x, y = cx + (64 if right else -64), cy + 14
         fisher = self.farm_info().get("helpers") == "fishermen"     # 3.36: на фестивале — рыбаки с удочками
+        sc = self.scene() if fisher else None
+        if sc is not None and sc.get("doors"):                     # 3.38.1: пришёл из дома — без брызг
+            w = self.rush_walk(k, el, left, self.rush_door(k, sc), ((x, y)))
+            if w is None or w[2]:
+                return                                              # дома или в пути (в пути — draw_rush_walkers)
+            from .art_fishing import draw_fisher
+            draw_fisher(self.screen, x, y, 1.25, self.t_real + k * 0.7, flip=right, n=k)
+            return
         if k not in self.rush_popped:                 # выскочил — облачко снега (у рыбака — брызги)
             self.rush_popped.add(k)
             self.fx.dust(x, y - 4, n=6, color=(200, 225, 240) if fisher else (245, 250, 255), size=(5, 9), spread=12,
@@ -370,6 +452,23 @@ class FieldUI:
             self.rush_popped.clear()
             return
         el, left = clock
+        sc = self.scene() if self.farm_info().get("helpers") == "fishermen" else None
+        if sc is not None and sc.get("dance") and sc.get("doors"):   # 3.38.1: плясуны выходят из домов
+            from .art_fishing import draw_fisher
+            for n, spot in enumerate(sc["dance"]):
+                door = min(sc["doors"], key=lambda d: (d[0] - spot[0]) ** 2 + (d[1] - spot[1]) ** 2)
+                come = anim.ease_out_cubic(min(1.0, max(0.0, (el - 0.4 - 0.5 * n) / self.RUSH_WALK)))
+                back = min(1.0, max(0.0, (self.RUSH_WALK + 0.2 - left) / self.RUSH_WALK))
+                if come <= 0 or back >= 1:
+                    continue
+                a, b, u = (spot, door, back) if back > 0 else (door, spot, come)
+                x, y = a[0] + (b[0] - a[0]) * u, a[1] + (b[1] - a[1]) * u
+                t = self.t_real + n * 1.3
+                if 0 < u < 1:
+                    draw_fisher(self.screen, x, y - abs(math.sin(t * 9)) * 3, 1.5, t, flip=b[0] < a[0], n=n)
+                else:
+                    draw_fisher(self.screen, x, y, 1.6, t, flip=n == 1, cheer=True, n=n)
+            return
         for n, (sx, sy) in enumerate(SHAMAN_SPOTS):
             come = anim.ease_out_cubic(min(1.0, max(0.0, (el - 0.3 * n) / self.RUSH_IN)))
             go = 1.0 - anim.ease_out_cubic(min(1.0, max(0.0, left / self.RUSH_OUT)))      # 0 → 1 в последние секунды

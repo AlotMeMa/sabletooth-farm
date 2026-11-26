@@ -101,7 +101,9 @@ def build_field_background():
     bg.blit(barn, (60, 18))
     for x, y, r in ((900, 250, 26), (210, 430, 30), (950, 480, 24), (330, 520, 22), (640, 525, 22)):
         draw_bush(bg, x, y, r)
-    draw_fence(bg, (OX, OY - TH / 2), (OX + TW + TW / 2, OY + TH), (8, -14))   # задний забор
+    if THEME.get("fence", True):
+        oy = grid_oy()
+        draw_fence(bg, (OX, oy - TH / 2), (OX + TW + TW / 2, oy + TH), (8, -14))   # задний забор
     return bg
 
 
@@ -111,9 +113,10 @@ _fence_layers = {}
 
 def front_fence_segments():
     """Два передних края поля, вдоль которых стоит забор: [(начало, конец)], x начала < x конца."""
-    left = (OX - TW - TW / 2, OY + TH)
-    bottom = (OX, OY + 2 * TH + TH / 2)
-    right = (OX + TW + TW / 2, OY + TH)
+    oy = grid_oy()
+    left = (OX - TW - TW / 2, oy + TH)
+    bottom = (OX, oy + 2 * TH + TH / 2)
+    right = (OX + TW + TW / 2, oy + TH)
     return [((left[0] - 6, left[1] + 16), (bottom[0] - 30 - 6, bottom[1] - 15 + 16)),
             ((bottom[0] + 30 + 6, bottom[1] - 15 + 16), (right[0] + 6, right[1] + 16))]
 
@@ -230,6 +233,8 @@ def _fence_front_as_strip(name):
 
 
 def draw_front_fence_layer(s):
+    if not THEME.get("fence", True):          # 3.38.1: в Рыбацкой деревне забора нет — у прудов свои сетки
+        return
     strips = []
     for name in farm_names("props", "fence_front"):
         wide = _fence_front_as_strip(name)

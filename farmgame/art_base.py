@@ -52,8 +52,15 @@ def P(v):
     return int(round(v))
 
 
+FIELD_DY = [0.0]           # 3.38.1: сдвиг всего поля вниз (своё у фермы: THEME["field_dy"]; ставит apply_farm)
+
+
+def grid_oy():
+    return OY + FIELD_DY[0]
+
+
 def tile_center(i, j):
-    return OX + (i - j) * TW / 2, OY + (i + j) * TH / 2
+    return OX + (i - j) * TW / 2, grid_oy() + (i + j) * TH / 2
 
 
 def crop_center(k):

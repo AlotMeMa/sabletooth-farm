@@ -749,6 +749,7 @@ def apply_farm(idx):
     FARM_ID[0] = fm["id"]
     THEME.clear()
     THEME.update(fm["theme"])
+    FIELD_DY[0] = float(fm["theme"].get("field_dy", 0))
     CUR.clear()
     CUR.update(CURRENCIES[fm["cur"]])
     TREE[:] = TREES[fm["tree"]]

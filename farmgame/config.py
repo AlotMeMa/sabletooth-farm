@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.38"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.38.1"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -540,7 +540,15 @@ THEME_FISHING = dict(ground=(122, 148, 140), ground2=(134, 160, 152), path=(150,
                      path2=(160, 138, 110), tree=(66, 98, 94), tree_light=(92, 124, 120), bush=(78, 108, 104),
                      bush_light=(104, 134, 130), tuft=(92, 120, 112), stone=(150, 158, 166),
                      soil=(86, 128, 156), soil_dark=(64, 100, 130), soil_side=(110, 86, 64), snow=False,
-                     pond=True, critter="crab", pest="gull")
+                     pond=True, critter="crab", pest="gull", fence=False, field_dy=36,
+                     scene=dict(   # 3.38.1: живой фон backgrounds/fishing (точки — под картинку 26.11, логические 1000x640)
+                         bg="backgrounds/fishing",
+                         windows=[(847, 408, 22), (873, 475, 26), (915, 468, 26), (954, 448, 26),   # хижина справа
+                                  (814, 134, 18), (836, 180, 20), (876, 178, 20), (904, 169, 18),   # дом наверху
+                                  (68, 440, 22)],                                                   # хижина слева
+                         smoke=[(886, 76)],                       # труба дома наверху
+                         doors=[(846, 502), (811, 206), (158, 488)],   # откуда выходят рыбаки на фестиваль
+                         dance=[(770, 470), (230, 470)]))         # где пляшут рыбаки с уловом
 CURRENCIES = {
     "leaf": dict(icon="leaf", title="Листья", gen="листьев", one="лист", tree="ДЕРЕВО ЛИСТЬЕВ"),
     "seal": dict(icon="seal", title="Печати", gen="печатей", one="печать", tree="ПРИВИЛЕГИИ КОРОЛЯ"),

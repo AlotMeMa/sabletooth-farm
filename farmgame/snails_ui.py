@@ -43,6 +43,9 @@ SAILOR_SAY = {
             "Вот это заплыв! Забирай выигрыш, юнга!", "Тысяча медуз — она первая! Повезло тебе."],
     "lose": ["Эх, не твой ветер. Ещё забег?", "Ха! Улитки — они как море: никогда не знаешь.",
              "Не горюй, юнга. Я раз проиграл корабль. Целый!"],
+    "partial": ["Угадал, юнга! Да только остальные ставки — мои. Ха!",
+                "На всех ставить — что сеть рвать: рыба есть, а прибыли нет.",
+                "Пришла твоя, а карман всё равно легче. Море не обманешь!"],
 }
 RESULT_COLORS = {True: (255, 220, 90), False: (230, 200, 190)}
 
@@ -224,13 +227,16 @@ class SnailsUI:
         if g.state == "done" and not self.sn_shown:
             self.sn_shown = True
             w = g.winner()
-            if g.won():
+            if g.net() > 0:                       # 3.40.3: выигрыш — только если в плюсе чистыми
                 self.quest("snail_win")
                 if g.odds[w]["k"] >= 8:
                     self.quest("snail_long")
                 self.sfx.play("coin_big")
                 self.fx.sparks(FINISH_X, LANE_Y0 + w * LANE_STEP, n=14, up=70)
                 self.sn_say = [random.choice(SAILOR_SAY["win"]), 4]
+            elif g.won():                          # угадал, но остальные ставки съели выигрыш
+                self.sfx.play("coin")
+                self.sn_say = [random.choice(SAILOR_SAY["partial"]), 4.5]
             else:
                 self.sfx.play("shoo")
                 self.sn_say = [random.choice(SAILOR_SAY["lose"]), 4]
@@ -300,6 +306,10 @@ class SnailsUI:
             draw_snail(s, x, y + 12, 1.0, i, t + i, moving)
             if g.bets[i]:                                            # фишки лежат на своей улитке
                 draw_chip(s, START_X - 20, y, chip_for(g.bets[i]), 0.8, str(g.bets[i]))
+                if g.state == "bet":                                  # 3.40.3: чем кончится, если придёт она
+                    net = int(round(g.bets[i] * g.odds[i]["k"])) - g.bet
+                    col = (170, 240, 150) if net > 0 else (255, 190, 170)
+                    draw_text(s, f"придёт первой: {net:+d}", 13, (START_X + 72, y), col, anchor="midleft")
             od = g.odds[i]
             tx = FINISH_X + 34
             draw_text(s, look["name"], 13, (tx, y - 8), WHITE, anchor="midleft")
@@ -318,12 +328,20 @@ class SnailsUI:
         if g.state == "done":
             w = g.winner()
             name = sn.SNAILS[w]["name"]
-            msg = f"{name} — первая! +{g.paid} жетонов" if g.won() else f"Первой пришла {name}. Ставки у Якоря"
-            plate = pygame.Rect(0, 0, 430, 44)
+            net = g.net()
+            if net > 0:
+                msg = f"{name} — первая! +{net} чистыми (выплата {g.paid} за {g.bet})"
+            elif g.won() and net == 0:
+                msg = f"{name} — первая. Выплата {g.paid} — ровно в ноль"
+            elif g.won():
+                msg = f"{name} — первая. Вернулось {g.paid} из {g.bet} ({net})"
+            else:
+                msg = f"Первой пришла {name}. Ставки у Якоря (−{g.bet})"
+            plate = pygame.Rect(0, 0, 480, 44)
             plate.center = (500, 540)
             if not skin.plate(s, "toast", plate):
                 rounded(s, (40, 30, 28), plate, 12, 2, skin=None)
-            draw_text_fit(s, msg, 18, plate.center, plate.w - 20, RESULT_COLORS[g.won()])
+            draw_text_fit(s, msg, 18, plate.center, plate.w - 20, RESULT_COLORS[net > 0])
         L = SN_LAYOUT
         x0, y = L["chips_x"], L["chips_y"]
         if g.state == "bet":

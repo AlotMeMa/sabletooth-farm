@@ -23,3 +23,10 @@ frames(300); snap("sn_race")
 frames(500); A.toasts.clear(); frames(5); snap("sn_done")
 sn.FORCE_NEXT = True
 A.sn_again(); A.sn_start(); frames(900); A.toasts.clear(); frames(5); snap("sn_win")
+# 3.40.3: ставки на четырёх улиток, как у пользователя — подсказки «придёт первой» и итог чистыми
+A.sn_again(); A.sn_clear(); A.sn.clear_bet(A.tavern)
+for i, v in ((0, 10), (1, 25), (2, 10), (3, 25)):
+    A.sn.select(i); A.sn.add_bet(A.tavern, v)
+A.toasts.clear(); frames(5); snap("sn_bet4")
+sn.FORCE_NEXT = True
+A.sn_start(); frames(900); A.toasts.clear(); frames(5); snap("sn_net4")

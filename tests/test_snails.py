@@ -109,6 +109,33 @@ class Race(unittest.TestCase):
         self.assertEqual(self.g.won(), w in (1, 4))
         self.assertEqual(self.t.tokens, 970 + want)
 
+    def test_net_counts_lost_stacks(self):
+        """3.40.3: ставки на 4 улитки — выплата за победителя, остальные сгорают; чистыми считаем всё."""
+        self.t.tokens = 1000
+        for i, b in ((0, 10), (1, 25), (2, 10), (3, 25)):
+            self.g.select(i)
+            self.g.add_bet(self.t, b)
+        sn.FORCE_NEXT = True                                   # первой — самая большая стопка
+        self.g.start(self.t, random.Random(8))
+        w = self.g.winner()
+        self.assertEqual(self.g.net(), self.g.paid - 70)
+        self.assertEqual(self.t.tokens, 1000 + self.g.net())
+        self.assertTrue(self.g.won())
+
+    def test_covering_everything_still_loses_on_average(self):
+        rnd = random.Random(11)
+        total = 0
+        for _ in range(5000):
+            t = Tavern()
+            t.tokens = 100
+            g = sn.SnailRace(rnd)
+            for i in range(5):
+                g.select(i)
+                g.add_bet(t, 10)
+            g.start(t, rnd)
+            total += g.net()
+        self.assertLess(total, 0)                              # на всех сразу — в среднем минус ~5%
+
     def test_next_round_repeats_all_stacks(self):
         for i in (0, 2):
             self.g.select(i)

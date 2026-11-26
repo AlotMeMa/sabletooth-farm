@@ -150,8 +150,12 @@ class SnailRace:
         return self.order[0] if self.order else None
 
     def won(self):
-        """Пришла первой улитка, на которой есть наши фишки."""
+        """Пришла первой улитка, на которой есть наши фишки (но в плюсе ли игрок — см. net)."""
         return bool(self.order) and self.bets[self.order[0]] > 0
+
+    def net(self):
+        """3.40.3: итог забега чистыми — выплата минус всё, что было на столе (ставки на других улиток сгорают)."""
+        return self.paid - self.bet if self.order else 0
 
     def progress(self, i, t):
         """Доля пути улитки i через t секунд после старта (0..1): рывки разной скорости, финиш ровно в свой срок."""

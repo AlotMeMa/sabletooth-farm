@@ -6,6 +6,11 @@
 from .tavern_art import *  # noqa: F401,F403
 
 
+# 3.39.4: «Достижения» и «Призы» — по центру внизу зала (пользователь путал их с «На поле» в столбике слева)
+TAVERN_ACH_RECT = (W // 2 - 78, 560, 62, 56)
+TAVERN_PRIZES_RECT = (W // 2 + 16, 560, 62, 56)
+
+
 class TavernHudUI:
     def draw_tokens_pill(self, x, y, right=False):
         """Жетоны таверны. 3.20: в зале — слева, под плашками денег (справа закрывала гостя на балконе)."""
@@ -54,10 +59,10 @@ class TavernHudUI:
                          self.open_tavern, "Таверна", badge=bool(self.tavern.claimable()), tip=TAVERN_TIP)
 
     def draw_achievements_button(self):
-        """3.34: «Достижения» в таверне — над «Призами». Своя картинка — ui/btn_achievements."""
+        """3.34: «Достижения» в таверне; 3.39.4 — внизу по центру, слева от «Призов». Своя картинка — ui/btn_achievements."""
         from . import achievements as ach
         from .achievements_ui import draw_medal
-        r = pygame.Rect(16, 392, 62, 56)
+        r = pygame.Rect(TAVERN_ACH_RECT)
         ready = bool(ach.claimable(self.tavern))
         done = len(self.tavern.ach_done)
         self.icon_button(r, "achievements", lambda rr: draw_medal(self.screen, rr.centerx, rr.centery, 2, True, 0.9),
@@ -68,7 +73,7 @@ class TavernHudUI:
         """3.16.7: «Призы» прямо в таверне — над «На поле» (как «Таверна» над «Магазином» на поле).
         Своя картинка — ui/btn_prizes; без неё деревянная плашка с жетоном, в тон остальным кнопкам."""
         from .config import PRIZES as _P
-        r = pygame.Rect(16, 478, 62, 56)
+        r = pygame.Rect(TAVERN_PRIZES_RECT)            # 3.39.4: внизу по центру, справа от «Достижений»
         t = self.tavern
         shop = [p for p in _P if t.prize_state(p) == "can" and not (p.get("jackpot") or p.get("achievement"))]
         cheapest = min(p["cost"] for p in shop) if shop else None     # 3.34: джекпоты и трофеи за достижения не в счёт

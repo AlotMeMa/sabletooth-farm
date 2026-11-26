@@ -382,6 +382,13 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             self.try_collect(pos)
 
     def on_key(self, key):
+        if getattr(self, "fy_game", None) is not None and getattr(self, "fy_phase", "") == "intro":   # 3.39.5
+            if key == pygame.K_ESCAPE:
+                self.fy_catch_cancel()
+                return
+            if key in (pygame.K_SPACE, pygame.K_RETURN):
+                self.fy_catch_start()
+                return
         if key == pygame.K_ESCAPE:
             if self.modal:
                 self.modal = None

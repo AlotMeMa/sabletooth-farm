@@ -124,7 +124,22 @@ class FisheryUI:
         self.fy_shop = False
         self.fy_game = Catch(f.catch_difficulty(), f.catch_slow())
         self.fy_game_end = 0.0
-        self.sfx.play("shoo")
+        self.fy_phase = "intro"              # 3.39.5: сначала правила и «Начать?», потом отсчёт, потом ловля
+        self.fy_ready = 0.0
+        self.sfx.play("click")
+
+    CATCH_COUNTDOWN = 2.1                    # 3.39.5: «3, 2, 1» перед ловлей — секунда-другая на подумать
+
+    def fy_catch_start(self):
+        if self.fy_game is not None and getattr(self, "fy_phase", "play") == "intro":
+            self.fy_phase, self.fy_ready = "ready", self.CATCH_COUNTDOWN
+            self.sfx.play("shoo")
+
+    def fy_catch_cancel(self):
+        """Передумал на экране правил: хищник снят с крючка, без штрафа."""
+        if self.fy_game is not None and getattr(self, "fy_phase", "play") == "intro":
+            self.farm.fy_hooked = False
+            self.fy_game = None
 
     def catch_holding(self):
         if self.fy_hold:
@@ -140,9 +155,26 @@ class FisheryUI:
             return
         here = self.view == "barn" and self.farm_info()["barn"] == "fishery" and self.modal is None
         if g.result is None:
-            if not here or not f.fy_pred:          # ушёл с экрана — леска отпущена, без штрафа
+            if not f.fy_pred:
                 f.fy_hooked = False
                 self.fy_game = None
+                return
+            if not here:                           # ушёл с экрана: на правилах/отсчёте — без штрафа, в ловле — сорвался
+                if getattr(self, "fy_phase", "play") == "play":
+                    g.result = False
+                    self.fy_game_end = 0.0
+                    self.catch_finish(False)
+                else:
+                    f.fy_hooked = False
+                self.fy_game = None
+                return
+            phase = getattr(self, "fy_phase", "play")
+            if phase == "intro":                       # 3.39.5: читаем правила, хищник на крючке ждёт
+                return
+            if phase == "ready":                       # отсчёт: зона и рыба стоят
+                self.fy_ready -= dt
+                if self.fy_ready <= 0:
+                    self.fy_phase = "play"
                 return
             if getattr(self, "fy_autowin", False):     # 3.39.1: режим разработчика — вылов всегда удаётся
                 g.progress = 1.0
@@ -184,7 +216,7 @@ class FisheryUI:
         shade = hd.Surface((W, H), pygame.SRCALPHA)
         shade.fill((10, 20, 30, 120))
         s.blit(shade, (0, 0))
-        r = pygame.Rect(W // 2 - 250, 110, 500, 430)
+        r = pygame.Rect(W // 2 - 250, 150, 500, 470)   # ниже тостов
         rounded(s, (238, 226, 200), r, 14, 3, skin="card")
         col = pygame.Rect(r.x + 40, r.y + 40, 74, r.h - 80)          # вода
         rounded(s, (60, 110, 140), col, 10, 3, skin=None)
@@ -213,12 +245,23 @@ class FisheryUI:
                 draw_star(s, x + 8 + n * 18, r.y + 86, 8, GOLD)
             draw_text(s, f"${fmt(f.fy_pred_val)}", 18, (x, r.y + 116), (80, 150, 70), anchor="midleft", outline=None)
             draw_text(s, f"{f.predator_kg():.1f} кг", 14, (x, r.y + 140), soft, anchor="midleft", outline=None)
+        phase = getattr(self, "fy_phase", "play")
         lines = ["Держи кнопку мыши или пробел:", "зелёная зона всплывает.", "Отпустишь — тонет.", "",
-                 "Держи рыбу в зелёной зоне,", "пока шкала не заполнится!"]
+                 "Держи рыбу в зелёной зоне,", "пока шкала справа не заполнится!"]
+        if phase == "intro":
+            lines += ["", "Сорвётся — насторожится на 15 секунд.",
+                      "А если рыбы в аквариуме уже нет —", "уплывёт совсем."]
         if f.catch_slow() < 1:
             lines += ["", "Снежинка: рыба на 20% медленнее"]
         for n, line in enumerate(lines):
-            draw_text(s, line, 13, (x, r.y + 180 + n * 20), soft, anchor="midleft", outline=None)
+            draw_text(s, line, 13, (x, r.y + 160 + n * 18), soft, anchor="midleft", outline=None)
+        if phase == "intro":                          # 3.39.5: сначала спрашиваем
+            self.button((x, r.bottom - 60, 150, 40), "Начать!", self.fy_catch_start, BTN_GREEN, True, 17)
+            self.button((x + 160, r.bottom - 60, 120, 40), "Отпустить", self.fy_catch_cancel, BTN_GREY, True, 15)
+        elif phase == "ready":                        # отсчёт поверх колонки
+            n = max(1, int(math.ceil(self.fy_ready / (self.CATCH_COUNTDOWN / 3))))
+            draw_text(s, str(n), 48, (col.centerx, col.centery), WHITE)
+            draw_text(s, "Готовься…", 18, (x + 70, r.bottom - 40), brown, outline=None)
         if g.result is not None:
             draw_text(s, "Выловил!" if g.result else "Сорвался…", 30, (r.centerx, r.bottom - 34),
                       (90, 170, 70) if g.result else (200, 80, 60))
@@ -299,7 +342,7 @@ class FisheryUI:
         if f.fy_pred:
             self.draw_tank_predator(s, t)
         self.draw_banner((W // 2 - 110, 22, 220, 46), "САДКИ", 22)
-        if self.fy_game is not None:                 # 3.39: идёт вылов — только мини-игра
+        if self.fy_game is not None:                 # 3.39: идёт вылов — только мини-игра (3.39.5: сперва правила)
             self.draw_catch_game(s, t)
             for x, y, text, life, color in self.floaters:
                 draw_text(s, text, 18, (x, y), color)

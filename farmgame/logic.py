@@ -73,6 +73,8 @@ class Farm:
         self.fy_rank = 0                    # ранг прошлого хищника этого забега (0 — ещё не было)
         self.fy_up = FISH_UP_START          # шанс, что следующий рангом выше
         self.fy_events = []                 # для экрана: ("arrive"|"bite"|"left"|"egg"|"hatch", ...) — не сохраняются
+        self.fy_hooked = False              # 3.39: хищник на крючке (идёт мини-игра) — не ест, отсчёт не тлеет
+        self.fy_spook = 0.0                 # 3.39: сорвался — столько секунд насторожен, снова не клюёт
         self.oven_prog = 0.0
         self.oven_wait = 0.0                # сколько печь ждёт муку на полную партию
         self.m_carry_t = 0.0
@@ -801,17 +803,54 @@ class Farm:
 
     def _pred_gone(self):
         self.fy_pred, self.fy_pred_val, self.fy_pred_eaten, self.fy_grace = 0, 0.0, 0, 0.0
+        self.fy_hooked, self.fy_spook = False, 0.0
         self.fy_timer = FISH_PRED_EVERY
 
     def catch_predator(self):
-        """Вылов (в 3.39 — после мини-игры): хищник продаётся за накопленную цену. Возвращает (деньги, вид)."""
+        """Вылов (3.39 — после выигранной мини-игры): хищник продаётся за накопленную цену. Возвращает (деньги, вид)."""
         p = self.predator()
+        self.fy_hooked = False
         if p is None:
             return None
         amt = self.fy_pred_val
         self.earn(amt)
         self._pred_gone()
         return amt, p
+
+    def catch_difficulty(self):
+        """Сложность мини-игры вылова: вид хищника, сколько съел (растолстел), «Снежинка» — отдельно (catch_slow)."""
+        from .catch import CATCH_FAT, CATCH_FAT_MAX
+        p = self.predator()
+        if p is None:
+            return 0.0
+        return p["diff"] * min(CATCH_FAT_MAX, 1 + CATCH_FAT * self.fy_pred_eaten)
+
+    def catch_slow(self):
+        """Трофей зимы «Снежинка» (он есть у всех, кто дошёл дальше зимы): рыба мечется на 20% медленнее."""
+        from .catch import CATCH_SNOWFLAKE
+        return CATCH_SNOWFLAKE if self.farm_index >= 3 else 1.0
+
+    def can_hook(self):
+        return bool(self.fy_pred) and not self.fy_hooked and self.fy_spook <= 0
+
+    def hook_predator(self):
+        """Начать вылов: хищник на крючке. Возвращает True, если вышло."""
+        if not self.can_hook():
+            return False
+        self.fy_hooked = True
+        return True
+
+    def lose_predator(self):
+        """Мини-игра проиграна. Если в аквариуме ещё есть рыба — хищник сорвался и насторожился (FISH_SPOOK с);
+        если он уже съел всех — уплывает. Возвращает "spooked" или "left"."""
+        self.fy_hooked = False
+        if self.fy_fish:
+            self.fy_spook = FISH_SPOOK
+            return "spooked"
+        p = self.predator()
+        self.fy_events.append(("left", p))
+        self._pred_gone()
+        return "left"
 
     def grace_left(self):
         """Доля тлеющего отсчёта (1 -> 0) или None, если он не идёт."""
@@ -846,6 +885,9 @@ class Farm:
                 self.fy_eggs.append([kind, x, y, FISH_HATCH])
                 self.fy_events.append(("egg", kind, x, y))
         if self._offline:                                # офлайн хищники не приплывают и не едят
+            return
+        self.fy_spook = max(0.0, self.fy_spook - dt)
+        if self.fy_hooked:                               # 3.39: на крючке — не ест, отсчёт стоит
             return
         if not self.fy_pred:
             if self.fy_fish:

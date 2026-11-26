@@ -15,6 +15,7 @@ import pygame
 from .ui_common import *  # noqa: F401,F403
 from .art_fishing import draw_swim_fish, draw_predator, draw_roe
 from .tavern_art import draw_star
+from .catch import Catch, CATCH_ZONE
 
 SWIM = pygame.Rect(50, 160, 900, 340)      # где плавают центры рыб
 SAND_Y = 528                               # верх песка
@@ -31,10 +32,14 @@ class FisheryUI:
     def fishery_init(self):
         self.fy_bg = None
         self.fy_shop = False
+        self.fy_game = None                 # 3.39: идёт мини-игра вылова (Catch)
+        self.fy_game_end = 0.0              # сколько ещё показывать итог мини-игры
+        self.fy_hold = False                # держат ли кнопку (для тестов и сценариев можно ставить руками)
 
     # ------------------------------------------------------------ события логики (идут и на других экранах)
     def fishery_tick(self, dt):
         f = self.farm
+        self.catch_tick(dt)
         if not f.fy_events:
             return
         here = self.view == "barn" and self.farm_info()["barn"] == "fishery"
@@ -107,21 +112,114 @@ class FisheryUI:
     def fy_upgrade(self):
         if self.farm.upgrade_tank():
             self.sfx.play("buy")
+            if self.farm.fy_cap >= FISH_TANK_MAX:
+                self.quest("tank_full")
             self.toast(f"Аквариум больше: {self.farm.fy_cap} мест", 2)
 
     def fy_catch(self):
-        """3.38: вылов кнопкой; в 3.39 здесь будет мини-игра."""
+        """3.39: щелчок по хищнику или «Выловить» — мини-игра вылова (как в Stardew Valley)."""
         f = self.farm
-        if not f.fy_pred:
+        if self.fy_game is not None or not f.hook_predator():
             return
+        self.fy_shop = False
+        self.fy_game = Catch(f.catch_difficulty(), f.catch_slow())
+        self.fy_game_end = 0.0
+        self.sfx.play("shoo")
+
+    def catch_holding(self):
+        if self.fy_hold:
+            return True
+        try:
+            return bool(pygame.mouse.get_pressed()[0]) or bool(pygame.key.get_pressed()[pygame.K_SPACE])
+        except Exception:
+            return False
+
+    def catch_tick(self, dt):
+        g, f = self.fy_game, self.farm
+        if g is None:
+            return
+        here = self.view == "barn" and self.farm_info()["barn"] == "fishery" and self.modal is None
+        if g.result is None:
+            if not here or not f.fy_pred:          # ушёл с экрана — леска отпущена, без штрафа
+                f.fy_hooked = False
+                self.fy_game = None
+                return
+            res = g.step(dt, self.catch_holding())
+            if res is not None:
+                self.fy_game_end = 1.4
+                self.catch_finish(res)
+            return
+        self.fy_game_end -= dt
+        if self.fy_game_end <= 0:
+            self.fy_game = None
+
+    def catch_finish(self, won):
+        f = self.farm
         x, y, _d = self.fy_pred_pos()
-        amt, p = f.catch_predator()
-        self.sfx.play("coin_big")
-        self.quest("pred_catch")
-        self.quest(f"caught_{p['id']}")
-        self.floater(x, y - 30, f"+${fmt(amt)}")
-        self.toast(f"Выловлен{self._fem(p)} {p['name'].lower()}! +${fmt(amt)}", 3)
-        self.save()
+        if won:
+            eaten = f.fy_pred_eaten
+            amt, p = f.catch_predator()
+            self.sfx.play("coin_big")
+            self.quest("pred_catch")
+            self.quest(f"caught_{p['id']}")
+            self.quest(f"pred_rank{p['rank']}")
+            if eaten >= 15:
+                self.quest("pred_feast")
+            self.floater(x, y - 30, f"+${fmt(amt)}")
+            self.toast(f"Выловлен{self._fem(p)} {p['name'].lower()}! +${fmt(amt)}", 3)
+            self.save()
+            return
+        p = f.predator()
+        how = f.lose_predator()
+        self.sfx.play("shoo")
+        if how == "left":
+            self.toast(f"{p['name']} сорвал{self._fem(p)}ся и уплыл{self._fem(p)}…", 3)
+        else:
+            self.toast(f"{p['name']} сорвал{self._fem(p)}ся! Насторожил{self._fem(p)}ся — попробуй чуть позже", 3)
+
+    def draw_catch_game(self, s, t):
+        g, f = self.fy_game, self.farm
+        shade = hd.Surface((W, H), pygame.SRCALPHA)
+        shade.fill((10, 20, 30, 120))
+        s.blit(shade, (0, 0))
+        r = pygame.Rect(W // 2 - 250, 110, 500, 430)
+        rounded(s, (238, 226, 200), r, 14, 3, skin="card")
+        col = pygame.Rect(r.x + 40, r.y + 40, 74, r.h - 80)          # вода
+        rounded(s, (60, 110, 140), col, 10, 3, skin=None)
+        for n in range(6):                                           # пузырьки в колонке
+            by = col.bottom - ((t * 40 + n * 61) % col.h)
+            pygame.draw.circle(s, (180, 220, 235), (P(col.x + 12 + (n * 23) % 50), P(by)), 2, 1)
+        zy = col.bottom - (g.zone + CATCH_ZONE) * col.h               # зелёная зона
+        zone = pygame.Rect(col.x + 4, zy, col.w - 8, CATCH_ZONE * col.h)
+        rounded(s, (120, 210, 110) if g.in_zone() else (90, 170, 90), zone, 8, 2, skin=None)
+        fy = col.bottom - g.fish * col.h
+        p = f.predator()
+        pid = p["id"] if p else "pike"
+        pygame.draw.line(s, (230, 230, 230), (P(col.centerx), P(col.y)), (P(col.centerx), P(fy - 8)), 1)   # леска
+        draw_predator(s, col.centerx, fy, 0.7, pid, t * 3, flip=int(t * 2) % 2 == 0)
+        bar = pygame.Rect(col.right + 16, col.y, 18, col.h)          # шкала улова
+        rounded(s, (40, 50, 60), bar, 8, 2, skin=None)
+        fill = int((bar.h - 4) * g.progress)
+        if fill > 0:
+            c = (110, 200, 90) if g.progress > 0.35 else (230, 160, 60) if g.progress > 0.15 else (220, 80, 60)
+            rounded(s, c, pygame.Rect(bar.x + 2, bar.bottom - 2 - fill, bar.w - 4, fill), 6, 0, skin=None)
+        x = bar.right + 22
+        brown, soft = (90, 70, 60), (140, 110, 95)
+        if p:
+            draw_text(s, p["name"], 24, (x, r.y + 56), brown, anchor="midleft", outline=None)
+            for n in range(p["rank"]):
+                draw_star(s, x + 8 + n * 18, r.y + 86, 8, GOLD)
+            draw_text(s, f"${fmt(f.fy_pred_val)}", 18, (x, r.y + 116), (80, 150, 70), anchor="midleft", outline=None)
+            draw_text(s, f"{f.predator_kg():.1f} кг", 14, (x, r.y + 140), soft, anchor="midleft", outline=None)
+        lines = ["Держи кнопку мыши или пробел:", "зелёная зона всплывает.", "Отпустишь — тонет.", "",
+                 "Держи рыбу в зелёной зоне,", "пока шкала не заполнится!"]
+        if f.catch_slow() < 1:
+            lines += ["", "Снежинка: рыба на 20% медленнее"]
+        for n, line in enumerate(lines):
+            draw_text(s, line, 13, (x, r.y + 180 + n * 20), soft, anchor="midleft", outline=None)
+        if g.result is not None:
+            draw_text(s, "Выловил!" if g.result else "Сорвался…", 30, (r.centerx, r.bottom - 34),
+                      (90, 170, 70) if g.result else (200, 80, 60))
 
     def fishery_attention(self):
         f = self.farm
@@ -191,12 +289,19 @@ class FisheryUI:
             k = 0.6 + 0.7 * g
             draw_swim_fish(s, x, y, k, CROP_KEYS[fish[0] - 1], d, t + fish[3], glow=g >= 1)
             r = pygame.Rect(x - 18 * k, y - 12 * k, 36 * k, 24 * k)
+            if self.fy_game is not None:
+                continue
             self.zone(r, lambda n=n: self.fy_sell(n))
             word = "взрослая" if g >= 1 else f"растёт {int(g * 100)}%"
             self.tip(r, f"{CROPS[fish[0] - 1]['name']}: {word} · ${fmt(f.fish_worth(fish))} — щёлкни, чтобы продать")
         if f.fy_pred:
             self.draw_tank_predator(s, t)
         self.draw_banner((W // 2 - 110, 22, 220, 46), "САДКИ", 22)
+        if self.fy_game is not None:                 # 3.39: идёт вылов — только мини-игра
+            self.draw_catch_game(s, t)
+            for x, y, text, life, color in self.floaters:
+                draw_text(s, text, 18, (x, y), color)
+            return
         self.draw_pred_timer(s, t)
         self.draw_tank_buttons(s)
         if self.fy_shop:
@@ -211,9 +316,10 @@ class FisheryUI:
         k = 1.25 + 0.15 * p["rank"] + 0.03 * min(10, f.fy_pred_eaten)
         draw_predator(s, x, y, k, p["id"], t, flip=d > 0)
         r = pygame.Rect(x - 40 * k, y - 22 * k, 80 * k, 44 * k)
-        self.zone(r, self.fy_catch)
+        if self.fy_game is None:
+            self.zone(r, self.fy_catch)
         self.tip(r, f"{p['name']} ({PRED_RANK_NAMES[p['rank']].lower()}): {f.predator_kg():.1f} кг, "
-                    f"${fmt(f.fy_pred_val)}. Щёлкни — выловить")
+                    f"${fmt(f.fy_pred_val)}. Щёлкни — ловить")
         draw_text(s, p["name"], 15, (x, y - 22 * k - 26))
         for n in range(p["rank"]):
             draw_star(s, x - (p["rank"] - 1) * 7 + n * 14, y - 22 * k - 10, 6, GOLD)
@@ -245,7 +351,11 @@ class FisheryUI:
 
     def fy_catch_button(self):
         f = self.farm
-        self.button((W // 2 - 120, BAR.bottom + 8, 240, 34), f"Выловить: ${fmt(f.fy_pred_val)}", self.fy_catch,
+        if f.fy_spook > 0:
+            self.button((W // 2 - 120, BAR.bottom + 8, 240, 34), f"Насторожился… {_mmss(f.fy_spook)}", self.fy_catch,
+                        BTN_GREY, False, 15)
+            return
+        self.button((W // 2 - 120, BAR.bottom + 8, 240, 34), f"Ловить: ${fmt(f.fy_pred_val)}", self.fy_catch,
                     skin.BTN_RED if f.grace_left() is not None else BTN_GREEN, True, 15)
 
     def draw_tank_buttons(self, s):

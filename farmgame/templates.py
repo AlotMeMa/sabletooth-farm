@@ -402,6 +402,11 @@ def known_names():
     names |= set(SHEETS)   # листы: icons/sheet, ui/buttons, icons/prizes, ui/chips
     from .spritefit import BUTTON_SHEET_ORDER
     names |= {"ui/btn_" + n for n in BUTTON_SHEET_ORDER} | {"ui/btn_festival", "ui/btn_shaman", "ui/btn_tavern", "ui/btn_prizes"}   # кнопки: отдельными файлами или листом ui/buttons
+    # 3.36–3.38: Рыбацкая деревня и аквариум, кнопка «Достижения»
+    from .spritefit import FISHING_SHEET_ORDER, BOAT_SHEET_ORDER, PREDATOR_SHEET_ORDER
+    names |= set(FISHING_SHEET_ORDER) | set(BOAT_SHEET_ORDER) | {"fish/" + n for n in PREDATOR_SHEET_ORDER}
+    names |= {"backgrounds/fishery", "ui/btn_achievements", "ui/btn_fishfest", "characters/fisher_worker",
+              "characters/fisher_dancer"} | {f"characters/fisher_{k}_{n}" for k in ("worker", "dancer") for n in (1, 2)}
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

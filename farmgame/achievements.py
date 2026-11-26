@@ -67,6 +67,16 @@ ACHIEVEMENTS = [
     # 3.35: финал известной части игры — пройти последнюю открытую главу (заработать порог переезда за забег)
     A("final_1", "farm", "Покоритель зимы", "Заработай за один забег на Зимнем поле столько, сколько нужно для переезда",
       "final_run", 1, 100),
+    # 3.39: Рыбацкая деревня — аквариум и вылов (лист медалей 6; в листах 1–5 после 43-го — две запасные клетки)
+    A("fish_buy_1", "farm", "Первая рыбка", "Купи 10 рыбок в аквариум", "fish_buy", 10, 5),
+    A("fish_sell_1", "farm", "Рыбный рынок", "Продай 200 рыбок из аквариума", "fish_sell", 200, 15),
+    A("fish_hatch_1", "farm", "Икорка", "Дождись 25 мальков из икры", "fish_hatch", 25, 15),
+    A("pred_1", "farm", "Первый улов", "Вылови хищника", "pred_catch", 1, 10),
+    A("pred_2", "farm", "Гроза хищников", "Вылови 50 хищников", "pred_catch", 50, 30),
+    A("pred_all", "farm", "Рыбак-коллекционер", "Вылови хищников всех 10 видов", "pred_all", 10, 50),
+    A("pred_legend", "farm", "Легенда глубин", "Вылови хищника ранга «Легенда»", "pred_rank5", 1, 30),
+    A("pred_feast", "farm", "Обжора", "Вылови хищника, который съел 15 рыбок", "pred_feast", 1, 25),
+    A("tank_full", "farm", "Полный аквариум", "Расширь аквариум до 25 мест", "tank_full", 1, 20),
 ]
 BY_ID = {a["id"]: a for a in ACHIEVEMENTS}
 
@@ -86,6 +96,9 @@ def value(a, farm, tavern):
         if farm.run_total() >= farm.move_threshold():
             tavern.stats[st] = 1
         return tavern.stats.get(st, 0)
+    if st == "pred_all":         # 3.39: сколько видов хищников уже выловлено
+        from .config import PREDATORS
+        return sum(1 for p in PREDATORS if tavern.stats.get(f"caught_{p['id']}", 0) > 0)
     if st == "daily_done":
         return max(tavern.stats.get(st, 0), tavern.daily_done_total)
     if st == "prizes":

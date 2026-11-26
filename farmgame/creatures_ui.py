@@ -16,6 +16,23 @@ class CreaturesUI:
     def crow_delay(self):
         return random.uniform(CROW_MIN, CROW_MAX) * 1.5 ** self.farm.up("scarecrow")
 
+    # 3.39: что пишет игра про зверька и вредителя — по-своему в каждой главе (краб и чайка в Рыбацкой деревне)
+    CRITTER_TEXTS = {
+        "squirrel": dict(in_="Шур-шур... на лугу белка! Лови!", golden_in="Ого! ЗОЛОТАЯ белка! Лови скорее!",
+                         out="Белка убежала...", golden_out="Золотая белка убежала... эх!",
+                         caught="Поймал белку! +$", golden_caught="ЗОЛОТАЯ белка поймана! x{m}: +$"),
+        "crab": dict(in_="Щёлк-щёлк... по берегу бежит краб! Лови!", golden_in="Ого! ЗОЛОТОЙ краб! Лови скорее!",
+                     out="Краб удрал в воду...", golden_out="Золотой краб удрал в воду... эх!",
+                     caught="Поймал краба! +$", golden_caught="ЗОЛОТОЙ краб пойман! x{m}: +$"),
+        "crow": dict(pest="Кар! Ворона села на грядку «{name}» — она не растёт. Прогони!", shoo="Кыш!"),
+        "gull": dict(pest="Кья-кья! Чайка уселась на пруд «{name}» — улов стоит. Прогони!", shoo="Кыш!"),
+    }
+
+    def critter_text(self, what):
+        kind = THEME.get("pest", "crow") if what in ("pest", "shoo") else THEME.get("critter", "squirrel")
+        texts = self.CRITTER_TEXTS.get(kind) or self.CRITTER_TEXTS["crow" if what in ("pest", "shoo") else "squirrel"]
+        return texts["in_" if what == "in" else what]
+
     def spawn_squirrel(self, golden=None):
         d = random.choice((1, -1))
         if golden is None:
@@ -23,10 +40,7 @@ class CreaturesUI:
         self.squirrel = dict(x=-60.0 if d == 1 else W + 60.0, y=random.uniform(478, 506), d=d, golden=golden,
                              phase="run", timer=0.0, stop=random.uniform(260, 740), vy=0.0, life=0.0, hop_i=0)
         self.sfx.play("squirrel")
-        if golden:
-            self.toast("Ого! ЗОЛОТАЯ белка! Лови скорее!", 3)
-        else:
-            self.toast("Шур-шур... на лугу белка! Лови!", 2.5)
+        self.toast(self.critter_text("golden_in" if golden else "in"), 3 if golden else 2.5)
 
     def update_squirrel(self, dt):
         if self.squirrel is None:
@@ -62,7 +76,7 @@ class CreaturesUI:
                 self.fx.dust(q["x"], q["y"], n=3, size=(3, 6), alpha=120)
             if q["x"] < -80 or q["x"] > W + 80:
                 self.end_squirrel()
-                self.toast("Золотая белка убежала... эх!" if golden else "Белка убежала...", 1.5)
+                self.toast(self.critter_text("golden_out" if golden else "out"), 1.5)
 
     def end_squirrel(self):
         self.squirrel = None
@@ -86,9 +100,9 @@ class CreaturesUI:
         self.quest("squirrel")
         if q["golden"]:
             self.quest("golden")
-            self.toast(f"ЗОЛОТАЯ белка поймана! x{GOLDEN_MULT}: +$" + fmt(amt), 4)
+            self.toast(self.critter_text("golden_caught").format(m=GOLDEN_MULT) + fmt(amt), 4)
         else:
-            self.toast("Поймал белку! +$" + fmt(amt), 3)
+            self.toast(self.critter_text("caught") + fmt(amt), 3)
 
     def squirrel_pose(self, q):
         """Как выглядит белка сейчас -> (подскок, sx, sy, наклон°, прозрачность, точка опоры).
@@ -166,7 +180,7 @@ class CreaturesUI:
                 self.fx.dust(c["x"], c["y"], n=3, color=DIRT, size=(3, 6), spread=12, alpha=140)
                 self.farm.blocked[c["k"]] = True
                 self.sfx.play("crow")
-                self.toast(f"Кар! Ворона села на грядку «{CROPS[c['k']]['name']}» — она не растёт. Прогони!", 4)
+                self.toast(self.critter_text("pest").format(name=CROPS[c['k']]['name']), 4)
         elif c["phase"] == "away":
             c["x"] -= c["d"] * 380 * dt
             c["y"] -= 260 * dt
@@ -184,7 +198,7 @@ class CreaturesUI:
         self.fx.dust(c["x"], c["y"], n=3, color=DIRT, size=(3, 6), spread=12, alpha=140)
         c["phase"], c["timer"] = "away", 0.0
         c["d"] = -c["d"]
-        self.floater(c["x"], c["y"] - 40, "Кыш!", (230, 240, 255))
+        self.floater(c["x"], c["y"] - 40, self.critter_text("shoo"), (230, 240, 255))
 
     def end_crow(self):
         if self.crow:

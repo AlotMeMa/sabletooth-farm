@@ -17,4 +17,6 @@ for tier in range(3):
     A.truck_tier = lambda tier=tier: tier
     A.truck_state = "parked"; A.truck_x = 830; A.truck_t = A.t
     A.toasts.clear(); frames(20); A.toasts.clear(); frames(1); snap(f"scene_boat{tier}")
-A.truck_state = "leaving"; A.leaving_tier = 2; A.truck_v = 120; frames(12); A.toasts.clear(); frames(1); snap("scene_boat_leave")
+A.truck_state = "leaving"; A.leaving_tier = 2; A.truck_v = 120
+for n, x in enumerate((780, 690, 600)):               # 3.39: уходит вниз-влево вдоль берега
+    A.truck_x = x; A.truck_v = 120; A.toasts.clear(); frames(1); snap(f"scene_boat_leave{n}")

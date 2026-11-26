@@ -95,6 +95,7 @@ DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "d
 def _ach_orders():
     from .achievements import ACHIEVEMENTS
     ids = [a["id"] for a in ACHIEVEMENTS]
+    ids = ids[:43] + ["_unused"] * 2 + ids[43:]      # 3.39: листы 1–5 уже нарисованы (2 запасные клетки), новые — с 6-го
     ids += ["_unused"] * (-len(ids) % 9)
     return [ids[i:i + 9] for i in range(0, len(ids), 9)]
 

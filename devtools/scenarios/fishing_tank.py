@@ -20,6 +20,15 @@ for _ in range(400):
     if f.fy_pred:
         break
 A.fishery_tick(0.1); A.toasts.clear(); frames(20); snap("tank_pred")
+# 3.39: мини-игра вылова — держим зону у рыбы и снимаем середину
+A.fy_catch()
+for _ in range(90):
+    g = A.fy_game
+    A.fy_hold = g is not None and g.fish > g.zone + 0.13
+    A.update(1 / 60)
+A.toasts.clear(); frames(1); snap("tank_catch")
+A.fy_hold = False
+A.farm.fy_hooked = False; A.fy_game = None
 while f.fy_fish:
     f.update(1.0)
 f.update(2.0)

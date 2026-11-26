@@ -234,3 +234,87 @@ class PredatorArt(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class CatchGame(unittest.TestCase):
+    """3.39: мини-игра вылова."""
+
+    def test_easy_is_easy_and_hard_is_hard(self):
+        from farmgame.catch import bot_win_rate
+        self.assertGreater(bot_win_rate(1.0, games=60), 0.9)
+        self.assertLess(bot_win_rate(6.0, games=60), bot_win_rate(1.0, games=60))
+
+    def test_idle_player_loses(self):
+        from farmgame.catch import Catch
+        c = Catch(1.0, rnd=random.Random(1))
+        while c.result is None and c.t < 60:
+            c.step(1 / 60, False)
+        self.assertIs(c.result, False)
+
+    def test_zone_bounces_and_stays_inside(self):
+        from farmgame.catch import Catch, CATCH_ZONE
+        c = Catch(2.0, rnd=random.Random(2))
+        for n in range(600):
+            c.step(1 / 60, n % 90 < 50)
+            self.assertTrue(0 <= c.zone <= 1 - CATCH_ZONE + 1e-9)
+            self.assertTrue(0 <= c.fish <= 1)
+
+    def test_snowflake_slows_fish(self):
+        from farmgame.catch import Catch
+        self.assertLess(Catch(3.0, 0.8).fish_speed(), Catch(3.0).fish_speed())
+        f = village()
+        self.assertLess(f.catch_slow(), 1.0)                       # в деревне Снежинка уже есть
+
+    def test_fat_predator_harder(self):
+        f = village()
+        f.spawn_predator()
+        d0 = f.catch_difficulty()
+        f.fy_pred_eaten = 10
+        self.assertGreater(f.catch_difficulty(), d0)
+        f.fy_pred_eaten = 1000
+        self.assertLessEqual(f.catch_difficulty(), d0 * 1.4 + 1e-9)
+
+    def test_hooked_predator_waits(self):
+        f = village()
+        for _ in range(3):
+            f.buy_fish(0)
+        f.spawn_predator()
+        self.assertTrue(f.hook_predator())
+        self.assertFalse(f.hook_predator())
+        f.update(60)
+        self.assertEqual(len(f.fy_fish), 3)                       # на крючке не ест
+        self.assertEqual(f.lose_predator(), "spooked")            # рыба есть — сорвался и насторожился
+        self.assertTrue(f.fy_pred)
+        self.assertFalse(f.can_hook())
+        f.update(cfg.FISH_SPOOK + 0.1)
+        self.assertTrue(f.can_hook())
+
+    def test_lose_with_empty_tank_means_gone(self):
+        f = village()
+        f.spawn_predator()
+        f.update(1.0)                                             # рыбы нет — тлеет
+        f.hook_predator()
+        f.update(cfg.FISH_GRACE * 3)                              # на крючке отсчёт стоит
+        self.assertTrue(f.fy_pred)
+        self.assertEqual(f.lose_predator(), "left")
+        self.assertFalse(f.fy_pred)
+
+
+class FishingAchievements(unittest.TestCase):
+    def test_new_medals_go_to_sheet_six(self):
+        from farmgame.achievements import ACHIEVEMENTS
+        ids = [a["id"] for a in ACHIEVEMENTS]
+        self.assertEqual(len(ids), 52)
+        with open(os.path.join(os.path.dirname(__file__), "..", "farmgame", "spritefit.py"), encoding="utf-8") as fh:
+            self.assertIn('ids[:43] + ["_unused"] * 2 + ids[43:]', fh.read())
+
+    def test_pred_all_counts_species(self):
+        from farmgame import achievements as ach
+        from farmgame.tavern import Tavern
+        t = Tavern()
+        a = ach.BY_ID["pred_all"]
+        for p in cfg.PREDATORS[:9]:
+            t.on(f"caught_{p['id']}")
+        self.assertEqual(ach.value(a, Farm(), t), 9)
+        t.on("caught_swordfish")
+        self.assertEqual(ach.value(a, Farm(), t), 10)

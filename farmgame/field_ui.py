@@ -179,7 +179,11 @@ class FieldUI:
         amp = 3.4 if f.rain_left > 0 else 2.2                  # ветер: в дождь посильнее
         spots = PLANT_SPOTS
         if THEME.get("pond"):                       # 3.38.1: на участке пруда одна рыба — крупнее и без мельтешения
-            spots, scale = [(0, 2)], scale * 1.3
+            key = f"crops/{FARM_ID[0]}/{CROP_KEYS[k]}"
+            if has_sprite(key + "_1") or has_sprite(key):    # 3.39: картинка (с брызгами снизу) — чуть меньше, ниже
+                spots, scale = [(0, 16)], scale * 0.8
+            else:
+                spots, scale = [(0, 2)], scale * 1.3
         for i, (ox, oy) in enumerate(spots):
             ph = k * 1.3 + i * 2.1
             sway = amp * (0.7 * math.sin(tr * 1.5 + ph) + 0.3 * math.sin(tr * 2.7 + ph * 1.9))
@@ -546,6 +550,13 @@ class FieldUI:
             draw_text(s, "Рыбацкий фестиваль!" if fishfest else ("Призвать гномов!" if gnomes else "Праздник урожая!"),
                       15, (rect.centerx, below), c)
 
+    def vehicle_dy(self):
+        """3.39: лодка уходит не прямо влево (там берег и причал), а вниз-влево вдоль берега и за нижний край."""
+        if self.farm_info()["vehicle"] != "boat" or self.truck_state != "leaving":
+            return 0.0
+        d = max(0.0, TRUCK_PARK_X - self.truck_x)
+        return 0.35 * d + 0.002 * d * d
+
     def draw_vehicle(self, x, y, color, cargo=False, bob=0.0, tier=0, angle=0.0, sy=1.0):
         draw_vehicle_at(self.screen, self.farm_info()["vehicle"], tier, x, y, color, cargo, bob, angle, sy)
 
@@ -555,7 +566,8 @@ class FieldUI:
         t, e = self.t, self.t - self.truck_t
         if self.farm_info()["vehicle"] == "boat":        # 3.38.1: лодка всегда покачивается на волнах
             k = min(1.0, self.truck_v / 150) if self.truck_state != "parked" else 0.0
-            return 2.0 * math.sin(t * 1.7) + 1.5 * k * math.sin(t * 5), 1.6 * math.sin(t * 1.2) + 1.2 * k, 1.0
+            turn = 5.0 if self.truck_state == "leaving" else 0.0      # уходя вниз-влево, чуть клюёт носом
+            return 2.0 * math.sin(t * 1.7) + 1.5 * k * math.sin(t * 5), 1.6 * math.sin(t * 1.2) + 1.2 * k + turn, 1.0
         cart = self.farm_info()["vehicle"] in ("cart", "sled", "fishcart")     # упряжка и повозка качаются, как телега
         if self.truck_state == "parked":
             spring = math.exp(-5 * e) * math.cos(10 * e) if e < 1.2 else 0.0
@@ -578,8 +590,8 @@ class FieldUI:
         shift = vehicle_shift(self.farm_info()["vehicle"], tier)
         if self.farm_info()["vehicle"] != "boat":         # 3.38.1: у лодки — вода, а не тень
             draw_shadow(s, self.truck_x - 10 - shift, TRUCK_GROUND + 3, 220 + 2 * shift, 18, 60)
-        self.draw_vehicle(self.truck_x, TRUCK_GROUND, color, cargo=self.truck_state == "leaving", bob=bob, tier=tier,
-                          angle=ang, sy=sy)
+        self.draw_vehicle(self.truck_x, TRUCK_GROUND + self.vehicle_dy(), color, cargo=self.truck_state == "leaving",
+                          bob=bob, tier=tier, angle=ang, sy=sy)
         if self.truck_state == "parked" and self.modal is None:
             p = f.potential_leaves()
             pulse = 1 + 0.05 * math.sin(self.t * 5)

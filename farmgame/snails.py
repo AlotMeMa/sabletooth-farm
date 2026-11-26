@@ -74,8 +74,8 @@ class SnailRace:
     def __init__(self, rng=random):
         self.state = "bet"
         self.odds = make_odds(rng)
-        self.pick = None           # на кого ставка (номер улитки)
-        self.bet = 0               # жетоны на столе (уже сняты с игрока)
+        self.pick = None           # выбранная улитка: на неё ложатся фишки (номер)
+        self.bets = [0] * len(SNAILS)  # 3.40.1: фишки на каждой улитке (уже сняты с игрока), ставить можно на несколько
         self.order = []            # порядок на финише
         self.times = []            # время финиша каждой улитки (по номеру), с
         self.legs = []             # для каждой улитки — доли пути на каждом «рывке» (сумма 1)
@@ -83,6 +83,14 @@ class SnailRace:
         self.history = []          # последние победители (номера)
 
     # ---------- ставки ----------
+    @property
+    def bet(self):
+        """Все жетоны на столе."""
+        return sum(self.bets)
+
+    def bet_on(self, i):
+        return self.bets[i] if i is not None else 0
+
     def select(self, i):
         if self.state == "bet" and 0 <= i < len(SNAILS):
             self.pick = i
@@ -90,28 +98,36 @@ class SnailRace:
         return False
 
     def add_bet(self, tavern, amount):
-        if self.state != "bet" or amount <= 0 or tavern.tokens < amount:
+        """Фишка на выбранную улитку; фишки на других улитках остаются где лежали."""
+        if self.state != "bet" or self.pick is None or amount <= 0 or tavern.tokens < amount:
             return False
         tavern.tokens -= amount
-        self.bet += amount
+        self.bets[self.pick] += amount
         return True
 
-    def clear_bet(self, tavern):
+    def clear_bet(self, tavern, i=None):
+        """Снять фишки с улитки i (по умолчанию — со всех) и вернуть жетоны."""
         if self.state != "bet":
             return
-        tavern.tokens += self.bet
-        self.bet = 0
+        for n in (range(len(self.bets)) if i is None else [i]):
+            tavern.tokens += self.bets[n]
+            self.bets[n] = 0
 
     # ---------- забег ----------
     def start(self, tavern, rng=random):
-        """Старт. False — нет ставки от MIN_BET или не выбрана улитка. Итог решается и выплачивается сразу."""
-        if self.state != "bet" or self.bet < MIN_BET or self.pick is None:
+        """Старт. False — на столе меньше MIN_BET. Итог решается и выплачивается сразу."""
+        if self.state != "bet" or self.bet < MIN_BET:
             return False
         global FORCE_NEXT
         self.order = finish_order(self.odds, rng)
-        if FORCE_NEXT is not None:            # режим разработчика: выбранная улитка первая / не первая
-            rest = [i for i in self.order if i != self.pick]
-            self.order = [self.pick] + rest if FORCE_NEXT else rest[:1] + [self.pick] + rest[1:]
+        if FORCE_NEXT is not None:            # режим разработчика: первой придёт улитка со ставкой / без ставки
+            bet_on = [i for i in range(len(SNAILS)) if self.bets[i]]
+            free = [i for i in range(len(SNAILS)) if not self.bets[i]]
+            if FORCE_NEXT:
+                first = max(bet_on, key=lambda i: self.bets[i])
+            else:
+                first = free[0] if free else min(bet_on, key=lambda i: self.bets[i])
+            self.order = [first] + [i for i in self.order if i != first]
             FORCE_NEXT = None
         t = rng.uniform(*RACE_TIME)
         self.times = [0.0] * len(SNAILS)
@@ -123,8 +139,8 @@ class SnailRace:
             sp = [rng.choice((0.15, rng.uniform(0.4, 1.0), rng.uniform(0.9, 1.8))) for _ in range(SEGMENTS)]
             total = sum(sp)
             self.legs.append([v / total for v in sp])
-        win = self.order[0] == self.pick
-        self.paid = int(round(self.bet * self.odds[self.pick]["k"])) if win else 0
+        w = self.order[0]
+        self.paid = int(round(self.bets[w] * self.odds[w]["k"]))
         tavern.tokens += self.paid
         self.state = "race"
         self.history = [self.order[0]] + self.history[:9]
@@ -134,7 +150,8 @@ class SnailRace:
         return self.order[0] if self.order else None
 
     def won(self):
-        return bool(self.order) and self.order[0] == self.pick
+        """Пришла первой улитка, на которой есть наши фишки."""
+        return bool(self.order) and self.bets[self.order[0]] > 0
 
     def progress(self, i, t):
         """Доля пути улитки i через t секунд после старта (0..1): рывки разной скорости, финиш ровно в свой срок."""
@@ -160,15 +177,17 @@ class SnailRace:
             self.state = "done"
 
     def next_round(self, tavern, same_bet=True, rng=random):
-        """После итога: новые шансы, ставка на ту же улитку (если хватает жетонов)."""
+        """После итога: новые шансы и те же ставки на тех же улиток (если хватает жетонов)."""
         if self.state != "done":
             return False
-        last = self.bet
-        self.state, self.bet, self.paid = "bet", 0, 0
+        last = list(self.bets)
+        self.state, self.paid = "bet", 0
+        self.bets = [0] * len(SNAILS)
         self.order, self.times, self.legs = [], [], []
         self.odds = make_odds(rng)
-        if same_bet and last and tavern.tokens >= last:
-            self.add_bet(tavern, last)
+        if same_bet and sum(last) and tavern.tokens >= sum(last):
+            tavern.tokens -= sum(last)
+            self.bets = last
         return True
 
     def refund(self, tavern):

@@ -49,8 +49,8 @@ class Race(unittest.TestCase):
 
     def test_needs_pick_and_min_bet(self):
         self.assertFalse(self.g.start(self.t))
-        self.g.add_bet(self.t, 10)
-        self.assertFalse(self.g.start(self.t))                          # улитка не выбрана
+        self.assertFalse(self.g.add_bet(self.t, 10))                    # улитка не выбрана — фишку некуда класть
+        self.assertEqual(self.t.tokens, 100)
         self.g.select(2)
         self.g.clear_bet(self.t)
         self.g.add_bet(self.t, sn.MIN_BET - 1)
@@ -84,6 +84,41 @@ class Race(unittest.TestCase):
         self.assertEqual((self.g.state, self.g.pick, self.g.bet), ("bet", 3, 10))
         self.assertEqual(self.t.tokens, tokens - 10)
         self.assertNotEqual(old, [o["k"] for o in self.g.odds])
+
+    def test_chips_stay_on_their_snail(self):
+        """3.40.1: выбрал, поставил, выбрал другую, поставил — фишки не переезжают."""
+        self.g.select(0)
+        self.g.add_bet(self.t, 10)
+        self.g.select(3)
+        self.g.add_bet(self.t, 25)
+        self.g.add_bet(self.t, 5)
+        self.assertEqual(self.g.bets, [10, 0, 0, 30, 0])
+        self.assertEqual((self.g.bet, self.t.tokens), (40, 60))
+        self.g.clear_bet(self.t, 3)                                     # «Убрать» с выбранной
+        self.assertEqual((self.g.bets, self.t.tokens), ([10, 0, 0, 0, 0], 90))
+
+    def test_pays_only_the_winner_stack(self):
+        self.t.tokens = 1000
+        for i, b in ((1, 20), (4, 10)):
+            self.g.select(i)
+            self.g.add_bet(self.t, b)
+        self.g.start(self.t, random.Random(7))
+        w = self.g.winner()
+        want = int(round(self.g.bets[w] * self.g.odds[w]["k"]))
+        self.assertEqual(self.g.paid, want)
+        self.assertEqual(self.g.won(), w in (1, 4))
+        self.assertEqual(self.t.tokens, 970 + want)
+
+    def test_next_round_repeats_all_stacks(self):
+        for i in (0, 2):
+            self.g.select(i)
+            self.g.add_bet(self.t, 10)
+        self.g.start(self.t)
+        self.g.finish()
+        tokens = self.t.tokens
+        self.g.next_round(self.t)
+        self.assertEqual(self.g.bets, [10, 0, 10, 0, 0])
+        self.assertEqual(self.t.tokens, tokens - 20)
 
     def test_refund_when_leaving(self):
         self.g.select(0)

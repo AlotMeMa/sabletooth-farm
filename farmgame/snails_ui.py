@@ -27,9 +27,8 @@ SN_LAYOUT = dict(chips_y=565, chips_x=150, clear=pygame.Rect(300, 546, 88, 38), 
 
 SAILOR_INTRO = [
     "Ха! Свежая душа на скачках! Я — Старый Якорь. Сорок лет по морям, один глаз оставил кракену.",
-    "Правила проще штиля: выбери улитку, щёлкни по её дорожке, поставь жетоны фишками. "
-    "Справа на табло — сколько она принесёт, если придёт первой.",
-    "Кто «в ударе» — бежит резвее, кто «сонная» — тащится. Жми «Старт!» и болей. Ставки, юнга, ставки!",
+    "Щёлкни по дорожке — выберешь улитку, ещё щелчок — фишка. Ставить можно на нескольких сразу.",
+    "Справа — множитель, если придёт первой. «В ударе» — резвее, «сонная» — тащится. Жми «Старт!» и болей!",
 ]
 SAILOR_HELLO = ["Ого, снова ты! Наливай... то есть ставь!", "Улитки размяты, ром налит. Ставим?",
                 "Ветер попутный — к большому выигрышу. А может, и нет. Ха!", "Садись, юнга. Сегодня Молния злая."]
@@ -179,11 +178,13 @@ class SnailsUI:
             self.sn_select(i)
 
     def sn_clear(self):
-        self.sn.clear_bet(self.tavern)
+        """«Убрать»: фишки с выбранной улитки; если на ней пусто — со всех."""
+        g = self.sn
+        g.clear_bet(self.tavern, g.pick if g.bet_on(g.pick) else None)
 
     def sn_start(self):
         g = self.sn
-        if g.pick is None or g.bet < sn.MIN_BET:
+        if g.bet < sn.MIN_BET:
             self.toast(f"Выбери улитку и поставь от {sn.MIN_BET} жетонов", 2.5)
             return
         if g.start(self.tavern):
@@ -225,7 +226,7 @@ class SnailsUI:
             w = g.winner()
             if g.won():
                 self.quest("snail_win")
-                if g.odds[g.pick]["k"] >= 8:
+                if g.odds[w]["k"] >= 8:
                     self.quest("snail_long")
                 self.sfx.play("coin_big")
                 self.fx.sparks(FINISH_X, LANE_Y0 + w * LANE_STEP, n=14, up=70)
@@ -297,8 +298,8 @@ class SnailsUI:
             moving = g.state == "race" and 0 < prog < 1 and el > 0
             x = START_X + 24 + (FINISH_X - START_X - 34) * prog
             draw_snail(s, x, y + 12, 1.0, i, t + i, moving)
-            if g.pick == i and g.bet:
-                draw_chip(s, START_X - 20, y, chip_for(g.bet), 0.8, str(g.bet))
+            if g.bets[i]:                                            # фишки лежат на своей улитке
+                draw_chip(s, START_X - 20, y, chip_for(g.bets[i]), 0.8, str(g.bets[i]))
             od = g.odds[i]
             tx = FINISH_X + 34
             draw_text(s, look["name"], 13, (tx, y - 8), WHITE, anchor="midleft")
@@ -317,7 +318,7 @@ class SnailsUI:
         if g.state == "done":
             w = g.winner()
             name = sn.SNAILS[w]["name"]
-            msg = f"{name} — первая! +{g.paid} жетонов" if g.won() else f"Первой пришла {name}. Ставка у Якоря"
+            msg = f"{name} — первая! +{g.paid} жетонов" if g.won() else f"Первой пришла {name}. Ставки у Якоря"
             plate = pygame.Rect(0, 0, 430, 44)
             plate.center = (500, 540)
             if not skin.plate(s, "toast", plate):
@@ -335,16 +336,21 @@ class SnailsUI:
                 draw_chip(s, x, y, v, 1.05 if v == self.sn_chip else 0.9)
                 self.zone_btn(rect, lambda v=v: setattr(self, "sn_chip", v), 19)
             self.button(L["clear"], "Убрать", self.sn_clear, BTN_BLUE, g.bet > 0, 16)
-            ok = g.pick is not None and g.bet >= sn.MIN_BET
+            self.tip(L["clear"], "Снять фишки с выбранной улитки (если на ней пусто — со всех)")
+            ok = g.bet >= sn.MIN_BET
             self.button(L["go"], "Старт!", self.sn_start, BTN_GREEN, ok, 20)
             if g.pick is None:
-                draw_text(s, "Выбери улитку: щёлкни по дорожке", 14, (560, y), (240, 225, 180), outline=None)
+                line = "Выбери улитку: щёлкни по дорожке"
             else:
-                draw_text(s, f"Ставка на {sn.SNAILS[g.pick]['name']}: {g.bet} (от {sn.MIN_BET})", 14, (560, y),
-                          (240, 225, 180), outline=None)
+                many = sum(1 for b in g.bets if b)
+                line = f"Выбрана: {sn.SNAILS[g.pick]['name']}"
+                if g.bet:
+                    word = "улитки" if many < 5 else "улиток"
+                    line += f" · на столе {g.bet}" + (f" ({many} {word})" if many > 1 else "")
+            draw_text_fit(s, line, 14, (560, y), 330, (240, 225, 180), outline=None)
         elif g.state == "done":
             self.button(L["go"], "Ещё забег", self.sn_again, BTN_GREEN, True, 20)
-            self.tip(L["go"], "Новые шансы, ставка на ту же улитку")
+            self.tip(L["go"], "Новые шансы, те же ставки на тех же улиток")
         hx, hy = L["history"]
         shown = g.history[1:] if g.state == "race" else g.history      # не подсказываем итог идущего забега
         for n, w in enumerate(shown[:6]):

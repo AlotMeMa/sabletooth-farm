@@ -12,7 +12,11 @@ A.gr_open_game("snails"); frames(20); snap("sn_intro")
 assert A.view == "snails"
 for _ in range(3):
     A.sn_poke(); frames(2)
-A.sn_lane_click(1); A.sn_chip = 10; A.sn_lane_click(1); A.sn_lane_click(1); frames(10); snap("sn_bet")
+A.sn_lane_click(1); A.sn_chip = 10; A.sn_lane_click(1); A.sn_lane_click(1)
+A.sn_lane_click(3); A.sn_chip = 25; A.sn_lane_click(3)               # 3.40.1: вторая улитка, фишки первой на месте
+A.sn_lane_click(0); A.sn_chip = 5; A.sn_lane_click(0)
+A.toasts.clear(); frames(10); snap("sn_bet")
+assert A.sn.bets == [5, 20, 0, 25, 0], A.sn.bets
 _r.seed(3)
 A.sn_start(); frames(40); snap("sn_countdown")
 frames(300); snap("sn_race")

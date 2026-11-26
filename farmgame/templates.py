@@ -321,7 +321,7 @@ def spec_list():
     add("props/fortune_pointer", (60, 70), "низ по центру = остриё", "стрелка колеса фортуны, остриём вниз", 1,
         lambda s: None)
     for gid, desc in (("wheel", "колесо фортуны"), ("roulette", "рулетка"), ("blackjack", "блэкджек"),
-                      ("snails", "скачки улиток (3.40)")):
+                      ("snails", "скачки улиток (3.40)"), ("dice", "кости (3.43)")):
         add(f"icons/game_{gid}", (100, 100), "центр", f"значок игры в кружке карты Игровой: {desc}", 1,
             lambda s, gid=gid: __import__("farmgame.gameroom_ui", fromlist=["x"]).draw_game_icon(s, gid, 50, 50, 1.0))
     # 3.20: карточки дерева листьев / печатей (лучше одним листом ui/tree_sheet)
@@ -408,6 +408,7 @@ def known_names():
     names |= {"backgrounds/fishery", "ui/btn_achievements", "ui/btn_fishfest", "characters/fisher_worker",
               "characters/fisher_dancer"} | {f"characters/fisher_{k}_{n}" for k in ("worker", "dancer") for n in (1, 2)}
     names |= {"characters/sailor"} | {f"characters/snail_{n}" for n in range(1, 6)}       # 3.40: скачки улиток
+    names |= {"characters/dragoness"}                                                     # 3.43: кости
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

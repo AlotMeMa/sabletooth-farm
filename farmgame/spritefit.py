@@ -285,6 +285,8 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last in ("bard", "bard_girl", "fiddler", "bagpiper"):    # 3.15.2 / 3.23: артисты сцены — скины барда
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last == "dragoness":            # 3.43: драконица Искра по пояс, низ = край стола
+            return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "sailor":               # 3.40: Старый Якорь по пояс, низ = край стола (как Ворчун)
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last.startswith("snail_"):      # 3.40: улитки скачек, смотрят вправо

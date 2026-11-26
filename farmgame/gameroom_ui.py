@@ -22,7 +22,7 @@ from . import snails as snl
 from .blackjack_ui import draw_suit
 
 GR_VIEW = pygame.Rect(230, 64, 540, 566)        # окно карты на экране
-GR_H = 1180                                     # высота всей карты
+GR_H = 1460                                     # высота всей карты (3.43: + кости)
 GAME_NODES = [   # id, имя, (x, y) на карте, описание
     dict(id="wheel", name="Колесо фортуны", pos=(270, 150),
          text="Раз в день — бесплатно. Пусто, жетоны или джекпот недели."),
@@ -32,6 +32,8 @@ GAME_NODES = [   # id, имя, (x, y) на карте, описание
          text="Набери 21 и обыграй рыжего гнома Ворчуна. Открывается зимой."),
     dict(id="snails", name="Скачки улиток", pos=(220, 1000), unlock="fishing",      # 3.40: вместо «???»
          text="Ставь жетоны на улитку и болей! Ведёт моряк Старый Якорь. В Рыбацкой деревне."),
+    dict(id="dice", name="Кости", pos=(370, 1290), unlock="dragons",                  # 3.43
+         text="Больше, меньше или ровно 7? Кидает юная драконица Искра. В горах драконов."),
 ]
 GR_NODE_R = 62
 ICON_FILL = (GR_NODE_R * 2 + 8) / 100      # значок игры (холст 100) — во весь кружок, со своим ободком поверх нашего
@@ -128,12 +130,17 @@ def draw_game_icon(s, gid, x, y, k=1.0, t=0.0):
         pygame.draw.circle(s, (60, 124, 80), (P(x), P(y)), P(46 * k))
         pygame.draw.line(s, (240, 230, 200), (P(x + 30 * k), P(y - 30 * k)), (P(x + 30 * k), P(y + 30 * k)), max(2, P(3 * k)))
         draw_snail(s, x - 4 * k, y + 14 * k, 1.5 * k, 0, t)
+    elif gid == "dice":                           # 3.43: две кости
+        from .dice_ui import draw_die
+        pygame.draw.circle(s, (150, 60, 55), (P(x), P(y)), P(46 * k))
+        draw_die(s, x - 16 * k, y + 6 * k, 38 * k, 3, 0.0)
+        draw_die(s, x + 16 * k, y - 8 * k, 38 * k, 4, 0.0)
     else:
         draw_text(s, "?", max(20, int(50 * k)), (P(x), P(y) - 2), (235, 220, 200))
 
 
-UNLOCK_TAG = {"winter": "ЗИМОЙ", "fishing": "В ДЕРЕВНЕ"}
-UNLOCK_BUTTON = {"winter": "Зимой", "fishing": "В деревне"}
+UNLOCK_TAG = {"winter": "ЗИМОЙ", "fishing": "В ДЕРЕВНЕ", "dragons": "В ГОРАХ"}
+UNLOCK_BUTTON = {"winter": "Зимой", "fishing": "В деревне", "dragons": "В горах"}
 
 
 def game_locked(node, farm_index):
@@ -218,6 +225,8 @@ class GameRoomUI:
             self.open_blackjack()
         elif gid == "snails":
             self.open_snails()
+        elif gid == "dice":
+            self.open_dice()
         elif node.get("soon"):
             self.toast(f"{node['name']} откроется скоро. {node['text']}" if gid != "secret" else node["text"], 3)
             self.sfx.play("hover")

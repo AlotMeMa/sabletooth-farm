@@ -14,7 +14,7 @@ class FishingVillage(unittest.TestCase):
     def test_chapter_data(self):
         fm = self.fm()
         self.assertEqual(cfg.FARMS.index(fm), 3)
-        self.assertFalse(fm["ready"])                       # пока собираем — закрыта
+        self.assertTrue(fm["ready"])                        # 3.44: открыта (все картинки есть)
         self.assertEqual(len(fm["names"]), cfg.N_CROPS)
         self.assertEqual(len(fm["plants"]), cfg.N_CROPS)
         self.assertEqual(fm["helpers"], "fishermen")
@@ -30,11 +30,16 @@ class FishingVillage(unittest.TestCase):
         self.assertTrue(fishing_ids <= summer_ids | {"serfs"})
         self.assertNotIn("farmers", fishing_ids)           # рыбаки — артель, наёмных фермеров нет
 
-    def test_winter_is_not_last_but_move_closed(self):
+    def test_move_from_winter_to_village(self):
         f = Farm()
         f.farm_index = 2
         f.reset_run()
-        self.assertFalse(f.has_next_farm())                 # глава закрыта — с зимы не переехать
+        self.assertTrue(f.has_next_farm())                  # 3.44: с зимы переезжаем в деревню
+        f.earn(f.move_threshold())
+        self.assertTrue(f.can_move())
+        f.move_farm()
+        self.assertEqual(f.farm_def()["id"], "fishing")
+        self.assertFalse(f.has_next_farm())                 # дальше пока ничего
 
     def test_quest_words(self):
         from farmgame import tavern as tv

@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.43"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.44"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -617,7 +617,7 @@ FARMS = [
          names=["Плотва", "Карась", "Окунь", "Лещ", "Карп", "Форель", "Лосось", "Кои", "Золотая рыбка"],
          plants=["roach", "crucian", "perch", "bream", "carp", "trout", "salmon", "koi", "goldfish"],
          theme=THEME_FISHING, weather=FISH_FEST, rush_helpers=True, crow=True, frost=False, bandits=False,
-         peasants=True, helpers="fishermen", barn="fishery", tree="fishing", cur="hook", ready=False,
+         peasants=True, helpers="fishermen", barn="fishery", tree="fishing", cur="hook", ready=True,   # 3.44: открыта
          trophy=dict(name="Золотой крючок", text="10% шанс собрать с грядки двойной урожай"),   # 3.41
          buyer="рыботорговец", buyer_cap="Рыботорговец", arrive="Свежая рыба! К причалу пришла лодка рыботорговца!",
          tiers=["Лодка с бочкой", "Баркас с рыбой", "Королевский парусник"], vehicle="boat"),   # 3.38.1: лодка

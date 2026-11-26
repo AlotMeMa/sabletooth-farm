@@ -303,7 +303,12 @@ class WindowsUI:
         brown = (90, 70, 60)
         y = r.y + 182
         draw_text(s, f"{self.farm_info()['buyer_cap']} заберёт урожай и деньги в обмен на {CUR['title'].lower()}!", 15, (r.centerx, y), brown, outline=None)
-        draw_text(s, f"Заработано за забег (с урожаем на грядках): ${fmt(f.run_total())}", 17, (r.centerx, y + 28), brown, outline=None)
+        aq = f.aquarium_value() if f.has_fishery() else 0.0
+        if aq > 0:          # 3.42: рыботорговец выкупает и рыбок из аквариума (по нынешней цене)
+            draw_text_fit(s, f"Заработано за забег: ${fmt(f.run_total())} — с уловом и рыбками аквариума (${fmt(aq)})",
+                          16, (r.centerx, y + 28), r.w - 40, brown, outline=None)
+        else:
+            draw_text(s, f"Заработано за забег (с урожаем на грядках): ${fmt(f.run_total())}", 17, (r.centerx, y + 28), brown, outline=None)
         draw_cur_icon(s, r.centerx - 95, y + 66, 0.9)
         draw_text(s, f"+{p} {CUR['gen']}", 28, (r.centerx + 15, y + 66), (110, 220, 90))
         after = f.home_leaves + p

@@ -135,7 +135,34 @@ def play_tank(f, mode, stats, left=1e9):
             stats["fish_spent"] += f.fish_price(best)
 
 
-def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False, tank="off"):
+MILL_SHARE = 0.3        # на мельницу, пекарню и крестьян — не больше такой доли денег
+
+
+def play_mill(f):
+    """3.41: мельница и пекарня средневековья (бот без неё недооценивал главу). Строит здания и нанимает
+    крестьян на долю денег, ставит их мельниками и пекарями, засыпает зерно до сбора, забирает хлеб."""
+    if f.farm_def().get("barn") != "mill":
+        return
+    for b in (0, 1):
+        if f.m_levels[b] < C.MILL_MAX_LVL and f.mill_can_build(b) and f.mill_building_cost(b) <= f.money * MILL_SHARE:
+            f.buy_mill_building(b)
+    while (f.m_workers[0] < f.m_levels[0] or f.m_workers[1] < f.m_levels[1]):
+        if f.free_peasants() <= 0:
+            if f.peasants >= C.PEASANT_MAX or f.peasant_cost() > f.money * MILL_SHARE or not f.hire_peasant():
+                break
+        b = 0 if f.m_workers[0] <= f.m_workers[1] and f.m_workers[0] < f.m_levels[0] else 1
+        if f.m_workers[b] >= f.m_levels[b]:
+            b = 1 - b
+        if not f.set_mill_workers(b, 1):
+            break
+    if f.m_workers[0]:
+        f.fill_hopper()
+    f.collect_bread()
+    if not f.m_workers[1]:
+        f.sell_flour()
+
+
+def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False, tank="off", mill=True):
     random.seed(seed)
     stats = dict(pred_money=0.0, fish_money=0.0, fish_spent=0.0, tank_spent=0.0, caught=0, lost=0)
     f = L.Farm()
@@ -148,6 +175,8 @@ def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False, tank="
         f.update(1.0)
         t += 1
         run_t += 1
+        if mill:
+            play_mill(f)
         for i in range(C.N_CROPS):
             f.collect(i)
         f.sun_click()

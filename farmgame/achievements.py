@@ -80,6 +80,9 @@ ACHIEVEMENTS = [
     # 3.40: скачки улиток (лист медалей 7)
     A("snail_1", "games", "Болельщик", "Посмотри 30 забегов улиток", "snail_race", 30, 15),
     A("snail_2", "games", "Тёмная лошадка", "Выиграй на улитке с коэффициентом от x8", "snail_long", 1, 30),
+    # 3.42: финал Рыбацкой деревни (как «Покоритель зимы» у зимы; лист медалей 7)
+    A("final_2", "farm", "Морской волк", "Заработай за один забег в Рыбацкой деревне столько, сколько нужно для переезда",
+      "final_fish", 1, 100),
 ]
 BY_ID = {a["id"]: a for a in ACHIEVEMENTS}
 
@@ -97,6 +100,10 @@ def value(a, farm, tavern):
         if farm.farm_def()["id"] != "winter":     # 3.36: именно зима (после неё уже есть Рыбацкая деревня)
             return tavern.stats.get(st, 0)
         if farm.run_total() >= farm.move_threshold():
+            tavern.stats[st] = 1
+        return tavern.stats.get(st, 0)
+    if st == "final_fish":       # 3.42: то же для Рыбацкой деревни
+        if farm.farm_def()["id"] == "fishing" and farm.run_total() >= farm.move_threshold():
             tavern.stats[st] = 1
         return tavern.stats.get(st, 0)
     if st == "pred_all":         # 3.39: сколько видов хищников уже выловлено

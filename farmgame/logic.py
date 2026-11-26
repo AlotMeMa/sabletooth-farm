@@ -736,6 +736,10 @@ class Farm:
             return False
         price = self.fish_price(i)
         self.money -= price
+        # 3.42: деньги, ушедшие на рыбку, — не заработок: иначе рыбка считалась бы в забег дважды (и как
+        # заработанные деньги, и как стоимость рыбы в аквариуме), и покупка рыбы сама по себе давала крючки
+        self.run_earned = max(0.0, self.run_earned - price)
+        self.total_earned = max(0.0, self.total_earned - price)
         self.fy_fish.append([i + 1, price, 0.0, self._new_seed()])
         self.fy_grace = 0.0
         return True

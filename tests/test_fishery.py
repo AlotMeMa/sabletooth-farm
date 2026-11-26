@@ -351,3 +351,42 @@ class GoldenHook(unittest.TestCase):
     def test_only_after_the_village(self):
         self.assertEqual(self._collect_many(3), 0)
         self.assertAlmostEqual(self._collect_many(4), cfg.TROPHY_DOUBLE, delta=0.02)
+
+
+class VillageFinale(unittest.TestCase):
+    """3.42: рыбки при продаже фермы, финал деревни."""
+    def _village(self):
+        f = Farm()
+        f.farm_index = 3
+        f.reset_run()
+        f.levels[0] = 10
+        f.money = 1e9
+        f.earn(1e9)
+        return f
+
+    def test_buying_fish_does_not_add_hooks(self):
+        f = self._village()
+        before = f.run_total()
+        self.assertTrue(f.buy_fish(0))
+        self.assertAlmostEqual(f.run_total(), before, delta=before * 1e-9)
+
+    def test_boat_buys_grown_fish(self):
+        f = self._village()
+        f.buy_fish(0)
+        before = f.run_total()
+        f.fy_fish[0][2] = 1.0                       # выросла: x5
+        price = f.fy_fish[0][1]
+        self.assertAlmostEqual(f.run_total() - before, price * (cfg.FISH_ADULT_MULT - 1), delta=1e-6)
+        self.assertGreater(f.farm_value(), 0)
+
+    def test_final_medal_and_barman(self):
+        from farmgame import achievements as ach
+        from farmgame import barman_talk
+        from farmgame.tavern import Tavern
+        f, t = self._village(), Tavern()
+        a = next(a for a in ach.ACHIEVEMENTS if a["id"] == "final_2")
+        self.assertEqual(ach.value(a, f, t), 0)
+        f.earn(f.move_threshold())
+        self.assertEqual(ach.value(a, f, t), 1)
+        t.ach_done = ["final_1", "final_2"]
+        self.assertIn("драконы", barman_talk.news(f, t))

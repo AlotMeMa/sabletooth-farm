@@ -34,7 +34,9 @@ def build_map_background(n, ids):
     """Карта-пергамент: своя картинка ui/move_map или кодом — пергамент, пятна-края глав, следы потёртостей."""
     w = map_width(n)
     bg = hd.Surface((w, MAP_H))
-    if blit_sprite(bg, "ui/move_map", 0, 0, 1, "topleft"):
+    img = sprite("ui/move_map")
+    if img is not None and img.get_width() >= w - 4:
+        blit_sprite(bg, "ui/move_map", 0, 0, 1, "topleft")
         return bg
     bg.fill((232, 214, 176))
     rnd = random.Random(3)
@@ -48,6 +50,16 @@ def build_map_background(n, ids):
     for _ in range(40):                               # потёртости пергамента
         x, y, r = rnd.uniform(0, w), rnd.uniform(0, MAP_H), rnd.uniform(10, 40)
         bg.blit(soft_dot_img(r, (190, 160, 120), 26), (int(x - r), int(y - r)))
+    if img is not None:      # 3.42: своя карта короче (глав стало больше) — дальше пергамент кодом, шов в дымке
+        blit_sprite(bg, "ui/move_map", 0, 0, 1, "topleft")
+        iw = img.get_width()
+        for k in range(24):                           # край картинки плавно уходит в пергамент
+            fade = hd.Surface((1, MAP_H), pygame.SRCALPHA)
+            fade.fill((232, 214, 176, int(255 * (k + 1) / 24)))
+            bg.blit(fade, (iw - 24 + k, 0))
+        for _ in range(6):                            # туман над горами у края карты
+            x, y, r = iw + rnd.uniform(-40, 120), rnd.uniform(40, MAP_H - 40), rnd.uniform(40, 80)
+            bg.blit(soft_dot_img(r, (245, 245, 250), 90), (int(x - r), int(y - r)))
     pygame.draw.rect(bg, (150, 110, 75), (0, 0, w, MAP_H), 4)
     return bg
 
@@ -162,6 +174,9 @@ class MoveUI:
             self.map_bg = build_map_background(len(chs), [c["id"] for c in chs])
         r = self.panel(880, 548, "КАРТА ГЛАВ")
         view = self.map_view()
+        hi = self.map_max()                           # 3.42: прокрутку считали по прошлому окну — не дальше края карты
+        self.map_target = max(0.0, min(hi, self.map_target))
+        self.map_x = max(0.0, min(hi, self.map_x))
         now = self.t_real
         dt = max(0.0, min(0.1, now - self.map_t))
         self.map_t = now

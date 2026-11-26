@@ -448,7 +448,8 @@ class WindowsUI:
     # окно открывается на вкладке того места, где ты сейчас. Общие вещи — во вкладке «Общее».
     DEV_TABS = (("field", "Поле"), ("barn", "Сарай"), ("tavern", "Таверна"), ("games", "Игровая"), ("all", "Общее"))
     DEV_VIEW_TAB = {"field": "field", "barn": "barn", "tavern": "tavern", "board": "tavern", "fireside": "tavern",
-                    "gameroom": "games", "casino": "games", "blackjack": "games"}
+                    "gameroom": "games", "casino": "games", "blackjack": "games",
+                    "snails": "games"}
 
     def dev_fishery_tab(self, money, go):
         """3.39.1: режим разработчика для аквариума Рыбацкой деревни."""
@@ -766,6 +767,25 @@ class WindowsUI:
                      ("Блэкджек: следующая — очко", bj_force("natural")),
                      ("Блэкджек: у дилера очко", bj_force("dealer21")),
                      ("Блэкджек: «Взять» — перебор", bj_force("bust")), ("Призовая стойка", lambda: self.open_modal("prizes"))]
+
+        # 3.40: скачки улиток
+        def snails_open():
+            from . import snails as snl
+            if not snl.unlocked(f.farm_index):
+                to_farm("fishing")()
+            t.unlocked = True
+            self.open_snails()
+
+        def sn_force(win):
+            def act():
+                from . import snails as snl
+                snl.FORCE_NEXT = win
+                self.toast("Следующий забег: " + ("твоя улитка первая" if win else "твоя улитка проиграет"), 2)
+            return act
+        games_tab += [("Улитки: открыть (деревня)", snails_open),
+                      ("Улитки: правила снова", lambda: setattr(t, "sn_intro", False)),
+                      ("Улитки: следующий — победа", sn_force(True)),
+                      ("Улитки: следующий — проигрыш", sn_force(False))]
 
         # ---------- общее ----------
         def speed():

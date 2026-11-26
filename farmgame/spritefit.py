@@ -115,6 +115,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
     "vehicles/boat_sheet": ("", BOAT_SHEET_ORDER, 1, 3),            # 3.38.1: лодка рыботорговца, 3 уровня
     "fish/predators_sheet": ("fish/", PREDATOR_SHEET_ORDER, 2, 5),  # 3.37: хищники садка, порядок = PREDATORS
+    "characters/snails_sheet": ("characters/snail_", ["1", "2", "3", "4", "5"], 1, 5),   # 3.40: улитки скачек
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
     "ui/talk_sheet": ("ui/", TALK_SHEET_ORDER, 1, 3),
@@ -272,6 +273,10 @@ def _fit_spec_base(name):
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last in ("bard", "bard_girl", "fiddler", "bagpiper"):    # 3.15.2 / 3.23: артисты сцены — скины барда
             return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last == "sailor":               # 3.40: Старый Якорь по пояс, низ = край стола (как Ворчун)
+            return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
+        if last.startswith("snail_"):      # 3.40: улитки скачек, смотрят вправо
+            return _spec(*_box(80, 60, 2, 2, 2, 0), "bottom")
         if last == "dealer_gnome":        # 3.28: дилер блэкджека — рыжий гном Ворчун по пояс, низ = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "croupier":            # 3.14: крупье по пояс, низ картинки = край стола

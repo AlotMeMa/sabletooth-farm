@@ -304,7 +304,8 @@ class FishingAchievements(unittest.TestCase):
     def test_new_medals_go_to_sheet_six(self):
         from farmgame.achievements import ACHIEVEMENTS
         ids = [a["id"] for a in ACHIEVEMENTS]
-        self.assertEqual(len(ids), 52)
+        self.assertEqual(ids[43:52][0], "fish_buy_1")             # 9 рыбацких — ровно лист 6
+        self.assertEqual(ids[51], "tank_full")
         with open(os.path.join(os.path.dirname(__file__), "..", "farmgame", "spritefit.py"), encoding="utf-8") as fh:
             self.assertIn('ids[:43] + ["_unused"] * 2 + ids[43:]', fh.read())
 

@@ -321,7 +321,7 @@ def spec_list():
     add("props/fortune_pointer", (60, 70), "низ по центру = остриё", "стрелка колеса фортуны, остриём вниз", 1,
         lambda s: None)
     for gid, desc in (("wheel", "колесо фортуны"), ("roulette", "рулетка"), ("blackjack", "блэкджек"),
-                      ("secret", "третья игра — тайна")):
+                      ("snails", "скачки улиток (3.40)")):
         add(f"icons/game_{gid}", (100, 100), "центр", f"значок игры в кружке карты Игровой: {desc}", 1,
             lambda s, gid=gid: __import__("farmgame.gameroom_ui", fromlist=["x"]).draw_game_icon(s, gid, 50, 50, 1.0))
     # 3.20: карточки дерева листьев / печатей (лучше одним листом ui/tree_sheet)

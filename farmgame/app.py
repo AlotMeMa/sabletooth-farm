@@ -14,6 +14,7 @@ from .tutorial_ui import TutorialUI
 from .casino_ui import CasinoUI
 from .gameroom_ui import GameRoomUI
 from .blackjack_ui import BlackjackUI
+from .snails_ui import SnailsUI
 from .field_ui import FieldUI
 from .creatures_ui import CreaturesUI
 from .barn_ui import BarnUI
@@ -58,7 +59,7 @@ def saved_hd_mode():
 # ======================================================================
 #                              ПРИЛОЖЕНИЕ
 # ======================================================================
-class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, BlackjackUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
+class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHudUI, MillUI, TutorialUI, GameRoomUI, BlackjackUI, SnailsUI, CasinoUI, FieldUI, CreaturesUI, BarnUI, WindowsUI, HudUI, WidgetsUI,
           ScreenUI, AchievementsUI, FisheryUI):
     def __init__(self):
         # Растягивание 1000x640 на экран — со сглаживанием (linear), а не «лесенкой» (nearest).
@@ -152,6 +153,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.init_casino()
         self.init_gameroom()          # 3.27: Игровая — карта игр и колесо фортуны
         self.init_blackjack()         # 3.28: блэкджек с рыжим гномом Ворчуном (открывается зимой)
+        self.init_snails()            # 3.40: скачки улиток со Старым Якорем (открываются в Рыбацкой деревне)
         self.preload_sprites()        # картинки и синтез звуков — пока на экране заставка с крутящимся колесом
         self.load_cursors()
         self.bg = self.build_background()
@@ -400,6 +402,8 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                 self.view = "gameroom"                 # 3.27: из рулетки — в Игровую
             elif self.view == "blackjack":
                 self.bj_leave()
+            elif self.view == "snails":
+                self.sn_leave()
             elif self.view in ("board", "fireside", "gameroom"):
                 self.view = "tavern"
         elif key == pygame.K_F11:
@@ -440,6 +444,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
         self.casino_tick(dt)
         self.gameroom_tick(dt)
         self.blackjack_tick(dt)
+        self.snails_tick(dt)
 
         for fl in self.floaters:
             fl[1] -= 35 * dt
@@ -645,10 +650,11 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
     def draw_scene(self):
         self.zones = []
         s, f = self.screen, self.farm
-        if self.view in ("barn", "tavern", "board", "casino", "fireside", "gameroom", "blackjack"):
+        if self.view in ("barn", "tavern", "board", "casino", "fireside", "gameroom", "blackjack", "snails"):
             {"barn": self.draw_barn_view, "tavern": self.draw_tavern_view, "board": self.draw_board_view,
              "casino": self.draw_casino_view, "fireside": self.draw_fireside_view,
-             "gameroom": self.draw_gameroom_view, "blackjack": self.draw_blackjack_view}[self.view]()
+             "gameroom": self.draw_gameroom_view, "blackjack": self.draw_blackjack_view,
+             "snails": self.draw_snails_view}[self.view]()
             if self.view != "fireside":      # 3.19: у камина — без плашек, только огонь
                 self.draw_hud()
             self.draw_toasts()

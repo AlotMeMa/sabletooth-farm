@@ -18,6 +18,7 @@ from .tavern_art import wrap
 from .move_ui import draw_lock
 from . import wheel as wh
 from . import blackjack as bjl
+from . import snails as snl
 from .blackjack_ui import draw_suit
 
 GR_VIEW = pygame.Rect(230, 64, 540, 566)        # окно карты на экране
@@ -27,10 +28,10 @@ GAME_NODES = [   # id, имя, (x, y) на карте, описание
          text="Раз в день — бесплатно. Пусто, жетоны или джекпот недели."),
     dict(id="roulette", name="Рулетка", pos=(160, 440),
          text="Европейская рулетка с крупье. Ставки от 5 жетонов."),
-    dict(id="blackjack", name="Блэкджек", pos=(380, 720), winter=True,
+    dict(id="blackjack", name="Блэкджек", pos=(380, 720), unlock="winter",
          text="Набери 21 и обыграй рыжего гнома Ворчуна. Открывается зимой."),
-    dict(id="secret", name="???", pos=(220, 1000), soon=True,
-         text="Третья игра — пока секрет даже для бармена."),
+    dict(id="snails", name="Скачки улиток", pos=(220, 1000), unlock="fishing",      # 3.40: вместо «???»
+         text="Ставь жетоны на улитку и болей! Ведёт моряк Старый Якорь. В Рыбацкой деревне."),
 ]
 GR_NODE_R = 62
 ICON_FILL = (GR_NODE_R * 2 + 8) / 100      # значок игры (холст 100) — во весь кружок, со своим ободком поверх нашего
@@ -122,8 +123,27 @@ def draw_game_icon(s, gid, x, y, k=1.0, t=0.0):
             draw_text(s, txt, max(12, P(20 * k)), (card.centerx, card.centery - P(4 * k)),
                       (190, 40, 40) if i else OUT, outline=None)
             draw_suit(s, "hearts" if i else "spades", card.centerx, card.bottom - P(12 * k), 0.8 * k)
+    elif gid == "snails":                         # 3.40: улитка на дорожке
+        from .snails_ui import draw_snail
+        pygame.draw.circle(s, (60, 124, 80), (P(x), P(y)), P(46 * k))
+        pygame.draw.line(s, (240, 230, 200), (P(x + 30 * k), P(y - 30 * k)), (P(x + 30 * k), P(y + 30 * k)), max(2, P(3 * k)))
+        draw_snail(s, x - 4 * k, y + 14 * k, 1.5 * k, 0, t)
     else:
         draw_text(s, "?", max(20, int(50 * k)), (P(x), P(y) - 2), (235, 220, 200))
+
+
+UNLOCK_TAG = {"winter": "ЗИМОЙ", "fishing": "В ДЕРЕВНЕ"}
+UNLOCK_BUTTON = {"winter": "Зимой", "fishing": "В деревне"}
+
+
+def game_locked(node, farm_index):
+    """3.40: игра закрыта до своей главы (блэкджек — зима, улитки — Рыбацкая деревня)."""
+    fid = node.get("unlock")
+    if not fid:
+        return False
+    from .config import FARMS
+    idx = next((n for n, fm in enumerate(FARMS) if fm["id"] == fid), len(FARMS))
+    return farm_index < idx
 
 
 class GameRoomUI:
@@ -196,6 +216,8 @@ class GameRoomUI:
             self.open_casino()
         elif gid == "blackjack":
             self.open_blackjack()
+        elif gid == "snails":
+            self.open_snails()
         elif node.get("soon"):
             self.toast(f"{node['name']} откроется скоро. {node['text']}" if gid != "secret" else node["text"], 3)
             self.sfx.play("hover")
@@ -315,7 +337,8 @@ class GameRoomUI:
 
     def gr_draw_node(self, s, node, x, y, t, can):
         gid = node["id"]
-        soon = node.get("soon") or (node.get("winter") and not bjl.unlocked(self.farm.farm_index))
+        locked = game_locked(node, self.farm.farm_index)
+        soon = node.get("soon") or locked
         hover = math.hypot(self.mouse[0] - x, self.mouse[1] - y) < GR_NODE_R + 6 and GR_VIEW.collidepoint(self.mouse)
         draw_shadow(s, x, y + GR_NODE_R + 6, GR_NODE_R * 1.7, 18, 70)
         glow = gid == "wheel" and can
@@ -344,8 +367,8 @@ class GameRoomUI:
         tag, col = None, None
         if gid == "wheel":
             tag, col = ("КРУТИ!", (90, 170, 80)) if can else ("ЗАВТРА", (140, 130, 125))
-        elif node.get("winter") and soon:
-            tag, col = "ЗИМОЙ", (90, 150, 210)
+        elif locked:
+            tag, col = UNLOCK_TAG.get(node["unlock"], "СКОРО"), (90, 150, 210)
         elif soon:
             tag, col = ("СКОРО", (235, 150, 60)) if gid != "secret" else (None, None)
         if tag:
@@ -380,8 +403,8 @@ class GameRoomUI:
             draw_text(s, "Колесо — снова через", 13, (box.centerx, y), soft, outline=None)
             draw_text(s, fmt_time(wh.seconds_to_next()), 15, (box.centerx, y + 20), brown, outline=None)
         go = pygame.Rect(box.x + 14, box.bottom - 50, box.w - 28, 40)
-        if node.get("winter") and not bjl.unlocked(self.farm.farm_index):
-            self.button(go, "Зимой", lambda: None, BTN_GREY, False, 17)
+        if game_locked(node, self.farm.farm_index):
+            self.button(go, UNLOCK_BUTTON.get(node["unlock"], "Скоро"), lambda: None, BTN_GREY, False, 17)
         elif node.get("soon"):
             self.button(go, "Скоро", lambda: None, BTN_GREY, False, 17)
         else:

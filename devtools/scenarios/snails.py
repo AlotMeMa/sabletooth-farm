@@ -1,0 +1,21 @@
+# 3.40: скачки улиток в Игровой — карта, правила Якоря, ставка, забег, итог
+import random as _r
+from farmgame import snails as sn
+t = A.tavern
+t.unlocked = True; t.tokens = 300; t.casino_open = True; t.casino_intro = True
+A.toasts.clear()
+A.open_gameroom(); A.gr_scroll_by(800); A.gr_sel = "snails"; frames(40); snap("sn_map_locked")
+f = A.farm
+f.farm_index = 3; f.reset_run(); A.set_theme(); A.bg = A.build_background()
+A.open_gameroom(); A.gr_scroll_by(800); A.gr_sel = "snails"; A.toasts.clear(); frames(40); snap("sn_map")
+A.gr_open_game("snails"); frames(20); snap("sn_intro")
+assert A.view == "snails"
+for _ in range(3):
+    A.sn_poke(); frames(2)
+A.sn_lane_click(1); A.sn_chip = 10; A.sn_lane_click(1); A.sn_lane_click(1); frames(10); snap("sn_bet")
+_r.seed(3)
+A.sn_start(); frames(40); snap("sn_countdown")
+frames(300); snap("sn_race")
+frames(500); A.toasts.clear(); frames(5); snap("sn_done")
+sn.FORCE_NEXT = True
+A.sn_again(); A.sn_start(); frames(900); A.toasts.clear(); frames(5); snap("sn_win")

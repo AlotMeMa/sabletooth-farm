@@ -407,6 +407,7 @@ def known_names():
     names |= set(FISHING_SHEET_ORDER) | set(BOAT_SHEET_ORDER) | {"fish/" + n for n in PREDATOR_SHEET_ORDER}
     names |= {"backgrounds/fishery", "ui/btn_achievements", "ui/btn_fishfest", "characters/fisher_worker",
               "characters/fisher_dancer"} | {f"characters/fisher_{k}_{n}" for k in ("worker", "dancer") for n in (1, 2)}
+    names |= {"characters/sailor"} | {f"characters/snail_{n}" for n in range(1, 6)}       # 3.40: скачки улиток
     # общие версии без папки фермы: tiles/soil, props/tree, buildings/barn ...
     for n in list(names):
         parts = n.split("/")

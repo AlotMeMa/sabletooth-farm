@@ -16,7 +16,7 @@ class SheetGrids(unittest.TestCase):
         for node in tree.body:
             if isinstance(node, ast.Assign) and isinstance(node.targets[0], ast.Name):
                 name = node.targets[0].id
-                if name.endswith("_ORDER") and isinstance(node.value, ast.List):
+                if name.endswith(("_ORDER", "_CELLS")) and isinstance(node.value, ast.List):
                     self.lists[name] = [e.value for e in node.value.elts]
                 if name == "SHEETS":
                     self.sheets = node.value

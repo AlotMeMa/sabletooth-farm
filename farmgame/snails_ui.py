@@ -96,7 +96,7 @@ def draw_sailor(s, x, wy, k=2.5, t=0.0, talking=False):
 
 def draw_snail(s, x, y, k, i, t=0.0, moving=False):
     """Улитка номер i смотрит вправо; (x, y) — где она касается дорожки (середина)."""
-    if blit_tf(s, f"characters/snail_{i + 1}", x, y + 2, 0.5 * k, sy=1 + (0.06 * math.sin(t * 10) if moving else 0)):
+    if blit_tf(s, f"characters/snail_{i + 1}", x, y + 2, 0.64 * k, sy=1 + (0.06 * math.sin(t * 10) if moving else 0)):
         return
     look = sn.SNAILS[i]
     stretch = (1 + 0.12 * math.sin(t * 8)) if moving else 1.0

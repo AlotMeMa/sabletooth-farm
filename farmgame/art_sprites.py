@@ -54,6 +54,8 @@ def sprite(name):
     img = None
     try:
         img = hd.wrap(_load_sprite(name))     # в HD картинка подогнана крупнее — снаружи она «логического» размера
+    except spritefit.NeedFit:                 # 3.40.4: только проверяли кэш — подгонят процессы загрузки
+        raise
     except Exception as e:  # битый файл не должен ронять игру
         print(f"Не удалось загрузить спрайт {name}: {e}")
         img = None
@@ -94,12 +96,12 @@ def _load_sprite(name):
     parts = name.split("/")
     if path:
         if parts[0] == "crops" and len(parts) == 3 and not parts[2][-2:] in ("_1", "_2", "_3"):
-            if spritefit.is_strip(pygame.image.load(path), path):
+            if spritefit.is_strip(None, path):
                 return sprite(name + "_3")      # одна картинка-полоска: показываем спелую стадию
         return spritefit.load_fitted(name, path)
     if parts[0] == "crops" and len(parts) == 3 and parts[2][-2:] in ("_1", "_2", "_3"):
         strip = find_asset_file(name[:-2])
-        if strip and spritefit.is_strip(pygame.image.load(strip), strip):
+        if strip and spritefit.is_strip(None, strip):
             return spritefit.load_fitted(name, strip, ("strip", int(name[-1])))
         return None
     for sheet_name, (prefix, order, rows, cols) in spritefit.SHEETS.items():   # иконка/кнопка/фишка из листа

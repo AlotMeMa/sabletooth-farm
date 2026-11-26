@@ -167,48 +167,97 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
     def preload_sprites(self):
         """Подгоняет все картинки из assets/ сразу при запуске, с заставкой и полоской.
         Иначе каждая картинка подгонялась бы при первом показе, и игра на миг замирала бы
-        (например, когда белка выбегает в первый раз). Уже подогнанные берутся из .sprite_cache/ мгновенно."""
+        (например, когда белка выбегает в первый раз). Уже подогнанные берутся из .sprite_cache/ мгновенно.
+        3.40.4: сначала берём всё, что уже в кэше; недостающее подгоняют несколько процессов сразу (warmup.py)."""
         from .templates import known_names
+        from . import warmup
         self.load_t0 = time.time()
         self.draw_loading(0.0)                        # сразу что-то на экране, пока грузятся картинки заставки
         pygame.display.flip()
         early = LOADING_SPRITES + ("icons/peasant",)  # сама заставка (крестьянин — запасной талисман)
-        for name in early:                            # грузим до потока: заставка и поток не трогают одно и то же
+        for name in early:
             sprite(name)
         names = [n for n in sorted(known_names()) if n not in early]
         total = len(names) + 1                        # +1 — синтез звуков
-        state = {"done": 0, "finished": False}
+        sounds = {"done": False}
 
-        def work():
+        def synth():
             try:
-                for name in names:
-                    sprite(name)                      # подгонка картинки (первый раз — долго, потом из кэша)
-                    state["done"] += 1
-                self.sfx.preload()                    # синтез звуков
-            except Exception as e:                    # не роняем игру: недогруженное загрузится при первом показе
-                print("Загрузка картинок/звуков:", e)
+                self.sfx.preload()
+            except Exception as e:                    # noqa: BLE001
+                print("Синтез звуков:", e)
             finally:
-                state["done"] = total
-                state["finished"] = True
-
-        # Картинки подгоняются в фоне, а экран перерисовывается 60 раз в секунду: колесо крутится плавно,
-        # даже когда одна большая картинка подгоняется несколько секунд. Не вышло с потоком — грузим по очереди.
+                sounds["done"] = True
         try:
-            worker = threading.Thread(target=work, daemon=True)
-            worker.start()
-        except Exception:
-            worker = None
-            work()
+            threading.Thread(target=synth, daemon=True).start()
+        except Exception:                             # noqa: BLE001
+            synth()
+
+        def frame(frac):
+            probe = spritefit.PROBE[0]
+            spritefit.PROBE[0] = False                # сама заставка рисуется как обычно
+            try:
+                pygame.event.pump()                   # чтобы Windows не считала окно зависшим
+                self.draw_loading(frac)
+                pygame.display.flip()
+            finally:
+                spritefit.PROBE[0] = probe
+
+        # 1) что уже подогнано — из кэша; чего нет — в список
+        missing = []
+        spritefit.PROBE[0] = True
+        try:
+            for n, name in enumerate(names):
+                try:
+                    sprite(name)
+                except spritefit.NeedFit:
+                    missing.append(name)
+                if n % 25 == 0:
+                    frame(0.5 * n / total if missing else n / total)
+        finally:
+            spritefit.PROBE[0] = False
+        done0 = len(names) - len(missing)
         clock = pygame.time.Clock()
-        while worker is not None and not state["finished"]:
-            pygame.event.pump()                       # чтобы Windows не считала окно зависшим
-            self.draw_loading(state["done"] / total)
-            pygame.display.flip()
+        # 2) недостающее — в нескольких процессах; окно крутит заставку
+        if missing:
+            print(f"Подгоняю {len(missing)} картинок в {warmup.workers()} процессах…")
+            run = warmup.start(missing)
+            if run is not None:
+                ex, jobs = run
+                try:
+                    while not all(f.done() for f, _n in jobs):
+                        got = sum(n for f, n in jobs if f.done())
+                        frame((done0 + got) / total)
+                        clock.tick(30)
+                finally:
+                    ex.shutdown(wait=True)
+            # 3) забираем готовое из кэша (что процессы не смогли — подгоняется тут, в потоке, как раньше)
+            state = {"done": 0, "finished": False}
+
+            def work():
+                try:
+                    for name in missing:
+                        sprite(name)
+                        state["done"] += 1
+                except Exception as e:                # не роняем игру: недогруженное загрузится при первом показе
+                    print("Загрузка картинок:", e)
+                finally:
+                    state["finished"] = True
+            try:
+                worker = threading.Thread(target=work, daemon=True)
+                worker.start()
+            except Exception:                         # noqa: BLE001
+                worker = None
+                work()
+            while worker is not None and not state["finished"]:
+                frame((done0 + state["done"]) / total)
+                clock.tick(60)
+        while not sounds["done"]:
+            frame((total - 1) / total)
             clock.tick(60)
-        if worker is not None:
-            worker.join(timeout=5)
-        self.draw_loading(1.0)
-        pygame.display.flip()
+        spritefit.save_index()
+        print(f"Картинки готовы за {time.time() - self.load_t0:.1f} с")
+        frame(1.0)
 
     def draw_loading(self, frac):
         draw_loading_screen(self.screen, frac, time.time() - getattr(self, "load_t0", time.time()),

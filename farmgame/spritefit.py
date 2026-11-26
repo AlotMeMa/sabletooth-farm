@@ -20,9 +20,14 @@ import re
 
 import pygame
 
+try:                     # 3.40.4: если numpy есть — маски фона считаются им (в разы быстрее); нет — тем же кодом на Python
+    import numpy as _np
+except Exception:        # noqa: BLE001
+    _np = None
+
 from .config import BASE_DIR, W, H, PRIZE_SHEET_IDS
 
-CACHE_VERSION = "fit9d"   # 3.26.1: крошки (след значка нейросети в углу) убираются — картинки пересчитаются
+CACHE_VERSION = "fit10"   # 3.40.4: ключ — содержимое файла (md5); в листах убираются крохи рамок
 CACHE_DIR = os.path.join(BASE_DIR, ".sprite_cache")
 
 SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне: насколько её оттенок может отличаться от фона
@@ -30,6 +35,8 @@ SHADOW_HUE, SHADOW_HUE_LOW = 0.6, 0.2   # тень на цветном фоне:
 BG_TOL = 48      # насколько пиксель может отличаться от цвета фона и всё ещё считаться фоном
 EDGE_TOLS = (130, 170)   # кольца края: до этой разницы с фоном пиксель делается полупрозрачным (без ореола)
 SLED_BOX = {"sled_1": (430, 124), "sled_2": (430, 142)}   # 3.26.2: остальные упряжки — как телега, 270×124
+GRID_FULL, GRID_THIN = 0.85, 0.012   # 3.40.4: линия сетки листа — «не фон» в 85% высоты, толщиной до 1.2% картинки
+SHEET_SPECK = 24  # 3.40.4: в листе крошка — кусок не больше стольких пикселей (хвост рамки между клетками)
 MIN_ALPHA = 16   # что прозрачнее — считается пустотой при обрезке
 SPECK_SHARE, SPECK_MIN = 0.00006, 6   # 3.26.1: крошка — отдельный кусочек меньше этой доли площади (не меньше 6 px)
 CURSOR_SIZE = 24         # обычный курсор, px (поменьше)
@@ -87,8 +94,13 @@ PRIZE4_SHEET_ORDER = ["dog", "owl", "own_mug", "fireflies", "leaf_trail", "bubbl
 # 3.36: Рыбацкая деревня — мелочь одним листом 3×3 (assets/icons/fishing_sheet.png) и повозка 1×3 (полные имена)
 FISHING_SHEET_ORDER = ["creatures/crab", "creatures/crab_gold", "creatures/gull", "creatures/gull_fly", "icons/fisherman",
                        "icons/hook", "ui/btn_fishfest", "characters/fisher_worker", "characters/fisher_dancer"]
-BOAT_SHEET_ORDER = ["vehicles/boat_0", "vehicles/boat_1", "vehicles/boat_2"]   # 3.38.1: лодка вместо повозки
+# 3.38.1: лодка вместо повозки. 3.40.4: на листе пользователя лодки идут наоборот — парусник, баркас, лодочка
+BOAT_SHEET_ORDER = ["vehicles/boat_2", "vehicles/boat_1", "vehicles/boat_0"]
+BOAT_BOX = {"boat_0": (210, 120), "boat_1": (250, 170), "boat_2": (280, 200)}   # лодочка ниже и короче парусника
 PREDATOR_SHEET_ORDER = ["pike", "asp", "zander", "burbot", "catfish", "eel", "taimen", "sturgeon", "beluga", "swordfish"]
+# 3.40.4: лист пользователя нарисован 5 рядов × 2 и без сома (на его месте второй осётр — «_spare», не берём).
+# Сом пока рисуется кодом; своя картинка — assets/fish/catfish.png (отдельный файл важнее листа).
+PREDATOR_SHEET_CELLS = ["pike", "asp", "zander", "burbot", "eel", "taimen", "sturgeon", "_spare", "beluga", "swordfish"]
 # 3.33: сами украшения и персонажи в сцене (лист 2×3, assets/decor/sheet_2.png, полные имена)
 DECOR2_SHEET_ORDER = ["decor/wreath", "decor/lantern", "decor/rocking_chair", "decor/own_mug", "characters/dog",
                       "characters/owl"]
@@ -114,7 +126,7 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
     "vehicles/boat_sheet": ("", BOAT_SHEET_ORDER, 1, 3),            # 3.38.1: лодка рыботорговца, 3 уровня
-    "fish/predators_sheet": ("fish/", PREDATOR_SHEET_ORDER, 2, 5),  # 3.37: хищники садка, порядок = PREDATORS
+    "fish/predators_sheet": ("fish/", PREDATOR_SHEET_CELLS, 5, 2),  # 3.37: хищники садка (3.40.4: 5×2, как нарисовано)
     "characters/snails_sheet": ("characters/snail_", ["1", "2", "3", "4", "5"], 1, 5),   # 3.40: улитки скачек
     "ui/chips": ("", CHIP_SHEET_ORDER, 1, 5),   # полные имена: фишки 5/10/25/50 и шарик рулетки
     "ui/board_sheet": ("ui/", BOARD_SHEET_ORDER, 2, 3),
@@ -305,7 +317,8 @@ def _fit_spec_base(name):
         if last.startswith("cart") or last.startswith("fishcart"):     # 3.36: повозка рыботорговца
             return _spec(*_box(270, 124, 4, 2, 4, 0), "bottom")
         if last.startswith("boat"):        # 3.38.1: лодка рыботорговца: с мачтой выше, низ корпуса — под водой
-            return _spec(*_box(280, 200, 4, 2, 4, 0), "bottom")
+            w, h = BOAT_BOX.get(last.replace("_cargo", ""), (280, 200))
+            return _spec(*_box(w, h, 4, 2, 4, 0), "bottom")
         return None
     if folder == "ui" and (last in UI_TRIM or last.startswith("button_")):
         # 3.4: окна и кнопки — фон убрать, поля обрезать, пропорции картинки сохранить (игра режет её на 9/3 части)
@@ -393,6 +406,78 @@ def _frombytes(buf, size):
     return surf
 
 
+def _nview(buf, w=None):
+    """numpy-вид на bytearray без копии (запись в него меняет buf); None — numpy нет."""
+    if _np is None:
+        return None
+    a = _np.frombuffer(buf, dtype=_np.uint8)
+    return a if w is None else a.reshape(-1, w)
+
+
+def _touching(ring, h, w):
+    """Пиксели, у которых сосед слева/справа/сверху/снизу лежит в ring (numpy bool h×w)."""
+    adj = _np.zeros((h, w), dtype=bool)
+    adj[:, 1:] |= ring[:, :-1]
+    adj[:, :-1] |= ring[:, 1:]
+    adj[1:, :] |= ring[:-1, :]
+    adj[:-1, :] |= ring[1:, :]
+    return adj
+
+
+def bg_masks(b, bg, chroma):
+    """3.40.4: для каждого пикселя RGBA-буфера b: D — насколько он отличается от цвета фона (0..255),
+    L — 1, если пиксель «как фон»: близко к цвету фона или (на цветном фоне) его тень — тот же оттенок, темнее.
+    Тот же расчёт, что был в remove_background по пикселю (с numpy — массивами, результат совпадает)."""
+    br, bgc, bb = bg
+    cr, cg, cb = br / 255.0, bgc / 255.0, bb / 255.0
+    top = max(cr, cg, cb)
+    lims = [SHADOW_HUE_LOW if c / top < 0.3 else SHADOW_HUE for c in (cr, cg, cb)] if top > 0 else None
+    if _np is not None:
+        a = _np.frombuffer(bytes(b), dtype=_np.uint8).reshape(-1, 4)
+        r, g, bl = (a[:, k].astype(_np.int16) for k in range(3))
+        d = _np.maximum(_np.maximum(_np.abs(r - br), _np.abs(g - bgc)), _np.abs(bl - bb))
+        like = d < BG_TOL
+        if chroma and lims:
+            rf, gf, bf = r.astype(_np.float64), g.astype(_np.float64), bl.astype(_np.float64)
+            lum = _np.maximum(_np.maximum(rf, gf), bf)
+            k = lum / 255.0
+            near = _np.maximum(_np.maximum(_np.abs(rf - cr * 255 * k), _np.abs(gf - cg * 255 * k)),
+                               _np.abs(bf - cb * 255 * k)) < 40
+            safe = _np.where(lum > 0, lum, 1.0)
+            hue = ((_np.abs(rf / safe - cr / top) < lims[0]) & (_np.abs(gf / safe - cg / top) < lims[1])
+                   & (_np.abs(bf / safe - cb / top) < lims[2]))
+            like |= (lum >= 50) & near & hue
+        return bytearray(d.astype(_np.uint8).tobytes()), bytearray(like.astype(_np.uint8).tobytes())
+    n = len(b) // 4
+    D, L = bytearray(n), bytearray(n)
+    R, G, B = b[0::4], b[1::4], b[2::4]
+    for p in range(n):
+        r, g, bl = R[p], G[p], B[p]
+        d = r - br if r > br else br - r
+        e = g - bgc if g > bgc else bgc - g
+        if e > d:
+            d = e
+        e = bl - bb if bl > bb else bb - bl
+        if e > d:
+            d = e
+        D[p] = d
+        if d < BG_TOL:
+            L[p] = 1
+        elif chroma and lims:
+            lum = r if r > g else g
+            if bl > lum:
+                lum = bl
+            if lum < 50:
+                continue
+            k = lum / 255.0
+            if max(abs(r - cr * 255 * k), abs(g - cg * 255 * k), abs(bl - cb * 255 * k)) >= 40:
+                continue
+            if (abs(r / lum - cr / top) < lims[0] and abs(g / lum - cg / top) < lims[1]
+                    and abs(bl / lum - cb / top) < lims[2]):
+                L[p] = 1
+    return D, L
+
+
 class Pix:
     """RGBA-картинка как bytearray: быстро читать и писать без get_at/set_at."""
 
@@ -437,7 +522,42 @@ class Pix:
             return None
         return tuple(sum(p[k] for p in close) // len(close) for k in range(3))
 
-    def remove_background(self, bg):
+    def _remove_grid_lines(self, is_bg):
+        """3.40.4: тёмные линии сетки между клетками листа (нейросеть рисует клетки чёрной рамкой). Линия — тонкая
+        полоса столбцов (строк), где «не фон» почти во всю высоту (ширину). Только для листов и полосок:
+        в одиночной картинке так выглядит, например, мачта."""
+        w, h = self.w, self.h
+        if _np is None:
+            nb = [[not is_bg[y * w + x] for x in range(w)] for y in range(h)]
+            col = [sum(nb[y][x] for y in range(h)) for x in range(w)]
+            row = [sum(nb[y]) for y in range(h)]
+        else:
+            m = _nview(is_bg, w) == 0
+            col, row = m.sum(axis=0).tolist(), m.sum(axis=1).tolist()
+        n = 0
+        for counts, size, other, vertical in ((col, w, h, True), (row, h, w, False)):
+            full = [c >= other * GRID_FULL for c in counts]
+            i = 0
+            while i < size:
+                if not full[i]:
+                    i += 1
+                    continue
+                j = i
+                while j < size and full[j]:
+                    j += 1
+                if j - i <= max(4, int(size * GRID_THIN)):            # тонкая — это рамка, а не рисунок
+                    a, b = max(0, i - 2), min(size, j + 2)               # с ореолом по краям линии
+                    for k in range(a, b):
+                        if vertical:
+                            for y in range(h):
+                                is_bg[y * w + k] = 1
+                        else:
+                            is_bg[k * w:(k + 1) * w] = b"\x01" * w
+                    n += b - a
+                i = j
+        return n
+
+    def remove_background(self, bg, grid=False):
         """Убирает фон:
         1) заливка от краёв картинки — по цвету фона, а на цветном фоне (маджента) ещё и по его теням;
         2) «дырки» цвета фона внутри рисунка (просветы между листьями, между досками кузова):
@@ -447,63 +567,45 @@ class Pix:
         b, w, h = self.buf, self.w, self.h
         br, bgc, bb = bg
         chroma = max(bg) - min(bg) > 120          # цветной фон (маджента, зелёный), а не белый/серый
+        D, L = bg_masks(b, bg, chroma)            # 3.40.4: расстояние до фона и «похож на фон» — один проход
 
         def dist(i):
-            return max(abs(b[i] - br), abs(b[i + 1] - bgc), abs(b[i + 2] - bb))
-
-        def bg_like(i):
-            if dist(i) < BG_TOL:
-                return True
-            if chroma:   # тень на цветном фоне: тот же оттенок, только темнее
-                r, g, bl = b[i], b[i + 1], b[i + 2]
-                cr, cg, cb = br / 255.0, bgc / 255.0, bb / 255.0
-                lum = max(r, g, bl)
-                if lum < 50:
-                    return False
-                # насколько пиксель похож на «фон, умноженный на яркость»
-                k = lum / 255.0
-                if max(abs(r - cr * 255 * k), abs(g - cg * 255 * k), abs(bl - cb * 255 * k)) >= 40:
-                    return False
-                # 3.4.2: и оттенок тот же. Иначе тёмно-коричневый контур рисунка, который касается фона,
-                # принимался за тень (тёмные цвета все «близко» к тёмной мадженте) и съедался.
-                # Главное — канал, которого в фоне почти нет (у мадженты — зелёный): в тени он тоже около нуля,
-                # а в коричневом контуре заметен.
-                top = max(cr, cg, cb)
-                for v, c in ((r, cr), (g, cg), (bl, cb)):
-                    lim = SHADOW_HUE_LOW if c / top < 0.3 else SHADOW_HUE
-                    if abs(v / lum - c / top) >= lim:
-                        return False
-                return True
-            return False
+            return D[i >> 2]
 
         is_bg = bytearray(w * h)
         stack = []
-        for x in range(w):
-            stack.append(x)
-            stack.append((h - 1) * w + x)
-        for y in range(h):
-            stack.append(y * w)
-            stack.append(y * w + w - 1)
-        while stack:
+        for p in list(range(w)) + list(range((h - 1) * w, h * w)) + [y * w for y in range(h)] + [y * w + w - 1 for y in range(h)]:
+            if L[p] and not is_bg[p]:
+                is_bg[p] = 1
+                stack.append(p)
+        last = (h - 1) * w
+        while stack:                              # заливка от краёв: помечаем при постановке в очередь
             p = stack.pop()
-            if is_bg[p] or not bg_like(p * 4):
-                continue
-            is_bg[p] = 1
             x = p % w
-            if x > 0:
+            if x > 0 and L[p - 1] and not is_bg[p - 1]:
+                is_bg[p - 1] = 1
                 stack.append(p - 1)
-            if x < w - 1:
+            if x < w - 1 and L[p + 1] and not is_bg[p + 1]:
+                is_bg[p + 1] = 1
                 stack.append(p + 1)
-            if p >= w:
+            if p >= w and L[p - w] and not is_bg[p - w]:
+                is_bg[p - w] = 1
                 stack.append(p - w)
-            if p < (h - 1) * w:
+            if p < last and L[p + w] and not is_bg[p + w]:
+                is_bg[p + w] = 1
                 stack.append(p + w)
         self._remove_rule_lines(is_bg, dist)
+        if grid:
+            self._remove_grid_lines(is_bg)
         # просветы цвета фона внутри рисунка
         hole_limit = w * h if chroma else int(w * h * HOLE_MAX_WHITE)
         seen = bytearray(w * h)
-        for start in range(w * h):
-            if is_bg[start] or seen[start] or dist(start * 4) >= HOLE_TOL:
+        if _np is not None:
+            starts = _np.flatnonzero((_nview(is_bg) == 0) & (_nview(D) < HOLE_TOL)).tolist()
+        else:
+            starts = range(w * h)
+        for start in starts:
+            if is_bg[start] or seen[start] or D[start] >= HOLE_TOL:
                 continue
             comp, stack = [], [start]
             seen[start] = 1
@@ -513,7 +615,7 @@ class Pix:
                 x = p % w
                 for q in ((p - 1) if x > 0 else -1, (p + 1) if x < w - 1 else -1,
                           p - w if p >= w else -1, p + w if p < (h - 1) * w else -1):
-                    if q >= 0 and not seen[q] and not is_bg[q] and dist(q * 4) < HOLE_TOL:
+                    if q >= 0 and not seen[q] and not is_bg[q] and D[q] < HOLE_TOL:
                         seen[q] = 1
                         stack.append(q)
             if len(comp) > hole_limit and not chroma and len(comp) <= hole_limit * 4:
@@ -529,18 +631,29 @@ class Pix:
             if len(comp) <= hole_limit:
                 for p in comp:
                     is_bg[p] = 1
-        for p in range(w * h):
-            if is_bg[p]:
-                b[p * 4 + 3] = 0
-        if chroma:
-            self._despill(is_bg, bg)
+        if _np is not None:
+            _nview(b)[3::4][_nview(is_bg) == 1] = 0
+        else:
+            for p in range(w * h):
+                if is_bg[p]:
+                    b[p * 4 + 3] = 0
+        if chroma and self._despill(is_bg, bg):
+            D = bg_masks(b, bg, False)[0]          # «отмытые» пиксели у края — расстояние до фона заново
         # край: 2 кольца пикселей вокруг фона. Похожие на фон делаем полупрозрачными
         # и «отмываем» их цвет от фона — так не остаётся розового/белого ореола вокруг контура.
         ring = is_bg
         for tol in EDGE_TOLS:
             span = tol - BG_TOL
             nxt = bytearray(w * h)
-            for p in range(w * h):
+            if _np is not None:
+                rv = _nview(ring, w) == 1
+                cand = _touching(rv, h, w) & (_nview(is_bg, w) == 0)
+                if ring is not is_bg:
+                    cand &= ~rv
+                cands = _np.flatnonzero(cand).tolist()
+            else:
+                cands = range(w * h)
+            for p in cands:
                 if is_bg[p] or (ring is not is_bg and ring[p]):
                     continue
                 x = p % w
@@ -549,7 +662,7 @@ class Pix:
                     continue
                 nxt[p] = 1
                 i = p * 4
-                d = dist(i)
+                d = D[p]
                 if d >= tol:
                     continue
                 a = max(0.08, (d - BG_TOL) / span)
@@ -578,7 +691,20 @@ class Pix:
         bg_hue = colorsys.rgb_to_hsv(*(c / 255 for c in bg))[0] * 360
         reach = max(3, int(max(w, h) * SPILL_NEAR))
         near = bytearray(is_bg)
-        front = [p for p in range(w * h) if is_bg[p]]
+        front = [] if _np is not None else [p for p in range(w * h) if is_bg[p]]
+        if _np is not None:                    # то же «не дальше reach шагов от фона», но слоями целиком
+            bgm = _nview(is_bg, w) == 1
+            cur = bgm.copy()
+            for _ in range(reach):
+                grown = cur | _touching(cur, h, w)
+                if (grown == cur).all():
+                    break
+                cur = grown
+            px4 = _nview(b).reshape(-1, 4).astype(_np.int16)
+            spill_np = px4[:, strong].min(axis=1) - px4[:, weak].max(axis=1)
+            cand = (cur & ~bgm).reshape(-1) & (spill_np > 8)
+            for p in _np.flatnonzero(cand).tolist():
+                near[p] = 2
         for _ in range(reach):                 # расстояние до фона: слоями (не дальше reach)
             nxt = []
             for p in front:
@@ -592,7 +718,7 @@ class Pix:
             if not front:
                 break
         n = 0
-        for p in range(w * h):
+        for p in (_np.flatnonzero(_nview(near) == 2).tolist() if _np is not None else range(w * h)):
             if near[p] != 2:
                 continue
             i = p * 4
@@ -630,7 +756,15 @@ class Pix:
             return p >= 3 * w and p < (h - 3) * w and is_bg[p - 3 * w] and is_bg[p + 3 * w]
 
         found = []
+        if _np is not None:                         # сколько «не фона» в каждом столбце и строке — сразу
+            nb = _nview(is_bg, w) == 0
+            cols_ok = set(_np.flatnonzero(nb.sum(axis=0) >= h * LINE_MIN).tolist())
+            rows_ok = set(_np.flatnonzero(nb.sum(axis=1) >= w * LINE_MIN).tolist())
+        else:
+            cols_ok, rows_ok = range(w), range(h)
         for x in range(w):
+            if x not in cols_ok:
+                continue
             pts = [y * w + x for y in range(h) if not is_bg[y * w + x]]
             if len(pts) < h * LINE_MIN:
                 continue
@@ -638,6 +772,8 @@ class Pix:
             if len(line) >= h * LINE_MIN:
                 found += line
         for y in range(h):
+            if y not in rows_ok:
+                continue
             pts = [y * w + x for x in range(w) if not is_bg[y * w + x]]
             if len(pts) < w * LINE_MIN:
                 continue
@@ -648,14 +784,15 @@ class Pix:
             is_bg[p] = 1
         return len(found)
 
-    def drop_specks(self):
+    def drop_specks(self, limit=None):
         """3.26.1: убрать крошки — крохотные отдельные кусочки (обычно след значка нейросети в углу картинки
         или точка шума). Один такой пиксель в углу полоски делил её как «четвёртый рисунок»: стадии 2 и 3
         склеивались, а первая уменьшалась. Крошка — кусок меньше SPECK_SHARE площади картинки."""
         b, w, h = self.buf, self.w, self.h
-        limit = max(SPECK_MIN, int(w * h * SPECK_SHARE))
+        limit = max(SPECK_MIN, int(w * h * SPECK_SHARE)) if limit is None else limit
         seen = bytearray(w * h)
-        for start in range(w * h):
+        starts = _np.flatnonzero(_nview(b)[3::4] > MIN_ALPHA).tolist() if _np is not None else range(w * h)
+        for start in starts:
             if seen[start] or b[start * 4 + 3] <= MIN_ALPHA:
                 continue
             comp, stack = [start], [start]
@@ -680,6 +817,12 @@ class Pix:
         """Границы непрозрачного рисунка внутри rect (x0, y0, x1, y1) или None."""
         x0, y0, x1, y1 = rect or (0, 0, self.w, self.h)
         b, w = self.buf, self.w
+        if _np is not None:
+            a = _nview(b)[3::4].reshape(-1, w)[y0:y1, x0:x1] > MIN_ALPHA
+            ys, xs = _np.flatnonzero(a.any(axis=1)), _np.flatnonzero(a.any(axis=0))
+            if not len(ys):
+                return None
+            return x0 + int(xs[0]), y0 + int(ys[0]), x0 + int(xs[-1]) + 1, y0 + int(ys[-1]) + 1
         rows = [y for y in range(y0, y1) if any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for x in range(x0, x1))]
         if not rows:
             return None
@@ -691,6 +834,9 @@ class Pix:
         """Для каждого столбца (axis='x') или строки ('y') внутри rect: есть ли там рисунок."""
         x0, y0, x1, y1 = rect
         b, w = self.buf, self.w
+        if _np is not None:
+            a = _nview(b)[3::4].reshape(-1, w)[y0:y1, x0:x1] > MIN_ALPHA
+            return [bool(v) for v in a.any(axis=0 if axis == "x" else 1)]
         if axis == "x":
             return [any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for y in range(y0, y1)) for x in range(x0, x1)]
         return [any(b[(y * w + x) * 4 + 3] > MIN_ALPHA for x in range(x0, x1)) for y in range(y0, y1)]
@@ -728,7 +874,7 @@ def split_by_gaps(occ, n):
 # ----------------------------------------------------------------------
 #                              подгонка
 # ----------------------------------------------------------------------
-def _prepare(img, work_max, specks=True):
+def _prepare(img, work_max, specks=True, grid=False):
     """Уменьшает огромную картинку до рабочего размера, убирает фон (и крошки). -> Pix."""
     w, h = img.get_size()
     k = min(1.0, work_max / max(w, h))
@@ -738,9 +884,11 @@ def _prepare(img, work_max, specks=True):
     if not px.has_transparency():
         bg = px.background_color()
         if bg is not None:
-            px.remove_background(bg)
+            px.remove_background(bg, grid)
             if specks:
                 px.drop_specks()
+            else:          # 3.40.4: в листах — только совсем крохи (хвостики рамок у края), искорки остаются
+                px.drop_specks(SHEET_SPECK)
     return px
 
 
@@ -823,7 +971,7 @@ def fit_sheet(img, rows, cols, spec_for):
     """Лист иконок rows×cols. spec_for(i) — spec для i-й иконки. -> список поверхностей."""
     specs = [spec_for(i) for i in range(rows * cols)]      # None — клетка не нужна (пропуск в порядке листа)
     biggest = max(max(sp["canvas"]) for sp in specs if sp)
-    px = _prepare(img, _work(biggest * max(rows, cols)), specks=False)   # в листах мелочь бывает нужной (искорки)
+    px = _prepare(img, _work(biggest * max(rows, cols)), specks=False, grid=True)   # в листах мелочь бывает нужной (искорки)
     whole = px.bbox()
     if whole is None:
         return [None] * (rows * cols)
@@ -852,10 +1000,62 @@ def _fit_piece(piece, spec):
 # ----------------------------------------------------------------------
 #                 загрузка с подгонкой и кэшем на диске
 # ----------------------------------------------------------------------
-def _cache_path(name, src, part=None):
+class NeedFit(Exception):
+    """3.40.4: картинку надо подгонять (в кэше её нет), а сейчас только проверяем кэш (PROBE)."""
+
+
+PROBE = [False]          # True — load_fitted/is_strip не считают, а бросают NeedFit (загрузка раздаёт работу процессам)
+_digests = {}            # (путь, mtime, размер) -> md5 содержимого
+_INDEX = "index.txt"
+
+
+def _load_index():
+    if _digests.get("_loaded"):
+        return
+    _digests["_loaded"] = True
+    try:
+        with open(os.path.join(CACHE_DIR, _INDEX), encoding="utf-8") as fh:
+            for line in fh:
+                parts = line.rstrip("\n").split("\t")
+                if len(parts) == 4:
+                    _digests[(parts[0], int(parts[1]), int(parts[2]))] = parts[3]
+    except (OSError, ValueError):
+        pass
+
+
+def save_index():
+    """Запомнить на диск, у какого файла какое содержимое (чтобы не считать md5 при каждом запуске)."""
+    try:
+        os.makedirs(CACHE_DIR, exist_ok=True)
+        tmp = os.path.join(CACHE_DIR, _INDEX + ".tmp")
+        with open(tmp, "w", encoding="utf-8") as fh:
+            for k, v in _digests.items():
+                if isinstance(k, tuple):
+                    fh.write(f"{k[0]}\t{k[1]}\t{k[2]}\t{v}\n")
+        os.replace(tmp, os.path.join(CACHE_DIR, _INDEX))
+    except OSError:
+        pass
+
+
+def digest(src):
+    """3.40.4: md5 содержимого картинки. Кэш привязан к содержимому, а не к пути и дате файла: после git clone,
+    переноса папки или pull без изменений картинки заново не подгоняются."""
+    _load_index()
     st = os.stat(src)
+    key = (os.path.abspath(src), st.st_mtime_ns, st.st_size)
+    d = _digests.get(key)
+    if d is None:
+        h = hashlib.md5()
+        with open(src, "rb") as fh:
+            for chunk in iter(lambda: fh.read(1 << 20), b""):
+                h.update(chunk)
+        d = _digests[key] = h.hexdigest()
+    return d
+
+
+def _cache_path(name, src, part=None):
     # в ключе и правила подгонки: поменялся размер в игре — картинка пересчитается сама
-    key = f"{CACHE_VERSION}|{name}|{fit_spec(name)}|{os.path.abspath(src)}|{st.st_mtime_ns}|{st.st_size}"
+    key = f"{CACHE_VERSION}|{name}|{fit_spec(name)}|{digest(src)}"
     if part and part[0] == "sheet":     # 3.19.1: и клетка листа (поменялась сетка листа — вырежется заново)
         key += f"|sheet{part[1]}:{part[4]}x{part[5]}"
     return os.path.join(CACHE_DIR, hashlib.md5(key.encode("utf-8")).hexdigest() + ".png")
@@ -865,8 +1065,11 @@ def _load(path):
     img = pygame.image.load(path)
     try:
         img = img.convert_alpha()
-    except pygame.error:
-        pass
+    except pygame.error:          # нет окна (подгонка в отдельном процессе): 32 бита с прозрачностью — вручную
+        if img.get_bitsize() != 32 or not img.get_flags() & pygame.SRCALPHA:
+            out = pygame.Surface(img.get_size(), pygame.SRCALPHA, 32)
+            out.blit(img, (0, 0))
+            img = out
     return img
 
 
@@ -885,15 +1088,26 @@ def is_strip(img, path=None):
     """Полоска из нескольких стадий растения? Смотрим не на пропорции (нейросеть может выдать
     и 16:9, и 3:1), а на содержимое: после удаления фона в картинке 3 отдельных рисунка
     с пустыми промежутками между ними."""
-    key = None
+    key = disk = None
     if path:
         try:
-            st = os.stat(path)
-            key = (os.path.abspath(path), st.st_mtime_ns, st.st_size)
+            key = digest(path)
         except OSError:
             key = None
         if key in _strip_cache:
             return _strip_cache[key]
+        if key:                                # 3.40.4: ответ хранится и на диске — не считаем при каждом запуске
+            disk = os.path.join(CACHE_DIR, f"strip_{CACHE_VERSION}_{key}.txt")
+            try:
+                with open(disk, encoding="utf-8") as fh:
+                    _strip_cache[key] = fh.read().strip() == "1"
+                    return _strip_cache[key]
+            except OSError:
+                pass
+            if PROBE[0]:
+                raise NeedFit(path)
+    if img is None:                            # картинку читаем, только если ответа ещё нет
+        img = pygame.image.load(path)
     w, h = img.get_size()
     result = False
     if w >= 1.3 * h:                       # высокая/квадратная картинка — точно одно растение
@@ -913,6 +1127,12 @@ def is_strip(img, path=None):
             result = gaps >= 2
     if key:
         _strip_cache[key] = result
+        try:
+            os.makedirs(CACHE_DIR, exist_ok=True)
+            with open(disk, "w", encoding="utf-8") as fh:
+                fh.write("1" if result else "0")
+        except OSError:
+            pass
     return result
 
 
@@ -954,6 +1174,8 @@ def load_fitted(name, path, part=None):
             return _load(cache)
         except Exception:
             pass
+    if PROBE[0] and not (part is None and spec["align"] == "full" and not name.endswith("fence_front")):
+        raise NeedFit(name)
     img = _load(path)
     cw, ch = spec["canvas"] if spec else (0, 0)
     if part is None:

@@ -219,8 +219,8 @@ def _fit_spec_base(name):
         return _spec(c, b, "bottom", STAGE_HEIGHT[int(m.group(2))] if m else 1.0)
     if folder == "fish" and last != "predators_sheet":   # 3.37: хищник садка, смотрит влево; рисуется с 0.45 * k
         return _spec(*_box(200, 100, 6, 6, 6, 6), "center")
-    if folder == "tiles":
-        return _spec(*_box(184, 104, 9, 5, 9, 5), "center")
+    if folder == "tiles":     # 3.39.6: «fill» — все плитки ровно 166×94, как бы ни были нарисованы (решение 26.11)
+        return _spec(*_box(184, 104, 9, 5, 9, 5), "fill")
     if folder == "props" and last == "fence_strip":
         # прямой кусок забора анфас: игра сама повторит его по длине и наклонит вдоль края поля
         return _spec((640, 128), (0, 0, 640, 128), "bottom")
@@ -748,12 +748,14 @@ def _place(piece, spec, scale=None):
     if scale is None:
         scale = min(bw / pw, bh / ph)
     nw, nh = max(1, int(round(pw * scale))), max(1, int(round(ph * scale)))
+    if spec["align"] == "fill":       # 3.39.6: растянуть ровно на поле (плитки поля — одной ширины на всех фермах)
+        nw, nh = max(1, int(round(bw))), max(1, int(round(bh)))
     piece = pygame.transform.smoothscale(piece, (nw, nh))
     out = pygame.Surface((cw, ch), pygame.SRCALPHA)
     cx = (x0 + x1) / 2
     if spec["align"] == "topleft":
         r = piece.get_rect(topleft=(x0, y0))
-    elif spec["align"] == "center":
+    elif spec["align"] in ("center", "fill"):
         r = piece.get_rect(center=(int(round(cx)), int(round((y0 + y1) / 2))))
     else:
         r = piece.get_rect(midbottom=(int(round(cx)), y1))

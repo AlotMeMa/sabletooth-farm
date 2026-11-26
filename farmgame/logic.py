@@ -20,6 +20,7 @@ class Farm:
         self.leaves_earned = 0       # сколько всего получено за всю игру
         self.tree = {}               # id улучшения -> уровень (не сбрасывается грузовиком)
         self.last_lucky = False
+        self.last_double = False
         self.farm_index = 0          # 0 — летняя ферма, 1 — средневековое поле, 2 — зима (позже)
         self.prestiges = 0
         self.fy_runs = 0                    # 3.38: сколько забегов уже было в Рыбацкой деревне (первый хищник сильнее)
@@ -579,12 +580,15 @@ class Farm:
     def collect(self, i):
         """Переносит урожай с грядки в банк. Время цикла не меняется."""
         amt = self.stash[i]
-        self.last_lucky = False
+        self.last_lucky = self.last_double = False
         if amt <= 0:
             return None
         if random.random() < 0.02 * self.up("lucky"):
             amt *= 10
             self.last_lucky = True
+        elif self.farm_index >= 4 and random.random() < TROPHY_DOUBLE:   # 3.41: трофей деревни «Золотой крючок»
+            amt *= 2
+            self.last_double = True
         self.earn(amt)
         self.stash[i] = 0.0
         if not self.working(i):

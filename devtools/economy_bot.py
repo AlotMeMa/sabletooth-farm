@@ -1,7 +1,10 @@
 # -*- coding: utf-8 -*-
 """Бот-экономист: проходит главу «идеальной» игрой и печатает темп по забегам.
 
-    python devtools/economy_bot.py [ферма 0|1|2] [политика spend|half] [инфляция дерева, напр. 0.1]
+    python devtools/economy_bot.py [ферма 0|1|2|3] [политика spend|half] [инфляция дерева, напр. 0.1] [аквариум]
+
+аквариум (только деревня, 3.41): off — не трогает; fast — ловит хищника сразу; feed — даёт ему поесть
+(ловит, когда съел FEED_BITES рыбок или рыбы осталось мало). Ловля удаётся с вероятностью catch.bot_win_rate.
 
 Бот каждую секунду собирает урожай, жмёт солнце и дождь, покупает то, что быстрее окупается
 (уровни грядок до ближайшей вехи, удобрения, фермеры), продаёт ферму, когда листья за секунду
@@ -78,8 +81,63 @@ def spend_leaves(f, policy):
         f.buy_tree(min(opts)[1])
 
 
-def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False):
+FEED_BITES = 5          # политика feed: даём хищнику съесть столько рыбок, потом ловим
+TANK_SHARE = 0.3        # на рыбок и место в аквариуме — не больше такой доли денег
+_win_cache = {}
+
+
+def win_rate(f):
+    from farmgame.catch import bot_win_rate
+    key = (round(f.catch_difficulty(), 3), f.catch_slow())
+    if key not in _win_cache:
+        _win_cache[key] = bot_win_rate(*key, games=60)
+    return _win_cache[key]
+
+
+def play_tank(f, mode, stats, left=1e9):
+    """Ход бота в аквариуме (раз в секунду). left — сколько ещё, по прикидке, продлится забег (рыбки, которые
+    не успеют вырасти до продажи фермы, не покупаются: аквариум с забегом обнуляется)."""
+    if mode == "off" or not f.has_fishery():
+        return
+    # хищник: ловить сейчас или пусть ест
+    if f.fy_pred and f.can_hook():
+        if mode == "fast" or f.fy_pred_eaten >= FEED_BITES or len(f.fy_fish) <= 2:
+            f.hook_predator()
+            if random.random() < win_rate(f):
+                amt, _p = f.catch_predator()
+                stats["pred_money"] += amt
+                stats["caught"] += 1
+            else:
+                f.lose_predator()
+                stats["lost"] += 1
+    # взрослых продаём, по паре самого дорогого вида оставляем на икру
+    keep = {}
+    for n in sorted(f.adults(), key=lambda n: -f.fy_fish[n][1]):
+        k = f.fy_fish[n][0]
+        if keep.get(k, 0) < 2 and k == max(x[0] for x in f.fy_fish):
+            keep[k] = keep.get(k, 0) + 1
+            continue
+    sell = [n for n in f.adults() if not (f.fy_fish[n][0] in keep and keep[f.fy_fish[n][0]] > 0
+                                           and keep.__setitem__(f.fy_fish[n][0], keep[f.fy_fish[n][0]] - 1) is None)]
+    for n in sorted(sell, reverse=True):
+        stats["fish_money"] += f.sell_fish(n) or 0
+    budget = f.money * TANK_SHARE
+    c = f.tank_cost()
+    if c is not None and c <= budget:
+        f.upgrade_tank()
+        stats["tank_spent"] += c
+        budget -= c
+    kinds = [i for i in range(C.N_CROPS) if f.levels[i] > 0 and C.FISH_GROW[i] <= left]
+    if kinds:
+        best = max(kinds, key=f.fish_price)                # дорогая рыба выгоднее (x5 за место)
+        while f.tank_used() < f.fy_cap and f.fish_price(best) <= budget and f.buy_fish(best):
+            budget -= f.fish_price(best)
+            stats["fish_spent"] += f.fish_price(best)
+
+
+def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False, tank="off"):
     random.seed(seed)
+    stats = dict(pred_money=0.0, fish_money=0.0, fish_spent=0.0, tank_spent=0.0, caught=0, lost=0)
     f = L.Farm()
     f.farm_index = farm_index
     f.reset_run()
@@ -94,6 +152,7 @@ def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False):
             f.collect(i)
         f.sun_click()
         f.start_rain()
+        play_tank(f, tank, stats, (runs[-1][0] if runs else 1e9) - run_t)
         spend_money(f)
         if f.run_total() >= f.move_threshold():
             runs.append((run_t, 0, f.leaves, f.leaf_mult))
@@ -118,6 +177,11 @@ def play(farm_index=0, policy="spend", seed=1, max_hours=40, quiet=False):
         tail = runs[-8:]
         print("   последние забеги (мин / листьев за забег / на руках / множитель листьев):")
         print("   " + "; ".join(f"{r[0] / 60:.0f}м/{r[1]}/{r[2]}/x{r[3]:.1f}" for r in tail))
+        if tank != "off":
+            print(f"   аквариум ({tank}): хищников поймано {stats['caught']}, сорвалось {stats['lost']}; "
+                  f"рыбки: потрачено {C.fmt(stats['fish_spent'])}, продано на {C.fmt(stats['fish_money'])}; "
+                  f"хищники принесли {C.fmt(stats['pred_money'])}; места {C.fmt(stats['tank_spent'])}")
+    f.bot_stats = stats
     return t, runs, f
 
 
@@ -127,4 +191,5 @@ if __name__ == "__main__":
     if len(sys.argv) > 3:
         C.TREE_INFLATION = float(sys.argv[3])
         L.TREE_INFLATION = C.TREE_INFLATION
-    play(fi, pol)
+    tk = sys.argv[4] if len(sys.argv) > 4 else "off"
+    play(fi, pol, tank=tk)

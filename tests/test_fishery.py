@@ -332,3 +332,22 @@ class DevAndHelpers(unittest.TestCase):
 
     def test_three_dancers(self):
         self.assertEqual(len(cfg.THEME_FISHING["scene"]["dance"]), 3)
+
+
+class GoldenHook(unittest.TestCase):
+    """3.41: трофей деревни «Золотой крючок» — на следующих главах 10% шанс двойного урожая."""
+    def _collect_many(self, farm_index):
+        f = Farm()
+        f.farm_index = farm_index
+        f.reset_run()
+        random.seed(3)
+        doubles = 0
+        for _ in range(4000):
+            f.stash[0] = 10.0
+            f.collect(0)
+            doubles += f.last_double
+        return doubles / 4000
+
+    def test_only_after_the_village(self):
+        self.assertEqual(self._collect_many(3), 0)
+        self.assertAlmostEqual(self._collect_many(4), cfg.TROPHY_DOUBLE, delta=0.02)

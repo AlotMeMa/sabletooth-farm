@@ -101,6 +101,8 @@ class FieldUI:
             if self.farm.last_lucky:
                 self.floater(x, y - 10, "x10! +$" + fmt(amt), (255, 140, 220))
                 self.toast(f"Гигантский урожай: {CROPS[k]['name']} x10!", 2.5)
+            elif getattr(self.farm, "last_double", False):          # 3.41: «Золотой крючок»
+                self.floater(x, y - 10, "x2! +$" + fmt(amt), (255, 215, 90))
             else:
                 self.floater(x, y - 10, "+$" + fmt(amt))
             self.coins_to_counter(x, y, amt, 7 if self.farm.last_lucky else 3)

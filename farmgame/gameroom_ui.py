@@ -33,10 +33,27 @@ GAME_NODES = [   # id, имя, (x, y) на карте, описание
     dict(id="snails", name="Скачки улиток", pos=(220, 1000), unlock="fishing",      # 3.40: вместо «???»
          text="Ставь жетоны на улитку и болей! Ведёт моряк Старый Якорь. В Рыбацкой деревне."),
     dict(id="dice", name="Кости", pos=(370, 1290), unlock="dragons",                  # 3.43
-         text="Больше, меньше или ровно 7? Кидает юная драконица Искра. В горах драконов."),
+         text="Больше, меньше или ровно 7? Кидает драконида Искра. В горах драконов."),
 ]
 GR_NODE_R = 62
 ICON_FILL = (GR_NODE_R * 2 + 8) / 100      # значок игры (холст 100) — во весь кружок, со своим ободком поверх нашего
+# 3.45.2: своя карта пользователя — один экран (540×566, без прокрутки), игры — на её 5 круглых площадках
+PAINTED_POS = [(270, 100), (168, 195), (372, 282), (168, 370), (372, 455)]
+PAINTED_R = 44
+CODE_LAYOUT = dict(h=GR_H, r=GR_NODE_R, pos=[n["pos"] for n in GAME_NODES])
+
+
+def apply_layout(painted):
+    """Карта своей картинкой — компактно, на площадках; кодом — длинная полоса с прокруткой, как раньше."""
+    global GR_H, GR_NODE_R, ICON_FILL
+    if painted:
+        GR_H, GR_NODE_R = GR_VIEW.h, PAINTED_R
+        pos = PAINTED_POS
+    else:
+        GR_H, GR_NODE_R, pos = CODE_LAYOUT["h"], CODE_LAYOUT["r"], CODE_LAYOUT["pos"]
+    for node, p in zip(GAME_NODES, pos):
+        node["pos"] = p
+    ICON_FILL = (GR_NODE_R * 2 + 8) / 100
 # цвета секторов по смыслу: «пусто» — приглушённые, жетоны — яркие, джекпот — чёрный с золотом
 WHEEL_COLORS = ((120, 75, 85), (245, 205, 90), (80, 95, 120), (110, 190, 90),
                 (90, 160, 230), (115, 105, 95), (205, 95, 200), (40, 34, 36))
@@ -45,6 +62,7 @@ WHEEL_SPIN = 4.6                                # сколько крутитс�
 
 def build_gameroom_map():
     """Вертикальная карта: своя картинка ui/gameroom_map или кодом — бархат, ромбики, золотая рамка."""
+    apply_layout(has_sprite("ui/gameroom_map"))
     bg = hd.Surface((GR_VIEW.w, GR_H))
     if blit_sprite(bg, "ui/gameroom_map", 0, 0, 1, "topleft"):
         return bg, True
@@ -359,16 +377,17 @@ class GameRoomUI:
         pygame.draw.circle(s, OUT, (P(x), P(y)), GR_NODE_R + 7)
         pygame.draw.circle(s, ring, (P(x), P(y)), GR_NODE_R + 5)
         pygame.draw.circle(s, (60, 30, 30) if not soon else (70, 60, 65), (P(x), P(y)), GR_NODE_R)
-        draw_game_icon(s, gid, x, y, 1.0, t)
+        k = GR_NODE_R / 62
+        draw_game_icon(s, gid, x, y, k, t)
         if soon:
             dark = hd.Surface((GR_NODE_R * 2, GR_NODE_R * 2), pygame.SRCALPHA)
             dark.fill((0, 0, 0, 0))
             pygame.draw.circle(dark, (30, 25, 30, 130), (GR_NODE_R, GR_NODE_R), GR_NODE_R)
             s.blit(dark, (P(x - GR_NODE_R), P(y - GR_NODE_R)))
             if gid != "secret":
-                draw_lock(s, x, y + 8, 1.3)
-        img_t = render_text(node["name"], 16, WHITE, OUT)
-        plate = pygame.Rect(0, 0, img_t.get_width() + 34, 32)
+                draw_lock(s, x, y + 8 * k, 1.3 * k)
+        img_t = render_text(node["name"], 16 if k > 0.9 else 13, WHITE, OUT)
+        plate = pygame.Rect(0, 0, img_t.get_width() + (34 if k > 0.9 else 20), 32 if k > 0.9 else 24)
         plate.midtop = (P(x), P(y + GR_NODE_R + 6))
         if not skin.plate(s, "pill", plate):
             rounded(s, PILL, plate, 15, 3)

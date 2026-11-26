@@ -268,8 +268,8 @@ def draw_predator(s, x, y, k, pid, t=0.0, flip=False):
 def draw_swim_fish(s, x, y, k, key, d=-1, t=0.0, glow=False):
     """3.38: рыбка в аквариуме (без кругов на воде). (x, y) — центр тела, d: -1 смотрит влево, +1 вправо."""
     if glow and has_sprite(f"fish/swim_{key}"):
-        pygame.draw.circle(s, (255, 245, 190), (P(x), P(y)), max(2, P(21 * k)), max(1, P(1.5 * k)))
-    if blit_tf(s, f"fish/swim_{key}", x, y, 0.22 * k, flip=d > 0, angle=math.sin(t * 3) * 4, pivot="center"):
+        pygame.draw.circle(s, (255, 245, 190), (P(x), P(y)), max(2, P(28 * k)), max(1, P(1.5 * k)))
+    if blit_tf(s, f"fish/swim_{key}", x, y, 0.3 * k, flip=d > 0, angle=math.sin(t * 3) * 4, pivot="center"):
         return                               # 3.45: своя картинка fish/swim_<вид> (смотрит влево) или лист fish/swim_sheet
     back, belly, fin, mark = FISH_LOOKS.get(key, FISH_LOOKS["roach"])
     m = -d                                   # +1 — как в draw_fish (голова слева)

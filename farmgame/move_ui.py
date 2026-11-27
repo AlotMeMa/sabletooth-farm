@@ -22,17 +22,70 @@ _thumbs = {}
 THUMB_BOX = {"summer": (80, 10, 500), "medieval": (50, 0, 520), "winter": (80, 10, 500), "fishing": (80, 10, 500)}
 
 
+# 3.46: карта плитками — ui/move_map_<глава> пользователя (квадрат, карта — полоса посередине), по плитке на главу;
+# дорога входит слева и выходит справа, поляна главы — в центре плитки. «Тайна» — плитка драконов в тумане.
+TILE_W = 518                        # плитка на карте (высота — MAP_H): полоса 1024×550 из квадрата 1024×1024
+TILE_NODE_Y = 146
+TILE_OV = 44                        # соседние плитки заходят друг на друга — шов растворяется плавно
+TILES = [False]                     # True — все плитки есть, карта из них (решает build_map_background)
+
+
+def tile_name(cid):
+    return "ui/move_map_dragons" if cid == "secret" else f"ui/move_map_{cid}"
+
+
+def tiles_ready(ids):
+    return bool(ids) and all(has_sprite(tile_name(c)) for c in ids)
+
+
 def map_width(n):
+    if TILES[0]:
+        return (TILE_W - TILE_OV) * n + TILE_OV
     return MAP_FIRST * 2 + MAP_GAP * (n - 1)
 
 
 def node_pos(i):
+    if TILES[0]:
+        return i * (TILE_W - TILE_OV) + TILE_W // 2, TILE_NODE_Y
     x = MAP_XS[i] if i < len(MAP_XS) else MAP_FIRST + i * MAP_GAP
     return x, MAP_Y[i % len(MAP_Y)]
 
 
+def build_tiles_background(ids):
+    bg = hd.Surface((map_width(len(ids)), MAP_H))
+    bg.fill((232, 214, 176))
+    step = TILE_W - TILE_OV
+    for i, cid in enumerate(ids):
+        piece = hd.Surface((TILE_W, MAP_H), pygame.SRCALPHA)
+        piece.fill((0, 0, 0, 0))
+        blit_sprite(piece, tile_name(cid), 0, 0, 1, "topleft")
+        if i > 0:                                     # левый край плитки плавно проявляется поверх соседней
+            real, k = hd.real(piece), hd.scale()
+            cols = max(1, int(round(TILE_OV * k)))
+            for c in range(cols):
+                a = int(255 * (c + 0.5) / cols)
+                real.fill((255, 255, 255, a), pygame.Rect(c, 0, 1, real.get_height()), pygame.BLEND_RGBA_MULT)
+        bg.blit(piece, (i * step, 0))
+    rnd = random.Random(5)
+    for i, cid in enumerate(ids):                     # «Тайна»: горы драконов в густом тумане
+        if cid != "secret":
+            continue
+        x0 = i * step
+        veil = hd.Surface((TILE_W, MAP_H), pygame.SRCALPHA)
+        veil.fill((236, 236, 242, 120))
+        bg.blit(veil, (x0, 0))
+        for _ in range(26):
+            x, y, r = x0 + rnd.uniform(-30, TILE_W + 10), rnd.uniform(0, MAP_H), rnd.uniform(40, 90)
+            bg.blit(soft_dot_img(r, (246, 246, 250), 110), (int(x - r), int(y - r)))
+    pygame.draw.rect(bg, (150, 110, 75), (0, 0, bg.get_width(), MAP_H), 4)
+    return bg
+
+
 def build_map_background(n, ids):
     """Карта-пергамент: своя картинка ui/move_map или кодом — пергамент, пятна-края глав, следы потёртостей."""
+    TILES[0] = tiles_ready(ids)
+    if TILES[0]:
+        return build_tiles_background(ids)
     w = map_width(n)
     bg = hd.Surface((w, MAP_H))
     img = sprite("ui/move_map")
@@ -222,7 +275,8 @@ class MoveUI:
     def draw_move(self):
         s, f = self.screen, self.farm
         chs = chapters(f.farm_index)
-        if self.map_bg is None or self.map_bg.get_width() != map_width(len(chs)):
+        if (self.map_bg is None or self.map_bg.get_width() != map_width(len(chs))
+                or TILES[0] != tiles_ready([c["id"] for c in chs])):
             self.map_bg = build_map_background(len(chs), [c["id"] for c in chs])
         r = self.panel(880, 548, "КАРТА ГЛАВ")
         view = self.map_view()
@@ -238,7 +292,7 @@ class MoveUI:
         layer = hd.Surface((view.w, view.h))
         layer.blit(self.map_bg, (-int(self.map_x), 0))
         pts = [node_pos(i) for i in range(len(chs))]
-        painted = has_sprite("ui/move_map")            # на своей карте дорожка уже нарисована
+        painted = TILES[0] or has_sprite("ui/move_map")   # на своей карте дорожка уже нарисована
         for i in range(len(pts) - 1 if not painted else 0):                    # дорожка между главами: пройденная — сплошная
             (x0, y0), (x1, y1) = pts[i], pts[i + 1]
             done = chs[i + 1]["state"] in ("done", "here")

@@ -357,6 +357,8 @@ def _fit_spec_base(name):
         return _spec(*_box(96, 96, 2, 2, 2, 2), "center")
     if folder == "icons" and last.startswith("game_"):  # 3.27: значки игр в кружках карты Игровой
         return _spec(*_box(100, 100, 2, 2, 2, 2), "center")
+    if folder == "ui" and last.startswith("move_map_"):  # 3.46: плитка карты глав (из квадрата — полоса посередине)
+        return _spec((518, 278), (0, 0, 518, 278), "full")
     if folder == "ui" and last == "move_map":          # 3.23: карта глав в окне «Переезд» (длинная полоса)
         return _spec((1240, 278), (0, 0, 1240, 278), "full")
     if folder == "ui" and last in ("tree_pip_off", "tree_pip_on"):    # 3.20: кружки уровней на карточке дерева

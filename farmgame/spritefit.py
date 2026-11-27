@@ -128,6 +128,8 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/prizes_3": ("icons/prize_", PRIZE3_SHEET_ORDER, 3, 3),   # 3.33: трофеи и украшения
     "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
+    # 3.48: лист главы 5 пользователя — пока берём только монету-чешую (остальное — когда решим главу)
+    "icons/dragons_sheet": ("", ["_unused"] * 5 + ["icons/scale"] + ["_unused"] * 3, 3, 3),
     # 3.47: призы глав 3–5 — значки (по листу на главу) и украшения в зале (один лист на все 9)
     "icons/prizes_5": ("icons/prize_", ["ice_idols", "helga", "gnome_choir", "snow_globe", "antlers", "ice_chandelier",
                                         "snow_trail", "frost_notes", "snowfall"], 3, 3),

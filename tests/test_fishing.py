@@ -80,7 +80,7 @@ class FishingScene(unittest.TestCase):
 
     def test_other_farms_keep_field_and_fence(self):
         for fm in cfg.FARMS:
-            if fm["id"] != "fishing":
+            if fm["id"] not in ("fishing", "dragons"):     # 3.48: фон драконов нарисован под раскладку деревни
                 self.assertEqual(fm["theme"].get("field_dy", 0), 0)
                 self.assertTrue(fm["theme"].get("fence", True))
 

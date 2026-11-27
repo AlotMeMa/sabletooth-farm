@@ -304,6 +304,8 @@ def draw_hook_icon(surf, x, y, s=1.0):
 def draw_cur_icon(surf, x, y, s=1.0):
     """Иконка валюты престижа текущей фермы (лист, печать, голубой листочек или крючок)."""
     icon = CUR.get("icon")
+    if icon == "scale" and blit_sprite(surf, "icons/scale", x, y, s, "center"):    # 3.48: своя картинка главы 5
+        return
     {"seal": draw_seal_icon, "frostleaf": draw_frostleaf_icon, "hook": draw_hook_icon}.get(icon, draw_leaf_icon)(surf, x, y, s)
 
 

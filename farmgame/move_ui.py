@@ -230,6 +230,7 @@ class MoveUI:
         """Окно открылось: карта на текущей главе, выбрана следующая (если есть) — видно, куда ехать."""
         f = self.farm
         chs = chapters(f.farm_index)
+        TILES[0] = tiles_ready([c["id"] for c in chs])    # 3.48: раскладку узнать до центровки (иначе — мимо главы)
         self.map_sel = min(f.farm_index + 1, len(chs) - 1) if f.has_next_farm() else f.farm_index
         self.move_info = False
         self.map_target = self.map_center_on(f.farm_index)

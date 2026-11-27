@@ -766,6 +766,10 @@ PLANT_FUNCS = {
     "seabuckthorn": plant_cranberry, "bluepotato": plant_potato,
     "peas": plant_peas, "rye": plant_rye, "barley": plant_barley, "spelt": plant_spelt,
     "flax": plant_flax, "hops": plant_hops, "grapes": plant_grapes,
+    # 3.48: превью главы 5 — огненные растения есть картинками пользователя; кодом — похожие (на всякий случай)
+    "fireflower": plant_tomato, "dragonpepper": plant_tomato, "lavapumpkin": plant_pumpkin, "emberwheat": plant_wheat,
+    "sulfurshroom": plant_cabbage, "obsidianberry": plant_cranberry, "phoenixfruit": plant_tomato,
+    "magmamelon": plant_pumpkin, "golddragonfruit": plant_icepumpkin,
 }
 from .art_fishing import FISH_PLANTS, draw_crab, draw_gull, draw_fisherman_head   # noqa: E402  3.36
 PLANT_FUNCS.update(FISH_PLANTS)

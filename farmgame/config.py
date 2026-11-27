@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.47.2"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.48"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -574,7 +574,8 @@ def _fishing_tree():
 
 
 TREE_FISHING = _fishing_tree()
-TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL, "winter": TREE_WINTER, "fishing": TREE_FISHING}
+TREES = {"summer": TREE_SUMMER, "medieval": TREE_MEDIEVAL, "winter": TREE_WINTER, "fishing": TREE_FISHING,
+         "dragons": TREE_FISHING}     # 3.48: превью главы 5 — пока дерево деревни
 TREE_NODE_MAP = {key: _index_tree(t) for key, t in TREES.items()}
 TREE = list(TREE_SUMMER)                      # дерево текущей фермы (переключает apply_farm)
 TREE_NODES = dict(TREE_NODE_MAP["summer"])
@@ -625,6 +626,8 @@ CURRENCIES = {
                   tree="ЗИМНЕЕ ДЕРЕВО", short="Листочки"),   # short — подпись кнопки внизу (полное не влезает)
     # 3.36: Рыбацкая деревня — крючки и Рыбацкое дерево (решение пользователя 25.11)
     "hook": dict(icon="hook", title="Крючки", gen="крючков", one="крючок", tree="РЫБАЦКОЕ ДЕРЕВО"),
+    # 3.48: превью главы 5 — драконья чешуя (значок — клетка 6 листа icons/dragons_sheet пользователя)
+    "scale": dict(icon="scale", title="Чешуйки", gen="чешуек", one="чешуйка", tree="ДРАКОНЬЕ ДЕРЕВО"),
 }
 _SUMMER_BUYER = dict(buyer="скупщик", buyer_cap="Скупщик", arrive="Би-би! Приехал скупщик урожая!",
                      tiers=["Пикап скупщика", "Грузовик скупщика", "Золотая фура"], vehicle="truck")
@@ -686,6 +689,24 @@ FARMS = [
          trophy=dict(name="Золотой крючок", text="10% шанс собрать с грядки двойной урожай"),   # 3.41
          buyer="рыботорговец", buyer_cap="Рыботорговец", arrive="Свежая рыба! К причалу пришла лодка рыботорговца!",
          tiers=["Лодка с бочкой", "Баркас с рыбой", "Королевский парусник"], vehicle="boat"),   # 3.38.1: лодка
+    # 3.48: глава 5 «Горы драконов» — ПРЕВЬЮ для режима разработчика (ready=False: игрокам не открыта). Есть картинки
+    # пользователя: фон, 9 огненных растений, грядки. Остальное (помощники, праздник, сарай, дерево, скупщик) —
+    # временно от прошлых глав, пока не решим устройство главы тестом.
+    dict(id="dragons", name="Горы драконов",
+         names=["Огнецвет", "Драконий перец", "Лавовая тыква", "Тлеющая пшеница", "Серные грибы", "Обсидиановая ягода",
+                "Фрукт феникса", "Магмовая дыня", "Золотой драконий фрукт"],
+         plants=["fireflower", "dragonpepper", "lavapumpkin", "emberwheat", "sulfurshroom", "obsidianberry",
+                 "phoenixfruit", "magmamelon", "golddragonfruit"],
+         theme=dict(THEME_FISHING, ground=(120, 96, 84), ground2=(132, 104, 90), tree=(110, 70, 50),
+                    tree_light=(150, 95, 60), bush=(120, 80, 60), bush_light=(160, 105, 70), tuft=(140, 100, 70),
+                    stone=(150, 140, 135), soil=(70, 52, 48), soil_dark=(52, 38, 36), soil_side=(90, 60, 45),
+                    pond=False, critter="squirrel", pest="crow", scene=dict(bg="backgrounds/dragons", windows=[],
+                                                                            smoke=[], doors=[], dance=[])),
+         weather="Праздник урожая", rush_helpers=True, crow=True, frost=False, bandits=False, peasants=True,
+         helpers="peasants", barn="animals", tree="dragons", cur="scale", ready=False,
+         trophy=dict(name="Драконья чешуя", text="пока не решено"),
+         buyer="торговец с ящером", buyer_cap="Торговец с ящером", arrive="Земля дрожит — пришёл торговец с ящером!",
+         tiers=["Повозка с ящером", "Большая повозка", "Караван с фонарями"], vehicle="cart"),
 ]
 THEME = dict(THEME_SUMMER)
 CUR = dict(CURRENCIES["leaf"])

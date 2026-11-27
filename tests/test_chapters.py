@@ -20,7 +20,8 @@ class Chapters(unittest.TestCase):
         self.assertEqual([c["state"] for c in chs[:2]], ["done", "here"])
         self.assertEqual(chs[2]["id"], "winter")
         self.assertEqual(chs[2]["state"], "next" if FARMS[2]["ready"] else "soon")
-        self.assertEqual(chs[-1]["id"], "secret")           # в конце карты — «тайна»
+        # в конце карты — «тайна»; 3.48: пока последняя глава (драконы) не открыта — она сама «скоро»
+        self.assertEqual(chs[-1]["id"], "secret" if FARMS[-1]["ready"] else FARMS[-1]["id"])
 
     def test_every_farm_has_text(self):
         for c in chapters(0):

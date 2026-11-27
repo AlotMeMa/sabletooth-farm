@@ -217,6 +217,9 @@ class GameRoomUI:
         self.gr_scroll = self.gr_target
 
     def gameroom_tick(self, dt):
+        m = max(0.0, self.gr_max())               # 3.45.4: карта могла смениться (своя — без прокрутки)
+        self.gr_target = max(0.0, min(m, self.gr_target))
+        self.gr_scroll = max(0.0, min(m, self.gr_scroll))
         self.gr_scroll += (self.gr_target - self.gr_scroll) * min(1.0, dt * 10)
         sp = self.fw_spin
         if sp is None:

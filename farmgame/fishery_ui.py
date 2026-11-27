@@ -18,6 +18,7 @@ from .tavern_art import draw_star
 from .catch import Catch, CATCH_ZONE
 
 SWIM = pygame.Rect(50, 160, 900, 340)      # где плавают центры рыб
+SPLASH_TIME = 2.2                          # 3.45.4: сколько живёт бульк с пузырьками
 SAND_Y = 528                               # верх песка
 BAR = pygame.Rect(W // 2 - 95, 72, 190, 16)  # таймер хищника — прямо под лентой «САДКИ»
 SHOP = pygame.Rect(140, 386, 840, 172)     # лавка рыб над кнопками
@@ -31,6 +32,7 @@ def _mmss(sec):
 class FisheryUI:
     def fishery_init(self):
         self.fy_bg = None
+        self.fy_splashes = []          # 3.45.4: бульки от щелчков по воде — (x, y, t0, seed)
         self.fy_shop = False
         self.fy_game = None                 # 3.39: идёт мини-игра вылова (Catch)
         self.fy_game_end = 0.0              # сколько ещё показывать итог мини-игры
@@ -79,6 +81,60 @@ class FisheryUI:
         fx, fy, d = f.fish_swim(f.fy_pred * 131 + 7, f.fy_clock, 1.4)
         x, y = self.fy_to_screen(fx, fy)
         return x, y, d
+
+    # ------------------------------------------------------------ 3.45.4: бульк по воде
+    def fy_splash(self, pos):
+        """Щелчок по пустой воде (решение пользователя 27.11: «100% нужен бульк и шлейф пузырьков»)."""
+        x, y = pos
+        if not (90 < y < SAND_Y + 20) or getattr(self, "fy_game", None) is not None:
+            return False
+        self.fy_splashes = [sp for sp in self.fy_splashes if self.t_real - sp[2] < SPLASH_TIME][-11:]
+        self.fy_splashes.append((x, y, self.t_real, random.randint(1, 9999)))
+        self.sfx.play("bloop")
+        return True
+
+    def draw_splashes(self, s):
+        t = self.t_real
+        live = []
+        for x, y, t0, seed in self.fy_splashes:
+            a = t - t0
+            if a >= SPLASH_TIME:
+                continue
+            live.append((x, y, t0, seed))
+            rnd = random.Random(seed)
+            if a < 0.45:                              # круги по воде
+                for j, d in enumerate((0.0, 0.12)):
+                    q = (a - d) / 0.45
+                    if 0 <= q <= 1:
+                        rr = 6 + 30 * q
+                        c = (225, 245, 255) if j == 0 else (190, 230, 245)
+                        pygame.draw.ellipse(s, c, (P(x - rr), P(y - rr * 0.45), P(rr * 2), P(rr * 0.9)),
+                                            max(1, P(2.4 * (1 - q))))
+            if a < 0.35:                              # брызги
+                for j in range(6):
+                    ang = math.pi * (0.15 + 0.7 * j / 5)
+                    v = 70 + rnd.random() * 50
+                    px = x + math.cos(ang) * v * a * (1 if j % 2 else -1)
+                    py = y - math.sin(ang) * v * a + 160 * a * a
+                    pygame.draw.circle(s, (235, 250, 255), (P(px), P(py)), max(1, P(2.6 * (1 - a / 0.35))))
+            for j in range(14):                       # шлейф пузырьков вверх
+                d = j * 0.07 + rnd.random() * 0.05
+                b = a - d
+                if b <= 0:
+                    continue
+                rise = 46 * b + 22 * b * b
+                by = y - rise
+                if by < 60:
+                    continue
+                bx = x + (rnd.random() - 0.5) * 26 + 7 * math.sin(b * 6 + j)
+                r = 2.2 + rnd.random() * 4.0 + b * 1.2
+                fade = max(0.0, 1 - b / (SPLASH_TIME - d))
+                if fade <= 0.05:
+                    continue
+                pygame.draw.circle(s, (215, 240, 250), (P(bx), P(by)), max(1, P(r)), max(1, P(1.2)))
+                if r > 3:
+                    pygame.draw.circle(s, (250, 255, 255), (P(bx - r * 0.35), P(by - r * 0.35)), max(1, P(r * 0.25)))
+        self.fy_splashes = live
 
     # ------------------------------------------------------------ действия
     def fy_buy(self, i):
@@ -349,6 +405,7 @@ class FisheryUI:
                             f"${fmt(fish[1] * FISH_ADULT_MULT)}")
         if f.fy_pred:
             self.draw_tank_predator(s, t)
+        self.draw_splashes(s)
         self.draw_banner((W // 2 - 110, 22, 220, 46), "САДКИ", 22)
         if self.fy_game is not None:                 # 3.39: идёт вылов — только мини-игра (3.39.5: сперва правила)
             self.draw_catch_game(s, t)

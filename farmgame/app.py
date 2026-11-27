@@ -437,6 +437,9 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                 return
         if self.click_away(pos):
             return
+        if (self.modal is None and self.view == "barn" and self.farm.has_fishery()
+                and hasattr(self, "fy_splash") and self.fy_splash(pos)):
+            return
         if self.modal is None and self.mode == "normal" and self.view == "field":
             self.try_collect(pos)
 

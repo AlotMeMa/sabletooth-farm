@@ -406,7 +406,7 @@ def known_names():
     from .spritefit import FISHING_SHEET_ORDER, BOAT_SHEET_ORDER, PREDATOR_SHEET_ORDER
     names |= set(FISHING_SHEET_ORDER) | set(BOAT_SHEET_ORDER) | {"fish/" + n for n in PREDATOR_SHEET_ORDER}
     names |= {"backgrounds/fishery", "ui/btn_achievements", "ui/btn_fishfest", "ui/btn_fishery", "ui/move_map_summer", "ui/move_map_medieval", "ui/move_map_winter",
-             "ui/move_map_fishing", "ui/move_map_dragons", "backgrounds/dragons",
+             "ui/move_map_fishing", "ui/move_map_dragons", "backgrounds/dragons", "icons/prizes_5", "icons/prizes_6", "icons/prizes_7", "decor/sheet_3",
              "characters/ice_idols", "characters/helga", "characters/gnome_choir", "characters/sirens", "characters/undina", "characters/kuzma", "characters/flame_idols", "characters/saya", "characters/grom",
              "decor/snow_globe", "decor/antlers", "decor/ice_chandelier", "decor/ship_wheel", "decor/goldfish_bowl", "decor/nets", "decor/dragon_egg", "decor/dragon_shield", "decor/brazier",
              "icons/prize_ice_idols", "icons/prize_helga", "icons/prize_gnome_choir", "icons/prize_sirens", "icons/prize_undina", "icons/prize_kuzma", "icons/prize_flame_idols", "icons/prize_saya", "icons/prize_grom", "icons/prize_snow_globe", "icons/prize_antlers", "icons/prize_ice_chandelier", "icons/prize_ship_wheel", "icons/prize_goldfish_bowl", "icons/prize_nets", "icons/prize_dragon_egg", "icons/prize_dragon_shield", "icons/prize_brazier", "icons/prize_snow_trail", "icons/prize_frost_notes", "icons/prize_snowfall", "icons/prize_starfish_trail", "icons/prize_pearl_notes", "icons/prize_jellyfish", "icons/prize_ember_trail", "icons/prize_fire_notes", "icons/prize_fire_butterflies", "characters/fisher_worker",

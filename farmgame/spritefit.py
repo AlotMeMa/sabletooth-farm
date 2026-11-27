@@ -128,6 +128,15 @@ SHEETS = {   # имя листа -> (папка/префикс картинок,
     "icons/prizes_3": ("icons/prize_", PRIZE3_SHEET_ORDER, 3, 3),   # 3.33: трофеи и украшения
     "icons/prizes_4": ("icons/prize_", PRIZE4_SHEET_ORDER, 3, 3),   # 3.33: персонажи, эффекты, прочее
     "decor/sheet_2": ("", DECOR2_SHEET_ORDER, 2, 3),                # 3.33: новые украшения и звери в сцене
+    # 3.47: призы глав 3–5 — значки (по листу на главу) и украшения в зале (один лист на все 9)
+    "icons/prizes_5": ("icons/prize_", ["ice_idols", "helga", "gnome_choir", "snow_globe", "antlers", "ice_chandelier",
+                                        "snow_trail", "frost_notes", "snowfall"], 3, 3),
+    "icons/prizes_6": ("icons/prize_", ["sirens", "undina", "kuzma", "ship_wheel", "goldfish_bowl", "nets",
+                                        "starfish_trail", "pearl_notes", "jellyfish"], 3, 3),
+    "icons/prizes_7": ("icons/prize_", ["flame_idols", "saya", "grom", "dragon_egg", "dragon_shield", "brazier",
+                                        "ember_trail", "fire_notes", "fire_butterflies"], 3, 3),
+    "decor/sheet_3": ("decor/", ["snow_globe", "antlers", "ice_chandelier", "ship_wheel", "goldfish_bowl", "nets",
+                                 "dragon_egg", "dragon_shield", "brazier"], 3, 3),
     "icons/fishing_sheet": ("", FISHING_SHEET_ORDER, 3, 3),         # 3.36: Рыбацкая деревня
     "vehicles/boat_sheet": ("", BOAT_SHEET_ORDER, 1, 3),            # 3.38.1: лодка рыботорговца, 3 уровня
     "fish/predators_sheet": ("fish/", PREDATOR_SHEET_CELLS, 5, 2),
@@ -169,7 +178,11 @@ DECOR_SIZE = {"cat": (120, 80, "bottom"), "kettle": (110, 110, "bottom"), "flowe
               "rug": (600, 130, "center"),
               # 3.33: венок (на стене у камина), фонарь (под балкой зала, верх — крючок), кресло-качалка, своя кружка
               "wreath": (130, 150, "center"), "lantern": (60, 100, "top"), "rocking_chair": (190, 190, "bottom"),
-              "own_mug": (60, 64, "bottom")}          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
+              "own_mug": (60, 64, "bottom"),          # 3.19: decor/<имя> — холст w×h и как прижат рисунок
+              # 3.47: украшения глав 3–5 (на стойке — низ; на стене — центр; люстра и сети висят — верх)
+              "snow_globe": (60, 70, "bottom"), "goldfish_bowl": (64, 64, "bottom"), "dragon_egg": (56, 70, "bottom"),
+              "brazier": (80, 80, "bottom"), "antlers": (100, 80, "bottom"), "ship_wheel": (80, 80, "center"),
+              "dragon_shield": (70, 80, "center"), "ice_chandelier": (110, 90, "top"), "nets": (740, 70, "top")}
 FX_SIZE = {"feather": 40, "star": 32, "puff": 40, "spark": 24, "raindrop": 24}   # 3.16: частицы, холст s×s
 STAGE_HEIGHT = {1: 0.42, 2: 0.7, 3: 1.0}   # высота стадии, если стадии лежат отдельными файлами
 

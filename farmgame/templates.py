@@ -286,7 +286,7 @@ def spec_list():
                   "rocking_chair": "деревянное кресло-качалка сбоку, полозья внизу",
                   "own_mug": "глиняная кружка с красным сердечком"}
     for key, (w, h, align) in DECOR_SIZE.items():
-        add(f"decor/{key}", (w, h), "низ по центру" if align == "bottom" else "центр", decor_desc[key] + " — приз таверны",
+        add(f"decor/{key}", (w, h), "низ по центру" if align == "bottom" else "центр", decor_desc.get(key, key) + " — приз таверны",
             1, lambda s: None)
     from .config import PRIZES
     for p in PRIZES:

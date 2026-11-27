@@ -445,6 +445,14 @@ def draw_trail(surf, points, now, life=0.28, color=(255, 250, 225), stars=False,
             continue
         width = max(1, int(1 + 4 * k))
         a, b = (x0 - lx, y0 - ly), (x1 - lx, y1 - ly)
+        if style in ("snow", "starfish", "embers"):     # 3.47: шлейфы глав 3–5
+            n = int(x0 * 0.7 + y0 * 1.3)
+            if n % 2:
+                continue
+            from .decor_art2 import trail_piece
+            mx, my = (a[0] + b[0]) / 2, (a[1] + b[1]) / 2 + (1 - k) * (12 if style != "embers" else 16)
+            trail_piece(layer, style, mx + math.sin(now * 4 + n) * 3 * (1 - k), my, k, n, now)
+            continue
         if style in ("leaves", "bubbles"):     # 3.33: «Листопад» и «Мыльные пузыри» — через отрезок, чтобы не сливались
             n = int(x0 * 0.7 + y0 * 1.3)
             if n % 2:

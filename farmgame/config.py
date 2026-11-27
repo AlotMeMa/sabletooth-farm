@@ -6,7 +6,7 @@ import sys
 
 W, H = 1000, 640
 FPS = 60
-GAME_VERSION = "3.46"   # версия игры: видна в «Настройках» и в заголовке окна
+GAME_VERSION = "3.47"   # версия игры: видна в «Настройках» и в заголовке окна
 SAVE_VERSION = 2
 DEV = "--dev" in sys.argv     # режим разработчика: python farm_idle.py --dev
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))   # папка, где лежит farm_idle.py
@@ -135,7 +135,73 @@ PRIZES = [
          text="карты блэкджека с золотой рубашкой"),
     dict(id="cards_winter", kind="cosmetic", cat="misc", group="cards", name="Зимняя рубашка", cost=200,
          text="карты блэкджека со снежинками"),
+    # ==== 3.47 (решение пользователя 27.11): каждая новая глава открывает в стойке 3 артиста, 3 украшения и 3 эффекта.
+    # chapter — номер фермы (farm_index), с которой можно купить; до неё приз виден с пометкой «откроется в главе N».
+    # Без chapter — сразу (таверна и так открывается на средневековье). Больше девушек: k-pop айдолы, готические альтушки,
+    # группы на сцене (group_act=True — на сцене трое). Песни — assets/music/<stage>.ogg (нет файла — музыка таверны).
+    # --- зима (глава 3)
+    dict(id="ice_idols", kind="cosmetic", cat="chars", group="stage", chapter=2, group_act=True, name="Трио «Иней»",
+         cost=650, stage="tavern_ice_idols", timing="music_ice_idols",
+         text="три айдола в серебристых нарядах: синхронный танец и звонкий поп"),
+    dict(id="helga", kind="cosmetic", cat="chars", group="stage", chapter=2, name="Скальдесса Хельга", cost=750,
+         stage="tavern_helga", timing="music_helga", text="северная певица с арфой: косы, меха и голос как метель"),
+    dict(id="gnome_choir", kind="cosmetic", cat="chars", group="stage", chapter=2, group_act=True,
+         name="Гномий хор «Бородачи»", cost=850, stage="tavern_gnome_choir", timing="music_gnome_choir",
+         text="три гнома басом поют застольную — кружки в такт"),
+    dict(id="snow_globe", kind="cosmetic", cat="decor", chapter=2, name="Снежный шар", cost=260,
+         text="на стойке: внутри кружит снег над домиком"),
+    dict(id="antlers", kind="cosmetic", cat="decor", chapter=2, name="Оленьи рога", cost=300,
+         text="над сценой — рога северного оленя"),
+    dict(id="ice_chandelier", kind="cosmetic", cat="decor", chapter=2, name="Ледяная люстра", cost=380,
+         text="сосульки под потолком мерцают голубым"),
+    dict(id="snow_trail", kind="cosmetic", cat="fx", group="trail", chapter=2, name="Снежинки", cost=220,
+         text="за курсором кружат снежинки"),
+    dict(id="frost_notes", kind="cosmetic", cat="fx", group="notes", chapter=2, name="Морозные ноты", cost=200,
+         text="ноты артистов — ледяные и светятся"),
+    dict(id="snowfall", kind="cosmetic", cat="fx", chapter=2, name="Снегопад в зале", cost=320,
+         text="над залом тихо падает снег"),
+    # --- рыбацкая деревня (глава 4)
+    dict(id="sirens", kind="cosmetic", cat="chars", group="stage", chapter=3, group_act=True,
+         name="Готик-трио «Сирены»", cost=950, stage="tavern_sirens", timing="music_sirens",
+         text="три готические альтушки: чёрное кружево, серебро и тёмный рок"),
+    dict(id="undina", kind="cosmetic", cat="chars", group="stage", chapter=3, name="Русалка Ундина", cost=1050,
+         stage="tavern_undina", timing="music_undina", text="поёт сидя на бочке; от её голоса тают моряки"),
+    dict(id="kuzma", kind="cosmetic", cat="chars", group="stage", chapter=3, name="Боцман Кузьма", cost=1150,
+         stage="tavern_kuzma", timing="music_kuzma", text="аккордеон и морские куплеты, от которых краснеет бармен"),
+    dict(id="ship_wheel", kind="cosmetic", cat="decor", chapter=3, name="Штурвал", cost=420,
+         text="старый штурвал на стене зала"),
+    dict(id="goldfish_bowl", kind="cosmetic", cat="decor", chapter=3, name="Золотая рыбка", cost=480,
+         text="круглый аквариум на стойке; рыбка исполняет... ну, может быть"),
+    dict(id="nets", kind="cosmetic", cat="decor", chapter=3, name="Сети с ракушками", cost=540,
+         text="рыбацкие сети с ракушками под балконом"),
+    dict(id="starfish_trail", kind="cosmetic", cat="fx", group="trail", chapter=3, name="Морские звёзды", cost=340,
+         text="за курсором — маленькие морские звёзды"),
+    dict(id="pearl_notes", kind="cosmetic", cat="fx", group="notes", chapter=3, name="Жемчужные ноты", cost=300,
+         text="ноты артистов переливаются перламутром"),
+    dict(id="jellyfish", kind="cosmetic", cat="fx", chapter=3, name="Светящиеся медузы", cost=460,
+         text="по залу плывут розовые медузы-огоньки"),
+    # --- горы драконов (глава 5)
+    dict(id="flame_idols", kind="cosmetic", cat="chars", group="stage", chapter=4, group_act=True,
+         name="Группа «Пламя»", cost=1300, stage="tavern_flame_idols", timing="music_flame_idols",
+         text="три драконицы-айдола: огненный танец и хвосты в такт"),
+    dict(id="saya", kind="cosmetic", cat="chars", group="stage", chapter=4, name="Скрипачка Сайя", cost=1450,
+         stage="tavern_saya", timing="music_saya", text="драконида-альтушка с электроскрипкой и пирсингом в рожках"),
+    dict(id="grom", kind="cosmetic", cat="chars", group="stage", chapter=4, name="Барабанщик Гром", cost=1600,
+         stage="tavern_grom", timing="music_grom", text="огромный драконид бьёт в боевые барабаны"),
+    dict(id="dragon_egg", kind="cosmetic", cat="decor", chapter=4, name="Драконье яйцо", cost=620,
+         text="тёплое яйцо на подставке; иногда шевелится"),
+    dict(id="dragon_shield", kind="cosmetic", cat="decor", chapter=4, name="Щит с драконом", cost=700,
+         text="боевой щит с гербом дракона на стене"),
+    dict(id="brazier", kind="cosmetic", cat="decor", chapter=4, name="Жаровня", cost=780,
+         text="у сцены пылают угли"),
+    dict(id="ember_trail", kind="cosmetic", cat="fx", group="trail", chapter=4, name="Искры", cost=460,
+         text="за курсором сыплются искры"),
+    dict(id="fire_notes", kind="cosmetic", cat="fx", group="notes", chapter=4, name="Огненные ноты", cost=420,
+         text="ноты артистов горят пламенем"),
+    dict(id="fire_butterflies", kind="cosmetic", cat="fx", chapter=4, name="Огненные бабочки", cost=600,
+         text="по залу порхают огненные бабочки"),
 ]
+PRIZE_CHAPTER_NAMES = {2: "Зимнее поле", 3: "Рыбацкая деревня", 4: "Горы драконов"}   # 3.47: «откроется в главе N»
 PRIZE_TABS = (("decor", "Украшения"), ("chars", "Персонажи"), ("fx", "Эффекты"), ("misc", "Прочее"),
               ("trophy", "Трофеи"))
 # лист призов 3×3 (assets/icons/prizes) — порядок клеток картинки пользователя (23.11), не зависит от PRIZES

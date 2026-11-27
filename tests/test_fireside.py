@@ -43,6 +43,9 @@ class CosmeticShop(unittest.TestCase):
                     self.assertIn(f'group_on("{p["group"]}")', code, p["id"])
                     self.assertGreaterEqual(code.count(f'"{p["id"]}"'), 2, p["id"])     # значок + где рисуется
                     continue
+                if p.get("chapter"):   # 3.47: украшения глав 3–5 — циклом по списку id в tavern_life_ui
+                    self.assertIn(f'"{p["id"]}"', source("tavern_life_ui.py"), f"украшение {p['id']} нигде не рисуется")
+                    continue
                 self.assertTrue(f'prize_on("{p["id"]}")' in code, f"украшение {p['id']} нигде не рисуется")
 
     def test_ids_unique(self):

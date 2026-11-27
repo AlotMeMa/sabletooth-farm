@@ -64,7 +64,11 @@ PATRONS = [   # гости у левого стола
 
 # 3.33: где в зале новые призы, если в разметке ("decor" в tavern.json) их мест нет: фонарики (x под балкой),
 # своя кружка (низ на стойке), сова (лапы на бочке за барменом), светлячки (прямоугольник x0, y0, x1, y1)
-DECOR_DEFAULTS = dict(lanterns=[300, 525, 770], own_mug=[634, 369], owl=[312, 128], fireflies=[300, 60, 900, 330])
+DECOR_DEFAULTS = dict(lanterns=[300, 525, 770], own_mug=[634, 369], owl=[312, 128], fireflies=[300, 60, 900, 330],
+                      # 3.47: украшения глав 3–5 (поправить можно в tavern.json, раздел "decor")
+                      snow_globe=[772, 371], goldfish_bowl=[668, 371], dragon_egg=[812, 312],
+                      antlers=[500, 120], ship_wheel=[305, 300], dragon_shield=[890, 290],
+                      ice_chandelier=[500, 0], nets=[160, 400, 650, 900], brazier=[600, 520])
 OWL_LINES = ["Уху!", "Уху-уху!", "Ух... (сова смотрит на тебя очень внимательно)", "Уху! (кажется, она одобряет)"]
 
 
@@ -105,6 +109,29 @@ ARTIST_LOOKS = {
     "bard_girl": dict(top=(230, 225, 205), dress=(190, 90, 80), hair=(200, 140, 70), style="long", girl=True),
     "fiddler": dict(top=(200, 120, 60), legs=(80, 90, 130), hair=(240, 200, 110), style="short"),
     "bagpiper": dict(top=(90, 110, 70), legs=(120, 90, 60), hair=(210, 210, 215), style="short", beard=True),
+    # 3.47: артисты глав 3–5 (кодом — заглушки до картинок characters/<id>); group — на сцене трое
+    "helga": dict(top=(235, 225, 205), dress=(120, 90, 70), hair=(245, 215, 130), style="long", girl=True),
+    "undina": dict(top=(90, 180, 170), dress=(40, 120, 130), hair=(90, 210, 200), style="long", girl=True,
+                   skin=(225, 235, 230)),
+    "kuzma": dict(top=(40, 60, 110), legs=(60, 60, 70), hair=(190, 190, 195), style="cap", beard=True),
+    "saya": dict(top=(60, 30, 70), dress=(25, 20, 30), hair=(170, 30, 50), style="long", girl=True, skin=(245, 210, 190)),
+    "grom": dict(top=(150, 60, 40), legs=(70, 50, 40), hair=(60, 40, 30), style="bald", beard=True, skin=(230, 170, 140)),
+    "ice_idols": dict(group=[
+        dict(top=(215, 230, 245), dress=(170, 200, 235), hair=(250, 190, 215), style="long", girl=True),
+        dict(top=(235, 240, 250), dress=(200, 215, 240), hair=(240, 240, 245), style="long", girl=True),
+        dict(top=(215, 230, 245), dress=(170, 200, 235), hair=(200, 170, 240), style="long", girl=True)]),
+    "gnome_choir": dict(group=[
+        dict(top=(150, 60, 60), legs=(90, 70, 50), hair=(240, 240, 235), style="cap", beard=True),
+        dict(top=(60, 110, 70), legs=(90, 70, 50), hair=(230, 150, 70), style="cap", beard=True),
+        dict(top=(70, 90, 150), legs=(90, 70, 50), hair=(150, 150, 155), style="cap", beard=True)], small=True),
+    "sirens": dict(group=[
+        dict(top=(120, 30, 60), dress=(25, 20, 30), hair=(200, 200, 215), style="short", girl=True, skin=(245, 230, 230)),
+        dict(top=(80, 40, 120), dress=(25, 20, 30), hair=(150, 40, 70), style="long", girl=True, skin=(245, 230, 230)),
+        dict(top=(120, 30, 60), dress=(25, 20, 30), hair=(110, 60, 170), style="bun", girl=True, skin=(245, 230, 230))]),
+    "flame_idols": dict(group=[
+        dict(top=(230, 80, 50), dress=(200, 50, 40), hair=(40, 20, 20), style="long", girl=True, skin=(240, 195, 170)),
+        dict(top=(250, 150, 60), dress=(230, 110, 40), hair=(200, 40, 30), style="long", girl=True, skin=(240, 195, 170)),
+        dict(top=(230, 80, 50), dress=(200, 50, 40), hair=(250, 200, 90), style="long", girl=True, skin=(240, 195, 170))]),
 }
 NOTE_COLORS = [(255, 235, 150), (255, 200, 120), (190, 230, 255), (255, 190, 210)]
 

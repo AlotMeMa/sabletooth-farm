@@ -112,6 +112,7 @@ class PlayerCasino(unittest.TestCase):
         # 3.19: магазин таверны — только косметика: покупки не меняют доход и шанс урожая
         from farmgame.config import PRIZES
         self.assertTrue(all(p["kind"] in ("trophy", "cosmetic") for p in PRIZES))
+        self.f.farm_index = 4                              # 3.47: все главы пройдены — открыто всё
         self.f.levels[0] = 10
         base = self.f.cycle_income(0)
         self.t.tokens = 10 ** 6
@@ -174,3 +175,28 @@ class KnownMusic(unittest.TestCase):
         self.assertIn("tavern_girl", scenes)                 # шаблон поиска правда что-то находит
         for name in scenes:
             self.assertIn(f'"{name}"', known)
+
+
+class ChapterPrizes347(unittest.TestCase):
+    """3.47: каждая глава открывает в стойке 3 артиста, 3 украшения и 3 эффекта; до неё — видно, но не купить."""
+
+    def test_three_of_each_per_chapter(self):
+        from farmgame.config import PRIZES
+        for ch in (2, 3, 4):
+            for cat in ("chars", "decor", "fx"):
+                n = sum(1 for p in PRIZES if p.get("chapter") == ch and p.get("cat") == cat)
+                self.assertEqual(n, 3, (ch, cat))
+
+    def test_locked_until_chapter(self):
+        from farmgame.logic import Farm
+        from farmgame.tavern import Tavern, prize_locked
+        f, t = Farm(), Tavern()
+        t.tokens = 10 ** 6
+        f.farm_index = 1
+        ok, why = t.buy_prize(f, "ice_idols")
+        self.assertFalse(ok)
+        self.assertIn("главе 3", why)
+        f.farm_index = 2
+        self.assertTrue(t.buy_prize(f, "ice_idols")[0])
+        self.assertEqual(t.stage_artist()["id"], "ice_idols")
+        self.assertFalse(prize_locked({"id": "x"}, f))

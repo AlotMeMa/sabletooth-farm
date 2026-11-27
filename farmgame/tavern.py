@@ -134,6 +134,28 @@ def barman_lines(tavern):
     return out
 
 
+def prize_locked(prize, farm):
+    """3.47: приз откроется только на главе prize["chapter"] (номер фермы)."""
+    return farm is not None and prize.get("chapter", 0) > farm.farm_index
+
+
+def prize_lock_text(prize):
+    from .config import PRIZE_CHAPTER_NAMES
+    ch = prize.get("chapter", 0)
+    return f"Откроется в главе {ch + 1} «{PRIZE_CHAPTER_NAMES.get(ch, '')}»"
+
+
+ICE_IDOLS_LINES = ["Раз-два-три — и разворот!", "Это наш дебютный сингл!", "Эй, красавчик в первом ряду — это тебе!",
+                   "Фанчант на припеве — все вместе!"]
+HELGA_LINES = ["Эту сагу пели мои бабки у костра.", "Арфа замёрзла — сейчас согрею.", "Налей, бармен, — и спою о викингах."]
+GNOME_CHOIR_LINES = ["Бо-о-о-ом! (это бас)", "Кружки вверх, бороды вниз!", "Ещё куплет — и ещё пиво!"]
+SIRENS_LINES = ["Тьма прекрасна, правда?", "Эта песня — про утонувшее сердце.", "Подойди ближе... мы не кусаемся. Почти."]
+UNDINA_LINES = ["Морская соль в голосе — это навсегда.", "Не смотри так, я тоже смущаюсь.", "Споём про штиль?"]
+KUZMA_LINES = ["Эх, полундра — пляшут все!", "Этот куплет — не для бармена!", "Меха раздуваю — душа поёт!"]
+FLAME_IDOLS_LINES = ["Огонь — наш стиль!", "Хвостами — влево, хвостами — вправо!", "Горячее, чем лава!"]
+SAYA_LINES = ["Скрипка воет, как дракон в ночи.", "Не трогай рожки. Серьёзно.", "Это кавер на драконью колыбельную."]
+GROM_LINES = ["БУМ. БУМ. БУМ.", "Барабан из шкуры старого ящера!", "Громче? Можно громче!"]
+
 FIDDLER_LINES = [   # 3.23: скрипач Тимоха
     "Эх, раз, ещё раз! Танцуют все!", "Струна лопнула? Не беда, у меня их четыре!", "Эту плясовую я сочинил сам!",
     "Кто быстрее: я или ваши ноги?",
@@ -142,7 +164,10 @@ BAGPIPE_LINES = [   # 3.23: волынщик Ерёма
     "Волынка, внучек, — это тебе не дудка!", "Эту песню мой дед играл на свадьбе короля.",
     "Тише, тише... сейчас будет громко!", "Борода мешает? Ни капли!",
 ]
-ARTIST_LINES = {"bard_girl": "GIRL_LINES", "fiddler": "FIDDLER_LINES", "bagpiper": "BAGPIPE_LINES"}
+ARTIST_LINES = {"bard_girl": "GIRL_LINES", "fiddler": "FIDDLER_LINES", "bagpiper": "BAGPIPE_LINES",
+                "ice_idols": "ICE_IDOLS_LINES", "helga": "HELGA_LINES", "gnome_choir": "GNOME_CHOIR_LINES",
+                "sirens": "SIRENS_LINES", "undina": "UNDINA_LINES", "kuzma": "KUZMA_LINES",
+                "flame_idols": "FLAME_IDOLS_LINES", "saya": "SAYA_LINES", "grom": "GROM_LINES"}
 GIRL_LINES = [   # 3.15.2: певица Мила (скин барда из призов казино)
     "Ой, люли-люли, поле золотое!", "Спою вам про луга и речку!", "Подпевайте, кто знает слова!",
     "Эту песню пела ещё моя бабушка.", "Для вас — самая весёлая!",
@@ -284,6 +309,8 @@ class Tavern:
             return False, "Этот приз выпадает только джекпотом колеса фортуны"
         if prize.get("achievement"):             # 3.34: только за достижение
             return False, "Этот трофей дают только за достижение"
+        if prize_locked(prize, farm):            # 3.47: приз следующей главы
+            return False, prize_lock_text(prize)
         if self.tokens < prize["cost"]:
             return False, f"Нужно жетонов: {prize['cost']}"
         self.tokens -= prize["cost"]

@@ -13,6 +13,8 @@ import random
 
 import pygame
 
+from .tavern import prize_locked, prize_lock_text
+from .move_ui import draw_lock
 from .config import W, H, PRIZES, PRIZE_TABS
 from .art import (OUT, WHITE, GOLD, BTN_GREEN, BTN_BLUE, BTN_GREY, P, poly, rounded, draw_text, render_text,
                   draw_text_fit, blit_sprite, blit_tf, blit_light, has_sprite, ellipse, RAINBOW)
@@ -405,7 +407,8 @@ class CasinoUI:
             pool = [p for p in PRIZES if p["kind"] == "trophy"]
         else:
             pool = [p for p in PRIZES if p["kind"] == "cosmetic" and p.get("cat", "decor") == self.prize_tab]
-        items = sorted(pool, key=lambda p: (bool(p.get("jackpot") or p.get("achievement")), p["cost"]))  # не продающиеся — в конце
+        # не продающиеся — в конце; 3.47: дальше по главам (что откроется позже — ниже)
+        items = sorted(pool, key=lambda p: (bool(p.get("jackpot") or p.get("achievement")), p.get("chapter", 0), p["cost"]))
         per = 4
         pages = max(1, (len(items) + per - 1) // per)
         self.prize_page = min(getattr(self, "prize_page", 0), pages - 1) if self.prize_tab == getattr(
@@ -433,6 +436,11 @@ class CasinoUI:
             elif p.get("jackpot"):        # 3.27: не продаётся — выпадает джекпотом колеса фортуны в Игровой
                 self.button(bt, "Джекпот колеса", lambda: None, BTN_GREY, False, 14)
                 self.tip(bt, "Выпадает только джекпотом колеса фортуны в Игровой")
+            elif prize_locked(p, self.farm):     # 3.47: приз следующей главы — виден, но пока закрыт
+                ch = p.get("chapter", 0)
+                self.button(bt, f"Глава {ch + 1}", lambda: None, BTN_GREY, False, 15)
+                draw_lock(s, bt.x + 22, bt.centery - 2, 0.42)
+                self.tip(bt, f"{prize_lock_text(p)} · {p['cost']} жетонов")
             else:
                 can = t.tokens >= p["cost"]
                 self.button(bt, f"{p['cost']}", lambda pid=p["id"]: self.buy_prize(pid), BTN_GREEN, can, 18)
@@ -579,9 +587,15 @@ def draw_prize_icon(s, prize, x, y, k=1.0):
         poly(s, WHITE, [(x + 10 * k, y - 14 * k), (x + 10 * k, y + 4 * k), (x + 15 * k, y - 1 * k), (x + 20 * k, y - 1 * k)], 2)
     elif draw_new_prize_icon(s, pid, x, y, k):         # 3.33–3.34: новые призы
         pass
-    elif pid in ("bard_girl", "fiddler", "bagpiper"):              # 3.23: артисты сцены
+    elif pid in ("bard_girl", "fiddler", "bagpiper", "helga", "undina", "kuzma", "saya", "grom"):   # артисты сцены
         from .tavern_ui import draw_person, ARTIST_LOOKS
         draw_person(s, x, y + 16 * k, 0.42 * k, ARTIST_LOOKS[pid])
+    elif pid in ("ice_idols", "gnome_choir", "sirens", "flame_idols"):   # 3.47: группы — трое
+        from .tavern_ui import draw_person, ARTIST_LOOKS
+        for dx, one in zip((-12, 12, 0), ARTIST_LOOKS[pid]["group"]):
+            draw_person(s, x + dx * k, y + (16 if dx else 20) * k, 0.3 * k, one)
+    elif draw_prize_icon_347(s, pid, x, y, k):
+        pass
     elif pid in ("flowers", "rug", "kettle", "cat"):        # 3.19: украшения у камина
         from .fireside_art import draw_cat, draw_kettle, draw_flowers, draw_rug
         if pid == "flowers":
@@ -675,6 +689,37 @@ def draw_new_prize_icon(s, pid, x, y, k=1.0):
         from .blackjack_ui import draw_card, CARD_BACKS
         draw_card(s, x - 6 * k, y + 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
         draw_card(s, x + 6 * k, y - 2 * k, None, False, 0.42 * k, back=CARD_BACKS[pid], shadow=False)
+    else:
+        return False
+    return True
+
+
+def draw_prize_icon_347(s, pid, x, y, k=1.0):
+    """3.47: значки призов глав 3–5 кодом (пока нет icons/prize_<id>). True — нарисовано."""
+    from . import decor_art2 as d2
+    from .tavern_art import draw_note
+    if pid in ("snow_globe", "goldfish_bowl", "dragon_egg", "brazier", "antlers"):
+        d2.DECOR_DRAW[pid](s, x, y + 22 * k, 0.75 * k, 0.0)
+    elif pid in ("ship_wheel", "dragon_shield"):
+        d2.DECOR_DRAW[pid](s, x, y, 0.6 * k, 0.0)
+    elif pid == "ice_chandelier":
+        d2.draw_ice_chandelier(s, x, y - 26 * k, 0.6 * k, 0.0)
+    elif pid == "nets":
+        d2.draw_nets(s, [x - 22 * k, x + 22 * k], y - 10 * k, 0.0)
+    elif pid in ("snow_trail", "starfish_trail", "ember_trail"):
+        layer = hd.Surface((int(60 * k), int(40 * k)), pygame.SRCALPHA)
+        layer.fill((0, 0, 0, 0))
+        style = {"snow_trail": "snow", "starfish_trail": "starfish", "ember_trail": "embers"}[pid]
+        for i in range(4):
+            d2.trail_piece(layer, style, 8 * k + i * 13 * k, 28 * k - i * 6 * k, 0.4 + 0.2 * i, i * 3, 0.0)
+        s.blit(layer, (int(x - 30 * k), int(y - 20 * k)))
+    elif pid in ("frost_notes", "pearl_notes", "fire_notes"):
+        cols = d2.NOTE_SKIN_COLORS[pid]
+        blit_light(s, x, y, 40 * k, cols[1], 120, 0.0)
+        draw_note(s, x - 8 * k, y + 4 * k, color=cols[0])
+        draw_note(s, x + 8 * k, y - 4 * k, color=cols[1])
+    elif pid in ("snowfall", "jellyfish", "fire_butterflies"):
+        d2.draw_ambient(s, 1.0, (x - 18 * k, y - 14 * k, x + 18 * k, y + 14 * k), pid, 5 if pid != "snowfall" else 10, 2)
     else:
         return False
     return True

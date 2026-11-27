@@ -328,14 +328,27 @@ class TavernUI:
                        sx=1 + 0.02 * hit, sy=1 - 0.035 * hit * (1.5 if solo else 1.0), angle=sway):
             look = ARTIST_LOOKS.get(who, ARTIST_LOOKS["bard"])
             talking = self.tv_bubble is not None and self.tv_bubble[0] == bx
-            draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
-            draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
+            if look.get("group"):                     # 3.47: группа — трое, танцуют вразнобой в такт
+                gk = k * (0.7 if look.get("small") else 0.85)
+                for n, (dx, one) in enumerate(zip((-34, 0, 34), look["group"])):
+                    hop = bob * (1.0 if n % 2 else 0.6)
+                    up = 0.9 + 0.5 * math.sin(beat * math.pi + n)
+                    draw_person(s, bx + dx * k, by - hop, gk, one, tt, talking and n == 1, arms=(up, 0.9 + 0.4 * strum))
+            else:
+                draw_person(s, bx, by - bob, k, look, tt, talking, arms=(1.35, 0.55 + 0.35 * strum))
+                draw_lute(s, bx + 3.5 * k, by - bob - 40 * k, k, strum)
         notes = [f"icons/note_{i}" for i in range(1, 5) if has_sprite(f"icons/note_{i}")]
         notes_skin = self.tavern.group_on("notes")      # 3.33: одно из — «Нарядные ноты» (3.14) или «Радужные» (3.27)
         fancy = notes_skin == "gold_notes"
         rainbow = notes_skin == "rainbow_notes"
+        from .decor_art2 import NOTE_SKIN_COLORS
+        skin_cols = NOTE_SKIN_COLORS.get(notes_skin)     # 3.47: морозные, жемчужные, огненные
         for x, y, life, _vx, col in self.tv_notes:
-            if rainbow:
+            if skin_cols:
+                col = skin_cols[int(x) % 2]
+                if int(life * 10) % 6 == 0:
+                    blit_light(s, x + 5, y - 6, 26, skin_cols[1], 150, 0.0)
+            elif rainbow:
                 col = RAINBOW[int(life * 6 + x * 0.02) % len(RAINBOW)]
                 if int(life * 10) % 5 == 0:
                     blit_light(s, x + 5, y - 6, 24, col, 150, 0.0)

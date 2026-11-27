@@ -17,7 +17,10 @@ import pygame
 from .config import ASSET_DIR
 
 AUDIO_EXTS = (".ogg", ".mp3", ".wav")
-MUSIC_NAMES = ("summer", "medieval", "winter", "fishing", "main", "tavern", "tavern_girl", "tavern_fiddler", "tavern_bagpipe")   # tavern_girl — песня певицы Милы (3.16.1)
+MUSIC_NAMES = ("summer", "medieval", "winter", "fishing", "main", "tavern", "tavern_girl", "tavern_fiddler", "tavern_bagpipe",
+               # 3.47: песни новых артистов призовой стойки, нет файла — музыка таверны
+               "tavern_ice_idols", "tavern_helga", "tavern_gnome_choir", "tavern_sirens", "tavern_undina", "tavern_kuzma",
+               "tavern_flame_idols", "tavern_saya", "tavern_grom")   # tavern_girl — песня певицы Милы (3.16.1)
 VOLUMES = [0.0, 0.2, 0.4, 0.6, 0.8, 1.0]
 FADE_MS = 1500
 

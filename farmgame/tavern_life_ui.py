@@ -140,6 +140,13 @@ class TavernLifeUI:
         if t.prize_on("flowers"):
             for x, y in d.get("flowers") or []:
                 draw_flowers(s, x, y, 1.0, tt)          # 3.21: крупнее — стоит на столе
+        from .decor_art2 import DECOR_DRAW, draw_nets
+        for pid in ("antlers", "ship_wheel", "dragon_shield", "ice_chandelier"):   # 3.47: стены и потолок
+            if t.prize_on(pid):
+                x, y = d.get(pid) or DECOR_DEFAULTS[pid]
+                DECOR_DRAW[pid](s, x, y, 1.0, tt)
+        if t.prize_on("nets"):
+            draw_nets(s, d.get("nets") or DECOR_DEFAULTS["nets"], self.tl.get("garland_y", 212) + 6, tt)
         if t.prize_on("lanterns"):                      # 3.33: фонарики висят на балке под балконом
             from .decor_art import draw_lantern
             y0 = self.tl.get("garland_y", 212)
@@ -163,6 +170,15 @@ class TavernLifeUI:
             self.tip(zone, "Сова Ухта")
         if t.prize_on("fireflies"):
             draw_fireflies(s, tt, d.get("fireflies") or DECOR_DEFAULTS["fireflies"], 12, 1)
+        from .decor_art2 import DECOR_DRAW, draw_ambient
+        for pid in ("snow_globe", "goldfish_bowl", "dragon_egg", "brazier"):     # 3.47: на стойке и у сцены
+            if t.prize_on(pid):
+                x, y = d.get(pid) or DECOR_DEFAULTS[pid]
+                DECOR_DRAW[pid](s, x, y, 1.0, tt)
+        area = d.get("fireflies") or DECOR_DEFAULTS["fireflies"]
+        for pid, n in (("snowfall", 40), ("jellyfish", 7), ("fire_butterflies", 9)):
+            if t.prize_on(pid):
+                draw_ambient(s, tt, (0, 0, 1000, 640) if pid == "snowfall" else area, pid, n, 3)
 
     def poke_owl(self):
         d = self.tl.get("decor") or {}

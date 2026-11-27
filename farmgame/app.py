@@ -626,8 +626,10 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
             draw_trail(self.screen, self.trail, self.t_real,
                        color=(255, 212, 80) if tr == "gold_trail" else (255, 250, 225),
                        stars=tr == "star_trail",          # 3.27: джекпот колеса фортуны
-                       style={"leaf_trail": "leaves", "bubble_trail": "bubbles"}.get(tr),
-                       life=0.5 if tr in ("leaf_trail", "bubble_trail") else 0.28)
+                       style={"leaf_trail": "leaves", "bubble_trail": "bubbles", "snow_trail": "snow",
+                              "starfish_trail": "starfish", "ember_trail": "embers"}.get(tr),
+                       life=0.5 if tr in ("leaf_trail", "bubble_trail", "snow_trail", "starfish_trail",
+                                          "ember_trail") else 0.28)
         self.draw_hover()
         self.draw_tip()
         self.draw_chapter_card()

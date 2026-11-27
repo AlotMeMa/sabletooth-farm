@@ -288,8 +288,10 @@ def _fit_spec_base(name):
         # жители таверны: бармен — по пояс (низ картинки = край стойки), бард — в полный рост (низ = сцена)
         if last == "barman":
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
-        if last in ("bard", "bard_girl", "fiddler", "bagpiper"):    # 3.15.2 / 3.23: артисты сцены — скины барда
-            return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")
+        if last in ("bard", "bard_girl", "fiddler", "bagpiper", "helga", "undina", "kuzma", "saya", "grom"):
+            return _spec(*_box(130, 180, 4, 4, 4, 0), "bottom")       # 3.15.2 / 3.23 / 3.47: артисты сцены
+        if last in ("ice_idols", "gnome_choir", "sirens", "flame_idols"):  # 3.47: группа на сцене — трое в ряд
+            return _spec(*_box(260, 180, 4, 4, 4, 0), "bottom")
         if last == "dragoness":            # 3.43: драконица Искра по пояс, низ = край стола
             return _spec(*_box(150, 150, 4, 4, 4, 0), "bottom")
         if last == "sailor":               # 3.40: Старый Якорь по пояс, низ = край стола (как Ворчун)

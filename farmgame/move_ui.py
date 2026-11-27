@@ -9,6 +9,7 @@ from .ui_common import *  # noqa: F401,F403
 from .chapters import chapters
 from .tavern_art import wrap
 
+CHAPTER_CARD_TIME = 3.4             # 3.45.4: сколько держится заставка главы после переезда, с
 MAP_GAP = 300                       # между главами на карте, px
 MAP_FIRST = 170                     # первая глава от левого края карты
 MAP_Y = [152, 142, 156, 140]        # высота каждой главы на карте (дорожка петляет; сверху место для флажка)
@@ -120,6 +121,57 @@ class MoveUI:
         self.move_info = False
         self.map_drag_last = None
         self.map_bg = None
+        self.chapter_card = None        # 3.45.4: заставка главы после переезда — (t0, номер главы)
+
+    # ------------------------------------------------------------ 3.45.4: заставка главы
+    def start_chapter_card(self):
+        self.chapter_card = (self.t_real, self.farm.farm_index)
+
+    def chapter_card_active(self):
+        return self.chapter_card is not None and self.t_real - self.chapter_card[0] < CHAPTER_CARD_TIME
+
+    def skip_chapter_card(self):
+        """Щелчок во время заставки — сразу к концу (быстро гаснет)."""
+        t0, i = self.chapter_card
+        left = CHAPTER_CARD_TIME - (self.t_real - t0)
+        if left > 0.5:
+            self.chapter_card = (self.t_real - (CHAPTER_CARD_TIME - 0.5), i)
+
+    def draw_chapter_card(self):
+        """Своя картинка backgrounds/chapter_<глава> (промпт — в доке) или фон поля главы, притемнённый.
+        Сверху — «Глава N» и название; всё плавно появляется и гаснет поверх нового поля."""
+        if not self.chapter_card:
+            return
+        t0, i = self.chapter_card
+        a = self.t_real - t0
+        if a >= CHAPTER_CARD_TIME:
+            self.chapter_card = None
+            return
+        s = self.screen
+        fade = min(1.0, a / 0.35, (CHAPTER_CARD_TIME - a) / 0.6)
+        info = FARMS[min(i, len(FARMS) - 1)]
+        layer = hd.Surface((W, H), pygame.SRCALPHA)
+        layer.fill((0, 0, 0, 0))
+        name = f"backgrounds/chapter_{info['id']}"
+        if has_sprite(name):
+            zoom = 1.0 + 0.04 * min(1.0, a / CHAPTER_CARD_TIME)       # лёгкий наезд камеры
+            blit_sprite(layer, name, W // 2, H // 2, zoom, "center")
+        else:
+            layer.blit(self.bg, (0, 0))
+            shade = hd.Surface((W, H), pygame.SRCALPHA)
+            shade.fill((20, 12, 6, 120))
+            layer.blit(shade, (0, 0))
+        top = hd.Surface((W, 230), pygame.SRCALPHA)                     # тёмная дымка под надписью
+        for y in range(0, 230, 10):
+            pygame.draw.rect(top, (12, 8, 4, int(150 * (1 - y / 230))), (0, y, W, 10))
+        layer.blit(top, (0, 0))
+        rise = 14 * (1 - anim.ease_out_cubic(min(1.0, a / 0.8)))
+        draw_text(layer, f"Глава {i + 1}", 26, (W // 2, 70 + rise), (255, 228, 170))
+        draw_text(layer, info["name"], 48, (W // 2, 124 + rise), WHITE)
+        if a > 0.9:
+            draw_text(layer, "щёлкни, чтобы начать", 15, (W // 2, H - 26), (235, 225, 205))
+        hd.real(layer).set_alpha(int(255 * fade))
+        s.blit(layer, (0, 0))
 
     def open_move_map(self):
         """Окно открылось: карта на текущей главе, выбрана следующая (если есть) — видно, куда ехать."""

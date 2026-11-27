@@ -58,6 +58,7 @@ class WindowsUI:
         self.bandit = None
         self.floaters.clear()
         self.move_notified = False
+        self.start_chapter_card()
         self.toast(f"Добро пожаловать: {self.farm_info()['name']}! Всё заново, но доход x{FARM_BONUS ** f.farm_index}", 5)
         self.toast(f"Трофей «{old['trophy']['name']}»: {old['trophy']['text']}", 5)
         self.save()

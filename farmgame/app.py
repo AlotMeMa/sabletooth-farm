@@ -426,6 +426,9 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
 
     # ------------------------------------------------------------ input
     def on_click(self, pos):
+        if self.chapter_card_active():           # 3.45.4: щелчок по заставке главы — пропустить
+            self.skip_chapter_card()
+            return
         self.click_pos = pos
         self.tip_key, self.tip_t0 = None, self.t_real     # щёлкнул — подсказку убираем
         for rect, cb, btn in reversed(self.zones):
@@ -627,6 +630,7 @@ class App(TavernUI, BoardUI, SongsUI, TavernLifeUI, FiresideUI, MoveUI, TavernHu
                        life=0.5 if tr in ("leaf_trail", "bubble_trail") else 0.28)
         self.draw_hover()
         self.draw_tip()
+        self.draw_chapter_card()
         if self.show_fps:
             draw_text(self.screen, f"{self.clock.get_fps():.0f} кадр/с", 13, (W - 8, H - 4), WHITE,
                       anchor="bottomright")

@@ -9,5 +9,5 @@ A.modal = None
 for pid in ("snow_globe", "antlers", "ice_chandelier", "ship_wheel", "goldfish_bowl", "nets", "dragon_egg",
             "dragon_shield", "brazier", "jellyfish", "frost_notes"):
     t.prizes[pid] = True
-t.prizes["sirens"] = True; t._one_on_stage("sirens")
+t.prizes["ice_idols"] = True; t._one_on_stage("ice_idols")
 frames(60); snap("hall")

@@ -502,6 +502,38 @@ def bg_masks(b, bg, chroma):
     return D, L
 
 
+DEHALO_PREFIXES = ("crops/dragons/",)   # 3.48: у огненных растений нейросеть рисует свечение по мадженте — розовый ореол
+
+
+def dehalo(img):
+    """3.48: розоватый ореол (свечение, смешанное с маджентой), связанный с краем картинки, — в чистую мадженту,
+    чтобы он ушёл вместе с фоном. Внутри контура (розовые щёчки, фиолетовые ягоды) не трогает: заливка идёт от краёв."""
+    px = Pix(img)
+    b, w, h = px.buf, px.w, px.h
+
+    def pink(p):
+        i = p * 4
+        r, g, bl = b[i], b[i + 1], b[i + 2]
+        return r > 140 and bl > 80 and g < bl - 8 and g < r - 25
+
+    seen = bytearray(w * h)
+    stack = [p for p in list(range(w)) + list(range((h - 1) * w, h * w)) + [y * w for y in range(h)]
+             + [y * w + w - 1 for y in range(h)] if pink(p)]
+    for p in stack:
+        seen[p] = 1
+    while stack:
+        p = stack.pop()
+        x = p % w
+        for q in ((p - 1) if x > 0 else -1, (p + 1) if x < w - 1 else -1, p - w, p + w):
+            if 0 <= q < w * h and not seen[q] and pink(q):
+                seen[q] = 1
+                stack.append(q)
+    for p in range(w * h):
+        if seen[p]:
+            b[p * 4:p * 4 + 4] = b"\xff\x00\xff\xff"
+    return px.surface()
+
+
 class Pix:
     """RGBA-картинка как bytearray: быстро читать и писать без get_at/set_at."""
 
@@ -1089,6 +1121,8 @@ def digest(src):
 def _cache_path(name, src, part=None):
     # в ключе и правила подгонки: поменялся размер в игре — картинка пересчитается сама
     key = f"{CACHE_VERSION}|{name}|{fit_spec(name)}|{digest(src)}"
+    if name.startswith(DEHALO_PREFIXES):   # 3.48: с чисткой ореола — свой ключ
+        key += "|dehalo"
     if part and part[0] == "sheet":     # 3.19.1: и клетка листа (поменялась сетка листа — вырежется заново)
         key += f"|sheet{part[1]}:{part[4]}x{part[5]}"
     return os.path.join(CACHE_DIR, hashlib.md5(key.encode("utf-8")).hexdigest() + ".png")
@@ -1214,6 +1248,8 @@ def load_fitted(name, path, part=None):
     if PROBE[0] and not (part is None and spec["align"] == "full" and not name.endswith("fence_front")):
         raise NeedFit(name)
     img = _load(path)
+    if name.startswith(DEHALO_PREFIXES):
+        img = dehalo(img)
     cw, ch = spec["canvas"] if spec else (0, 0)
     if part is None:
         base = _fit_spec_base(name)["canvas"]
